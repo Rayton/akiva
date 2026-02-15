@@ -17,6 +17,8 @@ interface AppContextType {
   setActiveSection: (section: string) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  expandIconSidebar: () => void;
+  collapseIconSidebar: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -37,6 +39,16 @@ export function AppProvider({ children }: AppProviderProps) {
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
     document.documentElement.classList.toggle('dark');
+  };
+
+  const expandIconSidebar = () => {
+    setIconSidebarExpanded(true);
+    setIconSidebarWidth(200);
+  };
+
+  const collapseIconSidebar = () => {
+    setIconSidebarExpanded(false);
+    setIconSidebarWidth(64);
   };
 
   const currentUser: User = {
@@ -63,7 +75,9 @@ export function AppProvider({ children }: AppProviderProps) {
       activeSection,
       setActiveSection,
       isDarkMode,
-      toggleDarkMode
+      toggleDarkMode,
+      expandIconSidebar,
+      collapseIconSidebar
     }}>
       {children}
     </AppContext.Provider>

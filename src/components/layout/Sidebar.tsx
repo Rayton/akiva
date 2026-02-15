@@ -12,7 +12,8 @@ import {
   ChevronUp,
   ChevronRight,
   ChevronLeft,
-  Menu
+  Menu,
+  Shield
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 
@@ -121,6 +122,8 @@ export function Sidebar() {
     setCurrentPage, 
     iconSidebarExpanded, 
     setIconSidebarExpanded,
+    expandIconSidebar,
+    collapseIconSidebar,
     sidebarCollapsed,
     setSidebarCollapsed,
     iconSidebarWidth,
@@ -134,9 +137,26 @@ export function Sidebar() {
   const [hoveredIcon, setHoveredIcon] = useState<string | null>(null);
   const [isResizingIcon, setIsResizingIcon] = useState(false);
   const [isResizingMain, setIsResizingMain] = useState(false);
+  const [isHoveringIconSidebar, setIsHoveringIconSidebar] = useState(false);
   
   const iconSidebarRef = useRef<HTMLDivElement>(null);
   const mainSidebarRef = useRef<HTMLDivElement>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Handle hover to expand icon sidebar (like Instagram)
+  const handleMouseEnterIconSidebar = useCallback(() => {
+    // Expand immediately on hover if not already expanded - also sets width to 200px
+    if (!iconSidebarExpanded) {
+      expandIconSidebar();
+    }
+  }, [iconSidebarExpanded, expandIconSidebar]);
+
+  const handleMouseLeaveIconSidebar = useCallback(() => {
+    // Collapse when mouse leaves - with smooth animation
+    if (iconSidebarExpanded) {
+      collapseIconSidebar();
+    }
+  }, [iconSidebarExpanded, collapseIconSidebar]);
 
   const toggleExpanded = (itemId: string) => {
     setExpandedItems(prev => 
@@ -246,12 +266,14 @@ export function Sidebar() {
   }, [isResizingMain, handleMainMouseMove, handleMainMouseUp]);
 
   return (
-    <div className="flex h-full">
-      {/* Left Icon Sidebar */}
+    <div className="flex h-screen">
+      {/* Left Icon Sidebar - Hover to expand */}
       <div 
         ref={iconSidebarRef}
         className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 ease-in-out relative"
         style={{ width: `${iconSidebarWidth}px` }}
+        onMouseEnter={handleMouseEnterIconSidebar}
+        onMouseLeave={handleMouseLeaveIconSidebar}
       >
         {/* Resize Handle */}
         <div
@@ -273,107 +295,111 @@ export function Sidebar() {
           </button>
         </div>
 
-        <div className="flex flex-col items-center py-4 space-y-4 overflow-hidden">
-          {/* Logo */}
-          <div className="w-10 h-10 bg-black dark:bg-white rounded-full flex items-center justify-center mb-4 flex-shrink-0">
-            <span className="text-white dark:text-black font-bold text-lg">W</span>
-          </div>
-          
-          {/* Icon Navigation */}
-          {iconSidebarItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentPage === item.id;
+        <div className="flex flex-col h-full">
+          {/* Top Section - Logo & Navigation */}
+          <div className={`flex flex-col py-4 space-y-4 overflow-hidden ${iconSidebarExpanded ? 'items-start px-2' : 'items-center'}`}>
+            {/* Logo */}
+            <div className="w-10 h-10 bg-black dark:bg-white rounded-full flex items-center justify-center mb-4 flex-shrink-0">
+              <span className="text-white dark:text-black font-bold text-lg">W</span>
+            </div>
             
-            return (
-              <div key={item.id} className="relative w-full flex-shrink-0">
-                <button
-                  onClick={() => handleIconClick(item.id)}
-                  onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon(item.id)}
-                  onMouseLeave={() => setHoveredIcon(null)}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 mx-auto ${
-                    isActive
-                      ? 'bg-blue-500 text-white shadow-lg'
-                      : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                  } ${iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg mx-2' : ''}`}
-                  style={{ 
-                    width: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px',
-                    maxWidth: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px'
-                  }}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {iconSidebarExpanded && iconSidebarWidth > 120 && (
-                    <span className="ml-3 text-sm font-medium truncate text-gray-900 dark:text-white">{item.label}</span>
+            {/* Icon Navigation */}
+            {iconSidebarItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentPage === item.id;
+              
+              return (
+                <div key={item.id} className="relative w-full flex-shrink-0">
+                  <button
+                    onClick={() => handleIconClick(item.id)}
+                    onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon(item.id)}
+                    onMouseLeave={() => setHoveredIcon(null)}
+                    className={`h-10 rounded-full flex items-center transition-all duration-200 ${
+                      isActive
+                        ? 'bg-blue-500 text-white shadow-lg'
+                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    } ${iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg' : 'w-10 justify-center mx-auto'}`}
+                    style={{ 
+                      width: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px',
+                      maxWidth: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px'
+                    }}
+                  >
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    {iconSidebarExpanded && iconSidebarWidth > 120 && (
+                      <span className="ml-3 text-sm font-medium truncate text-gray-900 dark:text-white">{item.label}</span>
+                    )}
+                  </button>
+                  
+                  {/* Tooltip */}
+                  {!iconSidebarExpanded && hoveredIcon === item.id && (
+                    <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
+                      {item.label}
+                      <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                    </div>
                   )}
-                </button>
-                
-                {/* Tooltip */}
-                {!iconSidebarExpanded && hoveredIcon === item.id && (
-                  <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
-                    {item.label}
-                    <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          
-          {/* Spacer */}
-          <div className="flex-1"></div>
-          
-          {/* Bottom Icons */}
-          <div className="relative w-full flex-shrink-0">
-            <button 
-              onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon('notifications')}
-              onMouseLeave={() => setHoveredIcon(null)}
-              className={`w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center text-white relative transition-all duration-200 mx-auto ${
-                iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg mx-2' : ''
-              }`}
-              style={{ 
-                width: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px',
-                maxWidth: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px'
-              }}
-            >
-              <span className="text-lg font-light flex-shrink-0">C</span>
-              {iconSidebarExpanded && iconSidebarWidth > 120 && (
-                <span className="ml-3 text-sm font-medium truncate">Notifications</span>
-              )}
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-xs font-medium">3</span>
-              </div>
-            </button>
-            
-            {!iconSidebarExpanded && hoveredIcon === 'notifications' && (
-              <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
-                Notifications (3)
-                <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
-              </div>
-            )}
+                </div>
+              );
+            })}
           </div>
-          
-          <div className="relative w-full flex-shrink-0">
-            <button 
-              onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon('settings')}
-              onMouseLeave={() => setHoveredIcon(null)}
-              className={`w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200 mx-auto ${
-                iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg mx-2' : ''
-              }`}
-              style={{ 
-                width: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px',
-                maxWidth: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px'
-              }}
-            >
-              <Settings className="w-5 h-5 flex-shrink-0" />
-              {iconSidebarExpanded && iconSidebarWidth > 120 && (
-                <span className="ml-3 text-sm font-medium text-gray-600 truncate">Settings</span>
+
+          {/* Bottom Section - Fixed at bottom */}
+          <div className={`mt-auto pb-4 flex flex-col space-y-2 ${iconSidebarExpanded ? 'items-start px-2' : 'items-center'}`}>
+            {/* Notifications */}
+            <div className="relative w-full flex-shrink-0">
+              <button 
+                onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon('notifications')}
+                onMouseLeave={() => setHoveredIcon(null)}
+                className={`h-10 bg-pink-500 rounded-full flex items-center justify-center text-white relative transition-all duration-200 ${
+                  iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg' : 'w-10 justify-center'
+                }`}
+                style={{ 
+                  width: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px',
+                  maxWidth: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px'
+                }}
+              >
+                <span className="text-lg font-light flex-shrink-0">C</span>
+                {iconSidebarExpanded && iconSidebarWidth > 120 && (
+                  <span className="ml-3 text-sm font-medium truncate">Notifications</span>
+                )}
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-xs font-medium">3</span>
+                </div>
+              </button>
+              
+              {!iconSidebarExpanded && hoveredIcon === 'notifications' && (
+                <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
+                  Notifications (3)
+                  <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                </div>
               )}
-            </button>
+            </div>
             
-            {!iconSidebarExpanded && hoveredIcon === 'settings' && (
-              <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
-                Settings
-                <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
-              </div>
-            )}
+            {/* Settings - At the bottom */}
+            <div className="relative w-full flex-shrink-0">
+              <button 
+                onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon('settings')}
+                onMouseLeave={() => setHoveredIcon(null)}
+                className={`h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200 ${
+                  iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg' : 'w-10 justify-center'
+                }`}
+                style={{ 
+                  width: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px',
+                  maxWidth: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px'
+                }}
+              >
+                <Settings className="w-5 h-5 flex-shrink-0" />
+                {iconSidebarExpanded && iconSidebarWidth > 120 && (
+                  <span className="ml-3 text-sm font-medium text-gray-600 truncate">Settings</span>
+                )}
+              </button>
+              
+              {!iconSidebarExpanded && hoveredIcon === 'settings' && (
+                <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
+                  Settings
+                  <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -458,23 +484,24 @@ export function Sidebar() {
                     {item.hasSubmenu && isExpanded && (
                       <div className="ml-7 mt-1 space-y-1">
                         {submenuItems[item.id as keyof typeof submenuItems]?.map((subItem, subIndex) => {
-                          if (typeof subItem === 'object' && subItem.hasSubmenu) {
-                            const isSubExpanded = expandedSubItems.includes(subItem.id);
+                          const subItemObj = subItem as { id: string; label: string; hasSubmenu?: boolean };
+                          if (subItemObj.hasSubmenu) {
+                            const isSubExpanded = expandedSubItems.includes(subItemObj.id);
                             return (
                               <div key={subIndex}>
                                 <button
-                                  onClick={() => toggleSubExpanded(subItem.id)}
+                                  onClick={() => toggleSubExpanded(subItemObj.id)}
                                   className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
                                 >
-                                  <span className="truncate">{subItem.label}</span>
+                                  <span className="truncate">{subItemObj.label}</span>
                                   <ChevronUp className={`w-3 h-3 transition-transform flex-shrink-0 ${
                                     isSubExpanded ? 'rotate-180' : ''
                                   }`} />
                                 </button>
                                 
-                                {isSubExpanded && subSubmenuItems[subItem.id as keyof typeof subSubmenuItems] && (
+                                {isSubExpanded && subSubmenuItems[subItemObj.id as keyof typeof subSubmenuItems] && (
                                   <div className="ml-4 mt-1 space-y-1">
-                                    {subSubmenuItems[subItem.id as keyof typeof subSubmenuItems].map((subSubItem, subSubIndex) => (
+                                    {subSubmenuItems[subItemObj.id as keyof typeof subSubmenuItems].map((subSubItem, subSubIndex) => (
                                       <button
                                         key={subSubIndex}
                                         onClick={() => setCurrentPage(subSubItem.id)}
@@ -492,18 +519,17 @@ export function Sidebar() {
                               </div>
                             );
                           } else {
-                            const menuItem = typeof subItem === 'object' ? subItem : { id: subItem.toLowerCase().replace(/\s+/g, '-'), label: subItem };
                             return (
                               <button
                                 key={subIndex}
-                                onClick={() => setCurrentPage(menuItem.id)}
+                                onClick={() => setCurrentPage(subItemObj.id)}
                                 className={`w-full text-left px-3 py-1.5 text-sm transition-colors rounded ${
-                                  currentPage === menuItem.id
+                                  currentPage === subItemObj.id
                                     ? 'bg-gray-200 text-gray-900 font-medium'
                                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                                 }`}
                               >
-                                <span className="truncate">{menuItem.label}</span>
+                                <span className="truncate">{subItemObj.label}</span>
                               </button>
                             );
                           }
@@ -515,10 +541,10 @@ export function Sidebar() {
               })}
             </nav>
 
-            {/* Bottom section */}
-            <div className="p-4 border-t border-gray-200 flex-shrink-0">
-              <button className="w-full flex items-center px-3 py-2 text-left text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-                <Menu className="w-4 h-4 mr-3 flex-shrink-0" />
+            {/* System Administration - Fixed at very bottom */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 mt-auto">
+              <button className="w-full flex items-center px-3 py-2 text-left text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                <Shield className="w-4 h-4 mr-3 flex-shrink-0" />
                 <span className="truncate">System Administration</span>
               </button>
             </div>

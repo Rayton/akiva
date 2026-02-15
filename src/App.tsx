@@ -113,7 +113,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex">
+    <div className="h-screen bg-white flex overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
@@ -128,7 +128,7 @@ function AppContent() {
 function App() {
   return (
     <AppProvider>
-      <div className="bg-white dark:bg-gray-900 min-h-screen transition-colors">
+      <div className="bg-white dark:bg-gray-900 h-screen transition-colors">
         <AppContent />
       </div>
     </AppProvider>

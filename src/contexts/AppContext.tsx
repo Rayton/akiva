@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 
 interface AppContextType {
@@ -17,8 +17,11 @@ interface AppContextType {
   setActiveSection: (section: string) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  setIsDarkMode: (dark: boolean) => void;
   expandIconSidebar: () => void;
   collapseIconSidebar: () => void;
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -34,12 +37,55 @@ export function AppProvider({ children }: AppProviderProps) {
   const [mainSidebarWidth, setMainSidebarWidth] = useState(256);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [activeSection, setActiveSection] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  
+  // Initialize dark mode from localStorage or system preference
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('darkMode');
+      if (stored !== null) {
+        return stored === 'true';
+      }
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
 
+  // Handle dark mode toggle with smooth transition
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
-    document.documentElement.classList.toggle('dark');
   };
+
+  // Apply dark mode class and save to localStorage
+  useEffect(() => {
+    const html = document.documentElement;
+    
+    if (isDarkMode) {
+      html.classList.add('dark');
+    } else {
+      html.classList.remove('dark');
+    }
+    
+    localStorage.setItem('darkMode', String(isDarkMode));
+  }, [isDarkMode]);
+
+  // Remove transitions on initial load to prevent flash
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.add('no-transitions');
+    
+    // Apply initial theme
+    if (isDarkMode) {
+      html.classList.add('dark');
+    }
+    
+    // Enable transitions after a brief delay
+    const timer = setTimeout(() => {
+      html.classList.remove('no-transitions');
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   const expandIconSidebar = () => {
     setIconSidebarExpanded(true);
@@ -76,8 +122,11 @@ export function AppProvider({ children }: AppProviderProps) {
       setActiveSection,
       isDarkMode,
       toggleDarkMode,
+      setIsDarkMode,
       expandIconSidebar,
-      collapseIconSidebar
+      collapseIconSidebar,
+      mobileSidebarOpen,
+      setMobileSidebarOpen
     }}>
       {children}
     </AppContext.Provider>

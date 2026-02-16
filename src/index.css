@@ -1,3 +1,123 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Smooth dark mode transitions */
+:root {
+  --transition-duration: 300ms;
+  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base transitions for all color changes */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: var(--transition-duration);
+  transition-timing-function: var(--transition-timing);
+}
+
+/* Smooth theme transition */
+html {
+  transition: background-color var(--transition-duration) var(--transition-timing),
+              color var(--transition-duration) var(--transition-timing);
+}
+
+/* Dark mode specific styles */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+/* Ensure transitions work for all elements */
+html.dark *,
+html.dark *::before,
+html.dark *::after {
+  transition: background-color var(--transition-duration) var(--transition-timing),
+              border-color var(--transition-duration) var(--transition-timing),
+              color var(--transition-duration) var(--transition-timing),
+              fill var(--transition-duration) var(--transition-timing),
+              stroke var(--transition-duration) var(--transition-timing),
+              box-shadow var(--transition-duration) var(--transition-timing) !important;
+}
+
+/* Disable transitions on first load */
+html.no-transitions *,
+html.no-transitions *::before,
+html.no-transitions *::after {
+  transition: none !important;
+}
+
+/* Custom scrollbar for dark mode */
+html.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Focus ring adjustments for dark mode */
+html.dark .focus-ring {
+  outline: none;
+  ring: 2px;
+  ring-offset: 2px;
+  ring-offset-color: #1e293b;
+}
+
+/* Card hover effects for dark mode */
+html.dark .card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+/* Table styles for dark mode */
+html.dark table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+html.dark th,
+html.dark td {
+  border-bottom: 1px solid #334155;
+}
+
+/* Input styles for dark mode */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  caret-color: #60a5fa;
+}
+
+/* Button hover glow for dark mode */
+html.dark .btn-glow:hover {
+  box-shadow: 0 0 20px rgba(96, 165, 250, 0.4);
+}
+
+/* Hide scrollbar but allow scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth scrolling */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}

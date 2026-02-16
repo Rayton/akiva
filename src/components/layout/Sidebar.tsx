@@ -145,14 +145,12 @@ export function Sidebar() {
   
   // Handle hover to expand icon sidebar (like Instagram)
   const handleMouseEnterIconSidebar = useCallback(() => {
-    // Expand immediately on hover if not already expanded - also sets width to 200px
     if (!iconSidebarExpanded) {
       expandIconSidebar();
     }
   }, [iconSidebarExpanded, expandIconSidebar]);
 
   const handleMouseLeaveIconSidebar = useCallback(() => {
-    // Collapse when mouse leaves - with smooth animation
     if (iconSidebarExpanded) {
       collapseIconSidebar();
     }
@@ -195,7 +193,6 @@ export function Sidebar() {
     const newWidth = Math.max(64, Math.min(400, e.clientX));
     setIconSidebarWidth(newWidth);
     
-    // Auto-expand/collapse based on width
     if (newWidth > 120 && !iconSidebarExpanded) {
       setIconSidebarExpanded(true);
     } else if (newWidth <= 120 && iconSidebarExpanded) {
@@ -220,7 +217,6 @@ export function Sidebar() {
     const newWidth = Math.max(200, Math.min(500, e.clientX - iconWidth));
     setMainSidebarWidth(newWidth);
     
-    // Auto-expand/collapse based on width
     if (newWidth < 150 && !sidebarCollapsed) {
       setSidebarCollapsed(true);
     } else if (newWidth >= 150 && sidebarCollapsed) {
@@ -270,7 +266,7 @@ export function Sidebar() {
       {/* Left Icon Sidebar - Hover to expand */}
       <div 
         ref={iconSidebarRef}
-        className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 ease-in-out relative"
+        className="bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 flex flex-col transition-all duration-300 ease-in-out relative"
         style={{ width: `${iconSidebarWidth}px` }}
         onMouseEnter={handleMouseEnterIconSidebar}
         onMouseLeave={handleMouseLeaveIconSidebar}
@@ -285,7 +281,7 @@ export function Sidebar() {
         <div className="absolute -right-3 top-6 z-20">
           <button
             onClick={() => setIconSidebarExpanded(!iconSidebarExpanded)}
-            className="w-6 h-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"
+            className="w-6 h-6 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
           >
             {iconSidebarExpanded ? (
               <ChevronLeft className="w-3 h-3 text-gray-600 dark:text-gray-300" />
@@ -299,8 +295,8 @@ export function Sidebar() {
           {/* Top Section - Logo & Navigation */}
           <div className={`flex flex-col py-4 space-y-4 overflow-hidden ${iconSidebarExpanded ? 'items-start px-2' : 'items-center'}`}>
             {/* Logo */}
-            <div className="w-10 h-10 bg-black dark:bg-white rounded-full flex items-center justify-center mb-4 flex-shrink-0">
-              <span className="text-white dark:text-black font-bold text-lg">W</span>
+            <div className="w-10 h-10 bg-black dark:bg-white rounded-full flex items-center justify-center mb-4 flex-shrink-0 shadow-lg">
+              <span className="text-white dark:text-gray-900 font-bold text-lg">W</span>
             </div>
             
             {/* Icon Navigation */}
@@ -314,10 +310,10 @@ export function Sidebar() {
                     onClick={() => handleIconClick(item.id)}
                     onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon(item.id)}
                     onMouseLeave={() => setHoveredIcon(null)}
-                    className={`h-10 rounded-full flex items-center transition-all duration-200 ${
+                    className={`h-10 rounded-full flex items-center transition-all duration-300 ${
                       isActive
-                        ? 'bg-blue-500 text-white shadow-lg'
-                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25 dark:shadow-blue-500/40'
+                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
                     } ${iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg' : 'w-10 justify-center mx-auto'}`}
                     style={{ 
                       width: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px',
@@ -332,9 +328,9 @@ export function Sidebar() {
                   
                   {/* Tooltip */}
                   {!iconSidebarExpanded && hoveredIcon === item.id && (
-                    <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
+                    <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 dark:bg-slate-800 text-white dark:text-gray-100 px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg border border-gray-700 dark:border-slate-600">
                       {item.label}
-                      <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                      <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-slate-800"></div>
                     </div>
                   )}
                 </div>
@@ -349,7 +345,7 @@ export function Sidebar() {
               <button 
                 onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon('notifications')}
                 onMouseLeave={() => setHoveredIcon(null)}
-                className={`h-10 bg-pink-500 rounded-full flex items-center justify-center text-white relative transition-all duration-200 ${
+                className={`h-10 bg-pink-500 hover:bg-pink-600 rounded-full flex items-center justify-center text-white relative transition-all duration-300 ${
                   iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg' : 'w-10 justify-center'
                 }`}
                 style={{ 
@@ -361,15 +357,15 @@ export function Sidebar() {
                 {iconSidebarExpanded && iconSidebarWidth > 120 && (
                   <span className="ml-3 text-sm font-medium truncate">Notifications</span>
                 )}
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
                   <span className="text-white text-xs font-medium">3</span>
                 </div>
               </button>
               
               {!iconSidebarExpanded && hoveredIcon === 'notifications' && (
-                <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
+                <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 dark:bg-slate-800 text-white dark:text-gray-100 px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg border border-gray-700 dark:border-slate-600">
                   Notifications (3)
-                  <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                  <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-slate-800"></div>
                 </div>
               )}
             </div>
@@ -379,7 +375,7 @@ export function Sidebar() {
               <button 
                 onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon('settings')}
                 onMouseLeave={() => setHoveredIcon(null)}
-                className={`h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200 ${
+                className={`h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all duration-300 ${
                   iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg' : 'w-10 justify-center'
                 }`}
                 style={{ 
@@ -389,14 +385,14 @@ export function Sidebar() {
               >
                 <Settings className="w-5 h-5 flex-shrink-0" />
                 {iconSidebarExpanded && iconSidebarWidth > 120 && (
-                  <span className="ml-3 text-sm font-medium text-gray-600 truncate">Settings</span>
+                  <span className="ml-3 text-sm font-medium text-gray-600 dark:text-gray-300 truncate">Settings</span>
                 )}
               </button>
               
               {!iconSidebarExpanded && hoveredIcon === 'settings' && (
-                <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg">
+                <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-gray-900 dark:bg-slate-800 text-white dark:text-gray-100 px-2 py-1 rounded text-xs whitespace-nowrap z-50 shadow-lg border border-gray-700 dark:border-slate-600">
                   Settings
-                  <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                  <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-slate-800"></div>
                 </div>
               )}
             </div>
@@ -407,7 +403,7 @@ export function Sidebar() {
       {/* Main Navigation Sidebar */}
       <div 
         ref={mainSidebarRef}
-        className={`bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 ease-in-out overflow-hidden relative ${
+        className={`bg-gray-50 dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col transition-all duration-300 ease-in-out overflow-hidden relative ${
           sidebarCollapsed ? 'w-0' : ''
         }`}
         style={{ width: sidebarCollapsed ? '0px' : `${mainSidebarWidth}px` }}
@@ -422,7 +418,7 @@ export function Sidebar() {
         <div className="absolute -right-3 top-6 z-20">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-6 h-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"
+            className="w-6 h-6 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
           >
             {sidebarCollapsed ? (
               <ChevronRight className="w-3 h-3 text-gray-600 dark:text-gray-300" />
@@ -435,10 +431,10 @@ export function Sidebar() {
         {!sidebarCollapsed && (
           <>
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-black dark:bg-white rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-white dark:text-black font-bold text-sm">W</span>
+                <div className="w-8 h-8 bg-black dark:bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
+                  <span className="text-white dark:text-gray-900 font-bold text-sm">W</span>
                 </div>
                 <div className="flex items-center space-x-1 min-w-0">
                   <span className="font-medium text-gray-900 dark:text-white truncate">webERP Pro</span>
@@ -464,10 +460,10 @@ export function Sidebar() {
                           setCurrentPage(item.id);
                         }
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-2 text-left rounded-lg transition-colors text-sm ${
+                      className={`w-full flex items-center justify-between px-3 py-2 text-left rounded-lg transition-all duration-200 text-sm ${
                         isActive
-                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 font-medium'
-                          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-900 dark:text-blue-100 font-medium'
+                          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
                       <div className="flex items-center min-w-0">
@@ -475,7 +471,7 @@ export function Sidebar() {
                         <span className="truncate">{item.label}</span>
                       </div>
                       {item.hasSubmenu && (
-                        <Plus className={`w-4 h-4 transition-transform flex-shrink-0 text-gray-400 dark:text-gray-500 ${
+                        <Plus className={`w-4 h-4 transition-transform duration-200 flex-shrink-0 text-gray-400 dark:text-gray-500 ${
                           isExpanded ? 'rotate-45' : ''
                         }`} />
                       )}
@@ -491,10 +487,10 @@ export function Sidebar() {
                               <div key={subIndex}>
                                 <button
                                   onClick={() => toggleSubExpanded(subItemObj.id)}
-                                  className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                                  className="w-full flex items-center justify-between px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-all duration-200"
                                 >
                                   <span className="truncate">{subItemObj.label}</span>
-                                  <ChevronUp className={`w-3 h-3 transition-transform flex-shrink-0 ${
+                                  <ChevronUp className={`w-3 h-3 transition-transform duration-200 flex-shrink-0 ${
                                     isSubExpanded ? 'rotate-180' : ''
                                   }`} />
                                 </button>
@@ -505,10 +501,10 @@ export function Sidebar() {
                                       <button
                                         key={subSubIndex}
                                         onClick={() => setCurrentPage(subSubItem.id)}
-                                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors rounded ${
+                                        className={`w-full text-left px-3 py-1.5 text-sm transition-all duration-200 rounded ${
                                           currentPage === subSubItem.id
-                                            ? 'bg-gray-200 text-gray-900 font-medium'
-                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                            ? 'bg-gray-200 dark:bg-slate-600 text-gray-900 dark:text-white font-medium'
+                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'
                                         }`}
                                       >
                                         <span className="truncate">{subSubItem.label}</span>
@@ -523,10 +519,10 @@ export function Sidebar() {
                               <button
                                 key={subIndex}
                                 onClick={() => setCurrentPage(subItemObj.id)}
-                                className={`w-full text-left px-3 py-1.5 text-sm transition-colors rounded ${
+                                className={`w-full text-left px-3 py-1.5 text-sm transition-all duration-200 rounded ${
                                   currentPage === subItemObj.id
-                                    ? 'bg-gray-200 text-gray-900 font-medium'
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                    ? 'bg-gray-200 dark:bg-slate-600 text-gray-900 dark:text-white font-medium'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'
                                 }`}
                               >
                                 <span className="truncate">{subItemObj.label}</span>
@@ -542,8 +538,8 @@ export function Sidebar() {
             </nav>
 
             {/* System Administration - Fixed at very bottom */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 mt-auto">
-              <button className="w-full flex items-center px-3 py-2 text-left text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+            <div className="p-4 border-t border-gray-200 dark:border-slate-700 flex-shrink-0 mt-auto">
+              <button className="w-full flex items-center px-3 py-2 text-left text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-all duration-200">
                 <Shield className="w-4 h-4 mr-3 flex-shrink-0" />
                 <span className="truncate">System Administration</span>
               </button>

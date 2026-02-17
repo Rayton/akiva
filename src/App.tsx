@@ -162,9 +162,9 @@ function MobileHeader() {
           </button>
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gray-900 dark:bg-white rounded-full flex items-center justify-center">
-              <span className="text-white dark:text-gray-900 font-bold text-sm">W</span>
+              <span className="text-white dark:text-gray-900 font-bold text-sm">A</span>
             </div>
-            <span className="font-semibold text-gray-900 dark:text-white text-sm">webERP</span>
+            <span className="font-semibold text-gray-900 dark:text-white text-sm">Akiva</span>
           </div>
         </div>
         
@@ -192,7 +192,7 @@ function MobileHeader() {
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
           
-          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+          <div className="w-8 h-8 bg-gradient-to-r from-brand-500 to-purple-500 rounded-full flex items-center justify-center">
             <span className="text-white text-xs font-medium">JD</span>
           </div>
         </div>
@@ -231,7 +231,7 @@ function MobileNav() {
               onClick={() => handleNavClick(item.id)}
               className={`flex flex-col items-center justify-center min-w-[50px] h-12 px-1 rounded-lg transition-all duration-200 ${
                 isActive
-                  ? 'text-blue-500'
+                  ? 'text-brand-500'
                   : 'text-gray-500 dark:text-gray-400'
               }`}
             >
@@ -305,14 +305,17 @@ function MobileSidebarOverlay() {
       />
       
       {/* Sidebar Panel */}
-      <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl overflow-y-auto">
+      <div 
+        className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-slate-700">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gray-900 dark:bg-white rounded-full flex items-center justify-center">
-              <span className="text-white dark:text-gray-900 font-bold text-lg">W</span>
+              <span className="text-white dark:text-gray-900 font-bold text-lg">A</span>
             </div>
-            <span className="font-semibold text-gray-900 dark:text-white">webERP</span>
+            <span className="font-semibold text-gray-900 dark:text-white">Akiva</span>
           </div>
           <button 
             onClick={() => setMobileSidebarOpen(false)}
@@ -332,7 +335,7 @@ function MobileSidebarOverlay() {
             }}
             className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'dashboard'
-                ? 'bg-blue-500 text-white'
+                ? 'bg-brand-500 text-white'
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
             }`}
           >
@@ -360,7 +363,7 @@ function MobileSidebarOverlay() {
                     }}
                     className={`w-full flex items-center justify-between px-4 py-2.5 ml-4 rounded-lg transition-colors ${
                       currentPage === item.id
-                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        ? 'bg-brand-50 dark:bg-brand-dark-100 text-brand-700 dark:text-brand-dark-text'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800'
                     }`}
                   >
@@ -380,7 +383,7 @@ function MobileSidebarOverlay() {
             }}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'starred'
-                ? 'bg-blue-500 text-white'
+                ? 'bg-brand-500 text-white'
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
             }`}
           >
@@ -396,7 +399,7 @@ function MobileSidebarOverlay() {
             }}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'recent'
-                ? 'bg-blue-500 text-white'
+                ? 'bg-brand-500 text-white'
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
             }`}
           >

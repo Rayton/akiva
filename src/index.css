@@ -50,10 +50,29 @@ html.no-transitions *::after {
   transition: none !important;
 }
 
-/* Custom scrollbar for dark mode */
+/* Custom scrollbar - thin and pale for both light and dark mode */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Dark mode scrollbar - pale thin pink */
 html.dark ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 html.dark ::-webkit-scrollbar-track {
@@ -61,12 +80,12 @@ html.dark ::-webkit-scrollbar-track {
 }
 
 html.dark ::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 4px;
+  background: rgba(236, 72, 153, 0.4);
+  border-radius: 3px;
 }
 
 html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: rgba(236, 72, 153, 0.6);
 }
 
 /* Focus ring adjustments for dark mode */

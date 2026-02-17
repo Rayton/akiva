@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "wsl.exe",
+            "args": [
+                "/home/rayton/.config/herd-lite/bin/php",
+                "/var/www/html/akiva/api/artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}

@@ -10,21 +10,14 @@ export function Header() {
     <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 transition-colors duration-300">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
-          {/* Left side - Logo and search */}
+          {/* Left side - Search only */}
           <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gray-900 dark:bg-white rounded-full flex items-center justify-center shadow-lg">
-                <span className="text-white dark:text-gray-900 font-bold text-sm">W</span>
-              </div>
-              <span className="font-medium text-gray-900 dark:text-white">webERP Pro</span>
-            </div>
-            
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
               <input
                 type="text"
                 placeholder='Search transactions, reports...'
-                className="pl-10 pr-4 py-2 w-80 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 transition-all duration-300 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                className="pl-10 pr-4 py-2 w-80 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-pink-500 focus:bg-white dark:focus:bg-slate-700 transition-all duration-300 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
               />
             </div>
           </div>
@@ -62,11 +55,11 @@ export function Header() {
             </button>
             
             {/* User Avatar */}
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center shadow-md">
+            <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full flex items-center justify-center shadow-md">
               <span className="text-white text-sm font-medium">JD</span>
             </div>
             
-            <button className="w-8 h-8 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-500 rounded-full flex items-center justify-center text-white transition-all duration-300 shadow-md hover:shadow-lg">
+            <button className="w-8 h-8 bg-pink-500 hover:bg-pink-600 dark:bg-pink-600 dark:hover:bg-pink-500 rounded-full flex items-center justify-center text-white transition-all duration-300 shadow-md hover:shadow-lg">
               <span className="text-lg font-light">+</span>
             </button>
           </div>

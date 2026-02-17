@@ -273,20 +273,20 @@ export function Sidebar() {
       >
         {/* Resize Handle */}
         <div
-          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 dark:hover:bg-blue-400 hover:w-1.5 transition-all duration-200 z-10"
-          onMouseDown={handleIconMouseDown}
+        className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-brand-500 dark:hover:bg-brand-400 hover:w-1.5 transition-all duration-200 z-10"
+        onMouseDown={handleIconMouseDown}
         />
 
-        {/* Toggle Button */}
+        {/* Toggle Button - toggles second sidebar */}
         <div className="absolute -right-3 top-6 z-20">
           <button
-            onClick={() => setIconSidebarExpanded(!iconSidebarExpanded)}
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="w-6 h-6 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
           >
-            {iconSidebarExpanded ? (
-              <ChevronLeft className="w-3 h-3 text-gray-600 dark:text-gray-300" />
-            ) : (
+            {sidebarCollapsed ? (
               <ChevronRight className="w-3 h-3 text-gray-600 dark:text-gray-300" />
+            ) : (
+              <ChevronLeft className="w-3 h-3 text-gray-600 dark:text-gray-300" />
             )}
           </button>
         </div>
@@ -295,8 +295,13 @@ export function Sidebar() {
           {/* Top Section - Logo & Navigation */}
           <div className={`flex flex-col py-4 space-y-4 overflow-hidden ${iconSidebarExpanded ? 'items-start px-2' : 'items-center'}`}>
             {/* Logo */}
-            <div className="w-10 h-10 bg-black dark:bg-white rounded-full flex items-center justify-center mb-4 flex-shrink-0 shadow-lg">
-              <span className="text-white dark:text-gray-900 font-bold text-lg">W</span>
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-black dark:bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
+                <span className="text-white dark:text-gray-900 font-bold text-lg">A</span>
+              </div>
+              {iconSidebarExpanded && iconSidebarWidth > 120 && (
+                <span className="text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap">Akiva ERP</span>
+              )}
             </div>
             
             {/* Icon Navigation */}
@@ -312,7 +317,7 @@ export function Sidebar() {
                     onMouseLeave={() => setHoveredIcon(null)}
                     className={`h-10 rounded-full flex items-center transition-all duration-300 ${
                       isActive
-                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25 dark:shadow-blue-500/40'
+                        ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/25 dark:shadow-brand-500/40'
                         : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
                     } ${iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg' : 'w-10 justify-center mx-auto'}`}
                     style={{ 
@@ -345,7 +350,7 @@ export function Sidebar() {
               <button 
                 onMouseEnter={() => !iconSidebarExpanded && setHoveredIcon('notifications')}
                 onMouseLeave={() => setHoveredIcon(null)}
-                className={`h-10 bg-pink-500 hover:bg-pink-600 rounded-full flex items-center justify-center text-white relative transition-all duration-300 ${
+                className={`h-10 bg-brand-500 hover:bg-brand-600 rounded-full flex items-center justify-center text-white relative transition-all duration-300 ${
                   iconSidebarExpanded ? 'w-full justify-start px-4 rounded-lg' : 'w-10 justify-center'
                 }`}
                 style={{ 
@@ -353,7 +358,7 @@ export function Sidebar() {
                   maxWidth: iconSidebarExpanded ? `${iconSidebarWidth - 16}px` : '40px'
                 }}
               >
-                <span className="text-lg font-light flex-shrink-0">C</span>
+                <span className="text-lg font-light flex-shrink-0">A</span>
                 {iconSidebarExpanded && iconSidebarWidth > 120 && (
                   <span className="ml-3 text-sm font-medium truncate">Notifications</span>
                 )}
@@ -410,7 +415,7 @@ export function Sidebar() {
       >
         {/* Resize Handle */}
         <div
-          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 dark:hover:bg-blue-400 hover:w-1.5 transition-all duration-200 z-10"
+          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-brand-500 dark:hover:bg-brand-400 hover:w-1.5 transition-all duration-200 z-10"
           onMouseDown={handleMainMouseDown}
         />
 
@@ -430,16 +435,18 @@ export function Sidebar() {
 
         {!sidebarCollapsed && (
           <>
-            {/* Header */}
+            {/* Header - Company Selector */}
             <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-black dark:bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
-                  <span className="text-white dark:text-gray-900 font-bold text-sm">W</span>
-                </div>
-                <div className="flex items-center space-x-1 min-w-0">
-                  <span className="font-medium text-gray-900 dark:text-white truncate">webERP Pro</span>
-                  <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                </div>
+              <div className="relative">
+                <select 
+                  className="w-full bg-transparent border-none text-sm font-medium text-gray-900 dark:text-white focus:ring-0 cursor-pointer appearance-none pr-6"
+                  defaultValue="Entice Tech Ltd"
+                >
+                  <option className="dark:bg-slate-800">Entice Tech Ltd</option>
+                  <option className="dark:bg-slate-800">Sample Company 2</option>
+                  <option className="dark:bg-slate-800">Sample Company 3</option>
+                </select>
+                <ChevronDown className="absolute right-0 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
               </div>
             </div>
 
@@ -462,7 +469,7 @@ export function Sidebar() {
                       }}
                       className={`w-full flex items-center justify-between px-3 py-2 text-left rounded-lg transition-all duration-200 text-sm ${
                         isActive
-                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-900 dark:text-blue-100 font-medium'
+                          ? 'bg-brand-100 dark:bg-brand-dark-100 text-brand-900 dark:text-brand-dark-text font-medium'
                           : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
@@ -503,7 +510,7 @@ export function Sidebar() {
                                         onClick={() => setCurrentPage(subSubItem.id)}
                                         className={`w-full text-left px-3 py-1.5 text-sm transition-all duration-200 rounded ${
                                           currentPage === subSubItem.id
-                                            ? 'bg-gray-200 dark:bg-slate-600 text-gray-900 dark:text-white font-medium'
+                                            ? 'bg-brand-200 dark:bg-brand-dark-200 text-brand-900 dark:text-brand-dark-text font-medium'
                                             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'
                                         }`}
                                       >
@@ -521,7 +528,7 @@ export function Sidebar() {
                                 onClick={() => setCurrentPage(subItemObj.id)}
                                 className={`w-full text-left px-3 py-1.5 text-sm transition-all duration-200 rounded ${
                                   currentPage === subItemObj.id
-                                    ? 'bg-gray-200 dark:bg-slate-600 text-gray-900 dark:text-white font-medium'
+                                    ? 'bg-brand-200 dark:bg-brand-dark-200 text-brand-900 dark:text-brand-dark-text font-medium'
                                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'
                                 }`}
                               >

@@ -42,7 +42,7 @@ export function Dashboard() {
   const companies = [
     { name: 'Dribbble', amount: '$227,459', percentage: '43%', color: 'bg-pink-500' },
     { name: 'Instagram', amount: '$142,823', percentage: '27%', color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
-    { name: 'Behance', amount: '$89,935', percentage: '11%', color: 'bg-blue-500' },
+    { name: 'Behance', amount: '$89,935', percentage: '11%', color: 'bg-pink-500' },
     { name: 'Google', amount: '$37,028', percentage: '7%', color: 'bg-green-500' }
   ];
 

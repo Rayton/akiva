@@ -3,10 +3,12 @@ import { Plus, Search, Eye, Edit, Trash2 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Table } from '../components/common/Table';
 import { Button } from '../components/common/Button';
+import { SearchableSelect } from '../components/common/SearchableSelect';
 import { mockPurchaseOrders } from '../data/mockData';
 
 export function PurchaseOrders() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
 
   const columns = [
     {
@@ -73,6 +75,15 @@ export function PurchaseOrders() {
   ];
 
   const totalPurchases = mockPurchaseOrders.reduce((sum, order) => sum + order.total, 0);
+  const filteredOrders = mockPurchaseOrders.filter((order) => {
+    const needle = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      !needle ||
+      order.orderNumber.toLowerCase().includes(needle) ||
+      order.supplier.toLowerCase().includes(needle);
+    const matchesStatus = !selectedStatus || order.status === selectedStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="space-y-6">
@@ -123,16 +134,23 @@ export function PurchaseOrders() {
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
             />
           </div>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option value="">All Status</option>
-            <option value="Draft">Draft</option>
-            <option value="Approved">Approved</option>
-            <option value="Received">Received</option>
-            <option value="Completed">Completed</option>
-          </select>
+          <SearchableSelect
+            value={selectedStatus}
+            onChange={setSelectedStatus}
+            placeholder="All Status"
+            options={[
+              { value: '', label: 'All Status' },
+              { value: 'Draft', label: 'Draft' },
+              { value: 'Approved', label: 'Approved' },
+              { value: 'Received', label: 'Received' },
+              { value: 'Completed', label: 'Completed' },
+            ]}
+            className="sm:w-56"
+            inputClassName="border-gray-300 focus:ring-brand-200"
+          />
         </div>
 
-        <Table columns={columns} data={mockPurchaseOrders} />
+        <Table columns={columns} data={filteredOrders} />
       </Card>
 
       {/* Expected Deliveries */}

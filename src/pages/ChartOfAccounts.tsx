@@ -3,6 +3,7 @@ import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Table } from '../components/common/Table';
 import { Button } from '../components/common/Button';
+import { SearchableSelect } from '../components/common/SearchableSelect';
 import { mockAccounts } from '../data/mockData';
 
 export function ChartOfAccounts() {
@@ -104,18 +105,20 @@ export function ChartOfAccounts() {
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
             />
           </div>
-          <select
+          <SearchableSelect
             value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="All">All Types</option>
-            <option value="Asset">Asset</option>
-            <option value="Liability">Liability</option>
-            <option value="Equity">Equity</option>
-            <option value="Revenue">Revenue</option>
-            <option value="Expense">Expense</option>
-          </select>
+            onChange={setSelectedType}
+            options={[
+              { value: 'All', label: 'All Types' },
+              { value: 'Asset', label: 'Asset' },
+              { value: 'Liability', label: 'Liability' },
+              { value: 'Equity', label: 'Equity' },
+              { value: 'Revenue', label: 'Revenue' },
+              { value: 'Expense', label: 'Expense' },
+            ]}
+            className="sm:w-48"
+            inputClassName="border-gray-300 focus:ring-brand-200"
+          />
         </div>
 
         <Table columns={columns} data={filteredAccounts} />

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Download, FileText, Calendar, TrendingUp } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
+import { SearchableSelect } from '../components/common/SearchableSelect';
 
 export function FinancialReports() {
   const [selectedPeriod, setSelectedPeriod] = useState('current-month');
@@ -284,19 +285,21 @@ export function FinancialReports() {
       <Card>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
           <label className="font-medium text-gray-700">Report Period:</label>
-          <select
+          <SearchableSelect
             value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="current-month">Current Month</option>
-            <option value="last-month">Last Month</option>
-            <option value="current-quarter">Current Quarter</option>
-            <option value="last-quarter">Last Quarter</option>
-            <option value="current-year">Current Year</option>
-            <option value="last-year">Last Year</option>
-            <option value="custom">Custom Range</option>
-          </select>
+            onChange={setSelectedPeriod}
+            options={[
+              { value: 'current-month', label: 'Current Month' },
+              { value: 'last-month', label: 'Last Month' },
+              { value: 'current-quarter', label: 'Current Quarter' },
+              { value: 'last-quarter', label: 'Last Quarter' },
+              { value: 'current-year', label: 'Current Year' },
+              { value: 'last-year', label: 'Last Year' },
+              { value: 'custom', label: 'Custom Range' },
+            ]}
+            className="w-60"
+            inputClassName="border-gray-300 focus:ring-brand-200"
+          />
           
           {selectedPeriod === 'custom' && (
             <div className="flex gap-2">

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Akiva">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ec4899" />
+      <stop offset="100%" stop-color="#db2777" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)" />
+  <circle cx="256" cy="256" r="164" fill="#111827" />
+  <path
+    d="M255.7 138 344 374h-43.8l-19.6-56.8h-51.5L209.4 374h-41.8l88.1-236Zm-0.7 70.6-15.4 73.2h31.4L255 208.6Z"
+    fill="#f8fafc"
+  />
+</svg>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
+import { MenuCategory } from '../types/menu';
 
 interface AppContextType {
   currentUser: User;
@@ -22,6 +23,10 @@ interface AppContextType {
   collapseIconSidebar: () => void;
   mobileSidebarOpen: boolean;
   setMobileSidebarOpen: (open: boolean) => void;
+  appMenu: MenuCategory[];
+  setAppMenu: (menu: MenuCategory[]) => void;
+  menuLoading: boolean;
+  setMenuLoading: (loading: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -29,6 +34,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 interface AppProviderProps {
   children: ReactNode;
 }
+
+const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v1';
 
 export function AppProvider({ children }: AppProviderProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -38,6 +45,18 @@ export function AppProvider({ children }: AppProviderProps) {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [activeSection, setActiveSection] = useState('');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [appMenu, setAppMenu] = useState<MenuCategory[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const raw = localStorage.getItem(APP_MENU_CACHE_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as MenuCategory[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [menuLoading, setMenuLoading] = useState(false);
   
   // Initialize dark mode from localStorage or system preference
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -87,6 +106,12 @@ export function AppProvider({ children }: AppProviderProps) {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!Array.isArray(appMenu) || appMenu.length === 0) return;
+    localStorage.setItem(APP_MENU_CACHE_KEY, JSON.stringify(appMenu));
+  }, [appMenu]);
+
   const expandIconSidebar = () => {
     setIconSidebarExpanded(true);
     setIconSidebarWidth(200);
@@ -126,7 +151,11 @@ export function AppProvider({ children }: AppProviderProps) {
       expandIconSidebar,
       collapseIconSidebar,
       mobileSidebarOpen,
-      setMobileSidebarOpen
+      setMobileSidebarOpen,
+      appMenu,
+      setAppMenu,
+      menuLoading,
+      setMenuLoading
     }}>
       {children}
     </AppContext.Provider>

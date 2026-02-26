@@ -1,6 +1,6 @@
-import React from 'react';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { Header } from './components/layout/Header';
+import { OfflineStatusBar } from './components/layout/OfflineStatusBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { ChartOfAccounts } from './pages/ChartOfAccounts';
@@ -13,11 +13,141 @@ import { PurchaseOrders } from './pages/PurchaseOrders';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { Home, ShoppingCart, FileBarChart, Settings, Star, Menu, Clock, X, ChevronRight } from 'lucide-react';
+import type { SalesModuleMode } from './pages/SalesOrders';
+
+function normalizeMenuSlug(pageId: string): string {
+  if (!pageId.startsWith('menu-')) return '';
+  const firstDash = pageId.indexOf('-', 5);
+  return firstDash > -1 ? pageId.slice(firstDash + 1) : '';
+}
+
+function normalizedSlugKey(slug: string): string {
+  return slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isSalesMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  if (!key) return false;
+  return [
+    'sales',
+    'order',
+    'invoice',
+    'debtor',
+    'customer',
+    'quotation',
+    'countersales',
+    'credit',
+    'topitems',
+    'dailysalesinquiry',
+    'pdflowgp',
+    'pdfpricelist',
+    'pdforderstatus',
+    'pdfordersinvoiced',
+    'pdfdeliverydifferences',
+    'pdfdifot',
+    'salesinquiry',
+    'selectorderitems',
+    'specialorder',
+    'recurringsalesordersprocess',
+    'selectrecurringsalesorder',
+    'selectcompletedorder',
+    'selectsalesorder',
+  ].some((keyword) => key.includes(keyword));
+}
+
+function resolveSalesMode(slug: string): SalesModuleMode {
+  const key = normalizedSlugKey(slug);
+
+  const reportKeywords = [
+    'report',
+    'analysis',
+    'inquiry',
+    'statement',
+    'aged',
+    'status',
+    'pdfpricelist',
+    'pdforderstatus',
+    'pdfordersinvoiced',
+    'dailysalesinquiry',
+    'pdfdeliverydifferences',
+    'pdfdifot',
+    'salesinquiry',
+    'topitems',
+    'pdflowgp',
+    'selectcompletedorder',
+  ];
+  const settingsKeywords = [
+    'setup',
+    'config',
+    'maintenance',
+    'type',
+    'salestypes',
+    'sales-types',
+    'price',
+    'discount',
+    'paymentterms',
+    'payment-terms',
+    'salespeople',
+    'salesman',
+    'holdreasons',
+    'hold-reasons',
+    'maintenance',
+    'contract',
+  ];
+
+  if (reportKeywords.some((keyword) => key.includes(keyword))) return 'reports';
+  if (settingsKeywords.some((keyword) => key.includes(keyword))) return 'settings';
+  return 'transactions';
+}
+
+function menuSlugToTitle(slug: string): string {
+  if (!slug) return 'Module';
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 function AppContent() {
-  const { currentPage, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
+  const { currentPage, mobileSidebarOpen, setMobileSidebarOpen, appMenu } = useApp();
 
   const renderCurrentPage = () => {
+    if (currentPage.startsWith('main-')) {
+      const mainId = parseInt(currentPage.replace('main-', ''), 10);
+      const mainModule = appMenu.find((item) => item.id === mainId);
+
+      return (
+        <div className="p-4 md:p-8">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+            {mainModule?.caption ?? 'Module'}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Select a submenu from the right panel to continue.
+          </p>
+        </div>
+      );
+    }
+
+    const menuSlug = normalizeMenuSlug(currentPage);
+    const primaryPathSegment = window.location.pathname.split('/').filter(Boolean)[0]?.toLowerCase() ?? '';
+    if (primaryPathSegment === 'sales' || isSalesMenuSlug(menuSlug)) {
+      return <SalesOrders mode={resolveSalesMode(menuSlug)} sourceSlug={menuSlug} />;
+    }
+
+    if (menuSlug) {
+      return (
+        <div className="p-4 md:p-8">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+            {menuSlugToTitle(menuSlug)}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            This module will be progressively migrated from webERP logic.
+          </p>
+        </div>
+      );
+    }
+
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />;
@@ -32,7 +162,7 @@ function AppContent() {
       case 'inventory':
         return <Inventory />;
       case 'sales-orders':
-        return <SalesOrders />;
+        return <SalesOrders mode="transactions" sourceSlug="sales-orders" />;
       case 'purchase-orders':
         return <PurchaseOrders />;
       case 'financial-reports':
@@ -81,7 +211,7 @@ function AppContent() {
       
       // Sales Reports
       case 'sales-analysis':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Sales Analysis</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Analyze sales performance and trends</p></div>;
+        return <SalesOrders mode="reports" sourceSlug="sales-analysis" />;
       case 'customer-statements':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Customer Statements</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Generate customer account statements</p></div>;
       case 'aged-debtors':
@@ -120,6 +250,7 @@ function AppContent() {
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header />
+          <OfflineStatusBar />
           <main className="flex-1 p-6 overflow-auto bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
             {renderCurrentPage()}
           </main>
@@ -130,6 +261,7 @@ function AppContent() {
       <div className="lg:hidden flex flex-col h-full">
         {/* Mobile Header - Simple version */}
         <MobileHeader />
+        <OfflineStatusBar compact />
         
         {/* Main content area */}
         <main className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-900 transition-colors duration-300 pb-20 lg:pb-0">

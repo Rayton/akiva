@@ -3,9 +3,12 @@ import { Plus, Search, Edit, Trash2, Shield, User } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Table } from '../components/common/Table';
 import { Button } from '../components/common/Button';
+import { SearchableSelect } from '../components/common/SearchableSelect';
 
 export function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRole, setSelectedRole] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
 
   const mockUsers = [
     {
@@ -129,6 +132,18 @@ export function UserManagement() {
     }
   ];
 
+  const filteredUsers = mockUsers.filter((user) => {
+    const needle = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      !needle ||
+      user.name.toLowerCase().includes(needle) ||
+      user.email.toLowerCase().includes(needle) ||
+      user.role.toLowerCase().includes(needle);
+    const matchesRole = !selectedRole || user.role === selectedRole;
+    const matchesStatus = !selectedStatus || user.status === selectedStatus;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -180,21 +195,35 @@ export function UserManagement() {
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
             />
           </div>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option value="">All Roles</option>
-            <option value="Administrator">Administrator</option>
-            <option value="Accountant">Accountant</option>
-            <option value="Sales Manager">Sales Manager</option>
-            <option value="Clerk">Clerk</option>
-          </select>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option value="">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
+          <SearchableSelect
+            value={selectedRole}
+            onChange={setSelectedRole}
+            placeholder="All Roles"
+            options={[
+              { value: '', label: 'All Roles' },
+              { value: 'Administrator', label: 'Administrator' },
+              { value: 'Accountant', label: 'Accountant' },
+              { value: 'Sales Manager', label: 'Sales Manager' },
+              { value: 'Clerk', label: 'Clerk' },
+            ]}
+            className="sm:w-56"
+            inputClassName="border-gray-300 focus:ring-brand-200"
+          />
+          <SearchableSelect
+            value={selectedStatus}
+            onChange={setSelectedStatus}
+            placeholder="All Status"
+            options={[
+              { value: '', label: 'All Status' },
+              { value: 'Active', label: 'Active' },
+              { value: 'Inactive', label: 'Inactive' },
+            ]}
+            className="sm:w-48"
+            inputClassName="border-gray-300 focus:ring-brand-200"
+          />
         </div>
 
-        <Table columns={columns} data={mockUsers} />
+        <Table columns={columns} data={filteredUsers} />
       </Card>
 
       {/* Role Permissions */}

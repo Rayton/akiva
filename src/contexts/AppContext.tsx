@@ -40,8 +40,8 @@ const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v1';
 export function AppProvider({ children }: AppProviderProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [iconSidebarExpanded, setIconSidebarExpanded] = useState(false);
-  const [iconSidebarWidth, setIconSidebarWidth] = useState(64);
-  const [mainSidebarWidth, setMainSidebarWidth] = useState(256);
+  const [iconSidebarWidth, setIconSidebarWidth] = useState(88);
+  const [mainSidebarWidth, setMainSidebarWidth] = useState(292);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [activeSection, setActiveSection] = useState('');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -114,12 +114,12 @@ export function AppProvider({ children }: AppProviderProps) {
 
   const expandIconSidebar = () => {
     setIconSidebarExpanded(true);
-    setIconSidebarWidth(200);
+    setIconSidebarWidth(300);
   };
 
   const collapseIconSidebar = () => {
     setIconSidebarExpanded(false);
-    setIconSidebarWidth(64);
+    setIconSidebarWidth(88);
   };
 
   const currentUser: User = {

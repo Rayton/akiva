@@ -194,7 +194,7 @@ function findMenuNodeById(nodes: MenuNode[], id: number): MenuNode | null {
 }
 
 function AppContent() {
-  const { currentPage, mobileSidebarOpen, setMobileSidebarOpen, appMenu } = useApp();
+  const { currentPage, mobileSidebarOpen, appMenu } = useApp();
 
   const renderCurrentPage = () => {
     if (currentPage.startsWith('main-')) {
@@ -341,14 +341,14 @@ function AppContent() {
   };
 
   return (
-    <div className="h-screen bg-gray-50 dark:bg-slate-900 flex flex-col overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#f2eeee] transition-colors duration-300 dark:bg-slate-950">
       {/* Desktop: Sidebar on left - Mobile: Header on top */}
       <div className="hidden lg:flex h-full">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header />
           <OfflineStatusBar />
-          <main className="flex-1 p-6 overflow-auto bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
+          <main className="flex-1 overflow-auto bg-[#f2eeee] transition-colors duration-300 dark:bg-slate-950">
             {renderCurrentPage()}
           </main>
         </div>
@@ -361,7 +361,7 @@ function AppContent() {
         <OfflineStatusBar compact />
         
         {/* Main content area */}
-        <main className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-900 transition-colors duration-300 pb-20 lg:pb-0">
+        <main className="flex-1 overflow-auto bg-[#f2eeee] pb-20 transition-colors duration-300 dark:bg-slate-950 lg:pb-0">
           {renderCurrentPage()}
         </main>
         
@@ -379,21 +379,21 @@ function MobileHeader() {
   const { isDarkMode, toggleDarkMode, setMobileSidebarOpen } = useApp();
   
   return (
-    <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-3 flex-shrink-0">
+    <header className="flex-shrink-0 border-b border-white/70 bg-[#f2eeee]/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
       <div className="flex items-center justify-between">
         {/* Left: Menu button and Logo */}
         <div className="flex items-center space-x-3">
           <button 
             onClick={() => setMobileSidebarOpen(true)}
-            className="p-2 -ml-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
+            className="-ml-2 rounded-full bg-white/78 p-2 text-slate-600 shadow-sm shadow-slate-200/60 hover:bg-white dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800"
           >
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gray-900 dark:bg-white rounded-full flex items-center justify-center">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 dark:bg-white">
               <span className="text-white dark:text-gray-900 font-bold text-sm">A</span>
             </div>
-            <span className="font-semibold text-gray-900 dark:text-white text-sm">Akiva</span>
+            <span className="text-sm font-semibold text-slate-950 dark:text-white">Akiva</span>
           </div>
         </div>
         
@@ -401,7 +401,7 @@ function MobileHeader() {
         <div className="flex items-center space-x-1">
           <button 
             onClick={toggleDarkMode}
-            className="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
+            className="rounded-full bg-white/78 p-2 text-slate-600 shadow-sm shadow-slate-200/60 hover:bg-white dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800"
           >
             {isDarkMode ? (
               <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
@@ -414,14 +414,14 @@ function MobileHeader() {
             )}
           </button>
           
-          <button className="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 relative">
+          <button className="relative rounded-full bg-white/78 p-2 text-slate-600 shadow-sm shadow-slate-200/60 hover:bg-white dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
           
-          <div className="w-8 h-8 bg-gradient-to-r from-brand-500 to-purple-500 rounded-full flex items-center justify-center">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-600 shadow-sm shadow-rose-600/20 dark:bg-rose-500">
             <span className="text-white text-xs font-medium">JD</span>
           </div>
         </div>
@@ -443,12 +443,17 @@ function MobileNav() {
   ];
   
   const handleNavClick = (itemId: string) => {
-    // Open the mobile sidebar with the selected section
+    if (itemId === 'dashboard') {
+      setCurrentPage('dashboard');
+      setMobileSidebarOpen(false);
+      return;
+    }
+
     setMobileSidebarOpen(true);
   };
   
   return (
-    <nav className="bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700 px-2 py-2 flex-shrink-0 fixed bottom-0 left-0 right-0 z-40">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex-shrink-0 border-t border-white/70 bg-[#f2eeee]/95 px-2 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
       <div className="flex items-center justify-around">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
@@ -460,8 +465,8 @@ function MobileNav() {
               onClick={() => handleNavClick(item.id)}
               className={`flex flex-col items-center justify-center min-w-[50px] h-12 px-1 rounded-lg transition-all duration-200 ${
                 isActive
-                  ? 'text-brand-500'
-                  : 'text-gray-500 dark:text-gray-400'
+                  ? 'bg-white text-rose-600 shadow-sm shadow-slate-200/60 dark:bg-slate-900 dark:text-rose-300 dark:shadow-black/20'
+                  : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               <Icon className="w-5 h-5" />
@@ -473,7 +478,7 @@ function MobileNav() {
         {/* More menu button */}
         <button
           onClick={() => setMobileSidebarOpen(true)}
-          className="flex flex-col items-center justify-center min-w-[50px] h-12 px-1 rounded-lg text-gray-500 dark:text-gray-400 transition-all duration-200"
+          className="flex h-12 min-w-[50px] flex-col items-center justify-center rounded-lg px-1 text-slate-500 transition-all duration-200 dark:text-slate-400"
         >
           <Menu className="w-5 h-5" />
           <span className="text-[9px] font-medium mt-0.5">More</span>
@@ -535,20 +540,20 @@ function MobileSidebarOverlay() {
       
       {/* Sidebar Panel */}
       <div 
-        className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl overflow-y-auto"
+        className="absolute bottom-0 left-0 top-0 w-80 max-w-[85vw] overflow-y-auto bg-[#f7f4f4] shadow-xl dark:bg-slate-950"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-slate-700">
+        <div className="flex items-center justify-between border-b border-white/70 px-4 py-4 dark:border-slate-800">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gray-900 dark:bg-white rounded-full flex items-center justify-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 dark:bg-white">
               <span className="text-white dark:text-gray-900 font-bold text-lg">A</span>
             </div>
-            <span className="font-semibold text-gray-900 dark:text-white">Akiva</span>
+            <span className="font-semibold text-slate-950 dark:text-white">Akiva</span>
           </div>
           <button 
             onClick={() => setMobileSidebarOpen(false)}
-            className="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
+            className="rounded-full bg-white/78 p-2 text-slate-600 shadow-sm hover:bg-white dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             <X className="w-5 h-5" />
           </button>
@@ -564,8 +569,8 @@ function MobileSidebarOverlay() {
             }}
             className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'dashboard'
-                ? 'bg-brand-500 text-white'
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+                ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20'
+                : 'text-slate-700 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -579,7 +584,7 @@ function MobileSidebarOverlay() {
             const Icon = section.icon;
             return (
               <div key={section.id} className="space-y-1">
-                <div className="flex items-center space-x-3 px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                <div className="flex items-center space-x-3 px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400">
                   <Icon className="w-4 h-4" />
                   <span>{section.label}</span>
                 </div>
@@ -592,8 +597,8 @@ function MobileSidebarOverlay() {
                     }}
                     className={`w-full flex items-center justify-between px-4 py-2.5 ml-4 rounded-lg transition-colors ${
                       currentPage === item.id
-                        ? 'bg-brand-50 dark:bg-brand-dark-100 text-brand-700 dark:text-brand-dark-text'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800'
+                        ? 'bg-white text-rose-700 shadow-sm dark:bg-slate-900 dark:text-rose-300'
+                        : 'text-slate-600 hover:bg-white/70 dark:text-slate-400 dark:hover:bg-slate-900'
                     }`}
                   >
                     <span className="text-sm">{item.label}</span>
@@ -612,8 +617,8 @@ function MobileSidebarOverlay() {
             }}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'starred'
-                ? 'bg-brand-500 text-white'
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+                ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20'
+                : 'text-slate-700 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900'
             }`}
           >
             <Star className="w-5 h-5" />
@@ -628,8 +633,8 @@ function MobileSidebarOverlay() {
             }}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'recent'
-                ? 'bg-brand-500 text-white'
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+                ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20'
+                : 'text-slate-700 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900'
             }`}
           >
             <Clock className="w-5 h-5" />
@@ -644,7 +649,7 @@ function MobileSidebarOverlay() {
 function App() {
   return (
     <AppProvider>
-      <div className="bg-gray-50 dark:bg-slate-900 h-screen transition-colors duration-300">
+      <div className="h-screen bg-[#f2eeee] transition-colors duration-300 dark:bg-slate-950">
         <AppContent />
       </div>
     </AppProvider>

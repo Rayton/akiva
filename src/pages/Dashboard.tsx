@@ -1,256 +1,493 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Star, MoreHorizontal, Filter, BarChart3 } from 'lucide-react';
-import { Card } from '../components/common/Card';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Banknote,
+  Boxes,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  Download,
+  FileBarChart2,
+  Filter,
+  Landmark,
+  PackageCheck,
+  ReceiptText,
+  ShieldCheck,
+  ShoppingCart,
+  SlidersHorizontal,
+  TrendingUp,
+  WalletCards,
+  type LucideIcon,
+} from 'lucide-react';
 
-export function Dashboard() {
-  const topPerformers = [
-    { 
-      name: 'Armin A.', 
-      avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=32&h=32&dpr=1',
-      revenue: '$209,633',
-      percentage: '39.63%',
-      deals: 41,
-      conversion: 118,
-      score: '0.84',
-      winRate: '31%',
-      badge: 12
-    },
-    { 
-      name: 'Mikasa A.', 
-      avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=32&h=32&dpr=1',
-      revenue: '$156,841',
-      percentage: '29.65%',
-      deals: 54,
-      conversion: 103,
-      score: '0.89',
-      winRate: '39%',
-      badge: 21
-    },
-    { 
-      name: 'Eren Y.', 
-      avatar: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=32&h=32&dpr=1',
-      revenue: '$117,115',
-      percentage: '22.14%',
-      deals: 22,
-      conversion: 84,
-      score: '0.79',
-      winRate: '32%',
-      badge: 7
-    }
-  ];
+const currency = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+});
 
-  const companies = [
-    { name: 'Dribbble', amount: '$227,459', percentage: '43%', color: 'bg-pink-500' },
-    { name: 'Instagram', amount: '$142,823', percentage: '27%', color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
-    { name: 'Behance', amount: '$89,935', percentage: '11%', color: 'bg-pink-500' },
-    { name: 'Google', amount: '$37,028', percentage: '7%', color: 'bg-green-500' }
-  ];
+const compactCurrency = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 1,
+});
+
+const summaryMetrics = [
+  {
+    label: 'Net sales',
+    value: '$528,976',
+    detail: '276 posted invoices',
+    change: '+7.9%',
+    trend: 'up',
+    icon: ReceiptText,
+  },
+  {
+    label: 'Cash position',
+    value: '$214,870',
+    detail: '4 bank accounts',
+    change: '+3.4%',
+    trend: 'up',
+    icon: Landmark,
+  },
+  {
+    label: 'Receivables',
+    value: '$156,841',
+    detail: '$38.2k overdue',
+    change: '-4.1%',
+    trend: 'down',
+    icon: WalletCards,
+  },
+  {
+    label: 'Inventory value',
+    value: '$342,118',
+    detail: '18 low-stock items',
+    change: '+2.6%',
+    trend: 'up',
+    icon: Boxes,
+  },
+];
+
+const kpiTiles = [
+  { label: 'Open sales orders', value: '128', subvalue: '+12 today', tone: 'dark' },
+  { label: 'Purchase orders', value: '42', subvalue: '9 awaiting GRN', tone: 'light' },
+  { label: 'Payables due', value: '$84k', subvalue: 'next 14 days', tone: 'rose' },
+  { label: 'Fulfilment', value: '91%', subvalue: '+4.8%', tone: 'light' },
+];
+
+const revenueTrend = [
+  { month: 'Jan', revenue: 318000, expenses: 242000, cash: 96000 },
+  { month: 'Feb', revenue: 351000, expenses: 260000, cash: 106000 },
+  { month: 'Mar', revenue: 336000, expenses: 248000, cash: 99000 },
+  { month: 'Apr', revenue: 389000, expenses: 284000, cash: 119000 },
+  { month: 'May', revenue: 411000, expenses: 302000, cash: 132000 },
+  { month: 'Jun', revenue: 452000, expenses: 319000, cash: 151000 },
+  { month: 'Jul', revenue: 438000, expenses: 312000, cash: 146000 },
+  { month: 'Aug', revenue: 501000, expenses: 356000, cash: 176000 },
+  { month: 'Sep', revenue: 528976, expenses: 369000, cash: 214870 },
+];
+
+const stockFlow = [
+  { item: 'Raw', onHand: 72, committed: 38 },
+  { item: 'WIP', onHand: 46, committed: 28 },
+  { item: 'FG', onHand: 89, committed: 51 },
+  { item: 'Spare', onHand: 34, committed: 18 },
+  { item: 'Transit', onHand: 57, committed: 42 },
+];
+
+const moduleHealth = [
+  {
+    module: 'Sales orders',
+    owner: 'Amina K.',
+    value: '$209,633',
+    status: 'On track',
+    first: 41,
+    second: 118,
+    score: '0.84',
+    rate: '31%',
+    badge: 12,
+    closing: 29,
+    tone: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  },
+  {
+    module: 'Receivables',
+    owner: 'Finance',
+    value: '$156,841',
+    status: 'Watch',
+    first: 54,
+    second: 103,
+    score: '0.89',
+    rate: '39%',
+    badge: 21,
+    closing: 33,
+    tone: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
+  },
+  {
+    module: 'Inventory',
+    owner: 'Stores',
+    value: '$117,115',
+    status: 'Stable',
+    first: 22,
+    second: 84,
+    score: '0.79',
+    rate: '32%',
+    badge: 7,
+    closing: 15,
+    tone: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+  },
+];
+
+const operatingAreas = [
+  { label: 'Customer invoices', value: '$227,459', percentage: '43%', icon: ReceiptText },
+  { label: 'Supplier bills', value: '$142,823', percentage: '27%', icon: CreditCard },
+  { label: 'Stock movements', value: '$89,935', percentage: '17%', icon: PackageCheck },
+  { label: 'Bank transfers', value: '$37,028', percentage: '7%', icon: Banknote },
+];
+
+const workQueue = [
+  { label: 'Invoices pending approval', count: 18, icon: ReceiptText },
+  { label: 'Purchase orders awaiting GRN', count: 9, icon: ShoppingCart },
+  { label: 'Stock items below reorder', count: 18, icon: Boxes },
+  { label: 'Users requiring access review', count: 4, icon: ShieldCheck },
+];
+
+interface MetricCardProps {
+  label: string;
+  value: string;
+  detail: string;
+  change: string;
+  trend: string;
+  icon: LucideIcon;
+}
+
+function MetricCard({ label, value, detail, change, trend, icon: Icon }: MetricCardProps) {
+  const positive = trend === 'up';
+  return (
+    <article className="rounded-lg border border-white/70 bg-white/80 p-4 shadow-sm shadow-slate-200/60 backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-black/20">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{value}</p>
+        </div>
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+        <span className="text-slate-500 dark:text-slate-400">{detail}</span>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
+            positive
+              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+          }`}
+        >
+          {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+          {change}
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function KpiTile({ label, value, subvalue, tone }: { label: string; value: string; subvalue: string; tone: string }) {
+  const classes =
+    tone === 'dark'
+      ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950'
+      : tone === 'rose'
+        ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/40 dark:text-rose-200'
+        : 'border-slate-200 bg-white/80 text-slate-900 dark:border-slate-700 dark:bg-slate-900/70 dark:text-white';
 
   return (
-    <div className="p-4 md:p-6 bg-gray-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-      <div className="max-w-7xl mx-auto space-y-4 md:space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">Financial Dashboard</h1>
-        </div>
+    <article className={`rounded-lg border p-4 shadow-sm shadow-slate-200/50 dark:shadow-black/20 ${classes}`}>
+      <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{label}</p>
+      <p className="mt-3 text-2xl font-semibold">{value}</p>
+      <p className="mt-2 text-sm opacity-70">{subvalue}</p>
+    </article>
+  );
+}
 
-        {/* Main Revenue Section */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
-          {/* Revenue Card */}
-          <div className="md:col-span-8">
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300">
-              <div className="mb-6">
-                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Total Revenue</h2>
-                <div className="flex items-baseline space-x-3">
-                  <span className="text-4xl font-bold text-gray-900 dark:text-white">$528,976</span>
-                  <span className="text-2xl font-light text-gray-400 dark:text-gray-500">.82</span>
-                  <div className="flex items-center space-x-2">
-                    <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400">
-                      <TrendingDown className="w-3 h-3 mr-1" />
-                      7.9%
-                    </span>
-                    <span className="text-sm text-red-600 dark:text-red-400">$27,335.09</span>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">vs prev. $501,641.73 Jun 1 - Aug 31, 2023</p>
-              </div>
+function SmallIconButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <button
+      type="button"
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-700 shadow-sm shadow-slate-200/50 transition hover:bg-white hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white"
+      aria-label={label}
+      title={label}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
 
-              {/* Top Sales and Best Deal */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
-                <div className="bg-gray-50 dark:bg-slate-700/50 p-3 md:p-4 rounded-lg">
-                  <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-1 md:mb-2">Top sales</p>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">72</span>
-                    <div className="w-5 h-5 md:w-6 md:h-6 rounded-full overflow-hidden ring-2 ring-gray-200 dark:ring-slate-600">
-                      <img src="https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=24&h=24&dpr=1" alt="Mikasa" className="w-full h-full object-cover" />
-                    </div>
-                    <span className="text-xs md:text-sm text-gray-600 dark:text-gray-300">Mikasa</span>
-                  </div>
-                </div>
-                
-                <div className="bg-gray-900 dark:bg-slate-700 text-white dark:text-gray-100 p-3 md:p-4 rounded-lg shadow-lg">
-                  <div className="flex items-center justify-between mb-1 md:mb-2">
-                    <span className="text-xs md:text-sm text-gray-300 dark:text-gray-400">Best deal</span>
-                    <Star className="w-3 h-3 md:w-4 md:h-4 text-yellow-400" />
-                  </div>
-                  <div className="text-lg md:text-xl font-bold">$42,300</div>
-                  <div className="text-xs md:text-sm text-gray-300 dark:text-gray-400">Rolf Inc.</div>
-                </div>
-                
-                <div className="bg-gray-50 dark:bg-slate-700/50 p-3 md:p-4 rounded-lg space-y-1 md:space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Deals</span>
-                    <span className="text-xs md:text-sm font-medium text-gray-900 dark:text-white">250</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Value</span>
-                    <span className="text-xs md:text-sm font-medium text-red-600 dark:text-red-400">528k</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Win rate</span>
-                    <span className="text-xs md:text-sm font-medium text-gray-900 dark:text-white">44%</span>
-                  </div>
-                </div>
+export function Dashboard() {
+  return (
+    <div className="min-h-full bg-[#f2eeee] px-3 py-3 text-slate-950 transition-colors dark:bg-slate-950 dark:text-white sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+      <div className="mx-auto max-w-[1520px]">
+        <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/72 shadow-xl shadow-slate-300/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/72 dark:shadow-black/30">
+          <div className="flex flex-col gap-4 border-b border-slate-200/70 px-4 py-4 dark:border-slate-800 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white dark:bg-white dark:text-slate-950">
+                  <Building2 className="h-3.5 w-3.5" />
+                  Entice Tech Ltd
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-300">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  Sep 1 - Nov 30, 2023
+                </span>
               </div>
-
-              {/* Performance List */}
-              <div className="space-y-3 mb-6">
-                {topPerformers.map((performer, index) => (
-                  <div key={index} className="flex items-center justify-between py-2">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-gray-200 dark:ring-slate-600">
-                        <img src={performer.avatar} alt={performer.name} className="w-full h-full object-cover" />
-                      </div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{performer.revenue}</span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">{performer.percentage}</span>
-                    </div>
-                    <button className="px-3 py-1 bg-gray-900 dark:bg-slate-700 text-white dark:text-gray-100 rounded text-sm hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors">Details</button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Filter Buttons */}
-              <div className="flex items-center space-x-4 mb-6">
-                <button className="flex items-center space-x-2 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                  <BarChart3 className="w-4 h-4" />
-                  <span>Filters</span>
-                </button>
-                <button className="flex items-center space-x-2 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                  <Filter className="w-4 h-4" />
-                  <span>Filters</span>
-                </button>
-              </div>
-
-              {/* Company Performance */}
-              <div className="space-y-4">
-                {companies.map((company, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 ${company.color} rounded-lg flex items-center justify-center shadow-md`}>
-                        {company.name === 'Dribbble' && <span className="text-white text-xs font-bold">D</span>}
-                        {company.name === 'Instagram' && <span className="text-white text-xs font-bold">I</span>}
-                        {company.name === 'Behance' && <span className="text-white text-xs font-bold">B</span>}
-                        {company.name === 'Google' && <span className="text-white text-xs font-bold">G</span>}
-                      </div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{company.name}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold text-gray-900 dark:text-white">{company.amount}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{company.percentage}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <h1 className="mt-4 text-3xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-4xl lg:text-5xl">
+                ERP overview
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 self-start lg:self-center">
+              <SmallIconButton icon={SlidersHorizontal} label="View controls" />
+              <SmallIconButton icon={Download} label="Export dashboard" />
+              <SmallIconButton icon={Filter} label="Filter dashboard" />
             </div>
           </div>
 
-          {/* Right Sidebar */}
-          <div className="md:col-span-4 space-y-4 md:space-y-6">
-            {/* Performance Table */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 md:p-6 shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300">
-              <div className="flex items-center justify-between mb-4 overflow-x-auto">
-                <div className="flex space-x-2 md:space-x-6 text-xs md:text-sm">
-                  <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">Sales</span>
-                  <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">Revenue</span>
-                  <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">Leads</span>
-                  <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">KPI</span>
-                  <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">W/L</span>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                {topPerformers.map((performer, index) => (
-                  <div key={index} className="flex items-center justify-between py-2">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 rounded-full overflow-hidden ring-1 ring-gray-200 dark:ring-slate-600">
-                        <img src={performer.avatar} alt={performer.name} className="w-full h-full object-cover" />
-                      </div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{performer.name}</span>
-                    </div>
-                    <div className="flex items-center space-x-3 text-sm">
-                      <span className="text-gray-700 dark:text-gray-300">{performer.revenue}</span>
-                      <span className="w-6 h-6 bg-gray-900 dark:bg-slate-600 text-white dark:text-gray-100 rounded text-xs flex items-center justify-center">{performer.deals}</span>
-                      <span className="text-gray-600 dark:text-gray-400">{performer.conversion}</span>
-                      <span className="text-gray-600 dark:text-gray-400">{performer.score}</span>
-                      <span className="text-gray-600 dark:text-gray-400">{performer.winRate}</span>
-                      <span className="w-6 h-6 bg-gray-900 dark:bg-slate-600 text-white dark:text-gray-100 rounded text-xs flex items-center justify-center">{performer.badge}</span>
-                      <span className="text-gray-900 dark:text-white font-medium">{index === 0 ? '29' : index === 1 ? '33' : '15'}</span>
-                    </div>
-                  </div>
+          <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
+            <div className="space-y-4 lg:col-span-8">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {summaryMetrics.map((metric) => (
+                  <MetricCard key={metric.label} {...metric} />
                 ))}
               </div>
+
+              <section className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/50 sm:p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Operating margin</p>
+                    <div className="mt-2 flex flex-wrap items-baseline gap-3">
+                      <span className="text-4xl font-semibold tracking-normal text-slate-950 dark:text-white sm:text-5xl">$159,976</span>
+                      <span className="rounded-full bg-rose-600 px-2.5 py-1 text-sm font-semibold text-white">30.2%</span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      Revenue {currency.format(528976)} vs expenses {currency.format(369000)}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[420px]">
+                    {kpiTiles.map((tile) => (
+                      <KpiTile key={tile.label} {...tile} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5 h-72 sm:h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={revenueTrend} margin={{ top: 8, right: 10, left: -22, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#db2777" stopOpacity={0.22} />
+                          <stop offset="95%" stopColor="#db2777" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="expenseFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#111827" stopOpacity={0.12} />
+                          <stop offset="95%" stopColor="#111827" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="4 6" />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <YAxis hide domain={['dataMin - 20000', 'dataMax + 20000']} />
+                      <Tooltip formatter={(value: number) => compactCurrency.format(value)} />
+                      <Area type="monotone" dataKey="expenses" stroke="#94a3b8" strokeWidth={2} fill="url(#expenseFill)" />
+                      <Area type="monotone" dataKey="revenue" stroke="#db2777" strokeWidth={3} fill="url(#revenueFill)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <section className="rounded-2xl border border-slate-200/80 bg-white/78 p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-black/20">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Activity by module</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Posted value this period</p>
+                    </div>
+                    <button className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      Revenue
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {operatingAreas.map((area) => {
+                      const Icon = area.icon;
+                      return (
+                        <div key={area.label} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-slate-950/60">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-rose-600 shadow-sm dark:bg-slate-900 dark:text-rose-300">
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{area.label}</span>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-slate-950 dark:text-white">{area.value}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{area.percentage}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200/80 bg-white/78 p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-black/20">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Inventory flow</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">On hand vs committed stock</p>
+                    </div>
+                    <FileBarChart2 className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stockFlow} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
+                        <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="4 6" />
+                        <XAxis dataKey="item" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                        <YAxis hide />
+                        <Tooltip />
+                        <Bar dataKey="onHand" fill="#111827" radius={[8, 8, 8, 8]} />
+                        <Bar dataKey="committed" fill="#db2777" radius={[8, 8, 8, 8]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+              </div>
             </div>
 
-            {/* Platform Integration */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 md:p-6 shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300">
-              <div className="flex flex-wrap gap-2 md:gap-0 md:space-x-2 mb-3 md:mb-4">
-                <span className="text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300">Top sales 💪</span>
-                <span className="text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300">Sales streak 🔥</span>
-                <span className="text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300">Top review 👍</span>
-              </div>
-              
-              <div className="mb-3 md:mb-4">
-                <p className="text-sm font-medium text-gray-900 dark:text-white mb-1 md:mb-2">Work with platforms</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-pink-600 dark:text-pink-400">❤️ 3</span>
-                  <span className="text-sm font-semibold text-pink-600 dark:text-pink-400">$156,841</span>
+            <aside className="space-y-4 lg:col-span-4">
+              <section className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/76 dark:shadow-black/20">
+                <div className="grid grid-cols-[1.3fr_1fr_.7fr_.6fr_.7fr] gap-3 px-2 pb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <span>Module</span>
+                  <span>Value</span>
+                  <span>Open</span>
+                  <span>KPI</span>
+                  <span>W/L</span>
                 </div>
-              </div>
+                <div className="space-y-2">
+                  {moduleHealth.map((row, index) => (
+                    <div
+                      key={row.module}
+                      className={`rounded-xl px-3 py-3 ${
+                        index === 1
+                          ? 'bg-rose-50/80 ring-1 ring-rose-100 dark:bg-rose-950/30 dark:ring-rose-900/50'
+                          : 'bg-slate-50/80 dark:bg-slate-950/50'
+                      }`}
+                    >
+                      <div className="grid grid-cols-[1.3fr_1fr_.7fr_.6fr_.7fr] items-center gap-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-900 dark:text-white">{row.module}</p>
+                          <p className="truncate text-xs text-slate-500 dark:text-slate-400">{row.owner}</p>
+                        </div>
+                        <span className="font-semibold text-slate-900 dark:text-white">{row.value}</span>
+                        <span className="flex gap-1">
+                          <b className="rounded-full bg-slate-950 px-2 py-1 text-xs text-white dark:bg-white dark:text-slate-950">{row.first}</b>
+                          <b className="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">{row.second}</b>
+                        </span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{row.score}</span>
+                        <span className="flex items-center gap-1">
+                          <b className="rounded-full bg-slate-950 px-2 py-1 text-xs text-white dark:bg-white dark:text-slate-950">{row.badge}</b>
+                          <span className="text-slate-700 dark:text-slate-300">{row.closing}</span>
+                        </span>
+                      </div>
+                      {index === 1 && (
+                        <div className="mt-4">
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">Overdue review</span>
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">Credit control</span>
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">Cash follow-up</span>
+                          </div>
+                          <div className="rounded-xl bg-white p-4 dark:bg-slate-900">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-white">Aged receivables</p>
+                              <span className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white">$38.2k</span>
+                            </div>
+                            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                              <div className="rounded-lg bg-rose-50 p-3 dark:bg-rose-950/30">
+                                <p className="text-slate-500 dark:text-slate-400">31-60 days</p>
+                                <p className="mt-1 font-semibold text-slate-950 dark:text-white">$22,114</p>
+                              </div>
+                              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950/60">
+                                <p className="text-slate-500 dark:text-slate-400">60+ days</p>
+                                <p className="mt-1 font-semibold text-slate-950 dark:text-white">$16,086</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 bg-pink-500 rounded"></div>
-                    <span className="text-gray-700 dark:text-gray-300">Dribbble</span>
+              <section className="rounded-2xl border border-slate-200/80 bg-rose-50/80 p-4 shadow-sm shadow-rose-100/60 dark:border-rose-900/40 dark:bg-rose-950/24 dark:shadow-black/20">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Cash movement</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Inflow, outflow, and bank balance</p>
                   </div>
-                  <span className="text-gray-500 dark:text-gray-400">14.1% $22,114</span>
+                  <TrendingUp className="h-5 w-5 text-rose-600 dark:text-rose-300" />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 bg-pink-500 rounded"></div>
-                    <span className="text-gray-700 dark:text-gray-300">Instagram</span>
-                  </div>
-                  <span className="text-gray-500 dark:text-gray-400">28.1% $44,072</span>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={revenueTrend} margin={{ top: 12, right: 8, left: -24, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke="#fecdd3" strokeDasharray="4 6" />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis hide />
+                      <Tooltip formatter={(value: number) => compactCurrency.format(value)} />
+                      <Line type="monotone" dataKey="cash" stroke="#db2777" strokeWidth={3} dot={false} />
+                      <Line type="monotone" dataKey="expenses" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 bg-gray-900 dark:bg-slate-600 rounded"></div>
-                    <span className="text-gray-700 dark:text-gray-300">Other</span>
-                  </div>
-                  <span className="text-gray-500 dark:text-gray-400">7.1% $11,135</span>
-                </div>
-              </div>
-            </div>
+              </section>
 
-            {/* Sales Dynamic Chart */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 md:p-6 shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 md:mb-4">Financial Trends</h3>
-              <div className="h-24 md:h-32 bg-gray-50 dark:bg-slate-700 rounded-lg flex items-center justify-center">
-                <span className="text-gray-400 dark:text-gray-500 text-sm">Chart visualization</span>
-              </div>
-            </div>
+              <section className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/76 dark:shadow-black/20">
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Work queue</p>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Today</span>
+                </div>
+                <div className="space-y-2">
+                  {workQueue.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={item.label} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-3 dark:bg-slate-950/50">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Icon className="h-4 w-4 flex-none text-rose-600 dark:text-rose-300" />
+                          <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{item.label}</span>
+                        </div>
+                        <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white dark:bg-white dark:text-slate-950">
+                          {item.count}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white dark:bg-white dark:text-slate-950">
+                  <CheckCircle2 className="h-4 w-4" />
+                  92% period-close checklist complete
+                  <Clock3 className="ml-auto h-4 w-4 opacity-70" />
+                </div>
+              </section>
+            </aside>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

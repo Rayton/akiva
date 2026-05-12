@@ -1,114 +1,128 @@
 import React, { useState } from 'react';
-import { Search, Menu, MoreHorizontal, Download, Share, Filter, Sun, Moon, Bell, Settings } from 'lucide-react';
+import {
+  Bell,
+  CalendarDays,
+  ChevronDown,
+  Download,
+  Moon,
+  Plus,
+  Search,
+  Settings,
+  Share2,
+  SlidersHorizontal,
+  Sun,
+} from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { SearchableSelect } from '../common/SearchableSelect';
+
+const TIMEFRAME_OPTIONS = [
+  { value: 'Sep 1 - Nov 30, 2023', label: 'Sep 1 - Nov 30, 2023' },
+  { value: 'Last 30 days', label: 'Last 30 days' },
+  { value: 'This quarter', label: 'This quarter' },
+  { value: 'This fiscal year', label: 'This fiscal year' },
+];
+
+function HeaderIconButton({
+  children,
+  label,
+  onClick,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/86 text-slate-700 shadow-sm shadow-slate-200/60 transition hover:bg-white hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white"
+    >
+      {children}
+    </button>
+  );
+}
 
 export function Header() {
   const { currentUser, isDarkMode, toggleDarkMode } = useApp();
   const [timeframe, setTimeframe] = useState('Sep 1 - Nov 30, 2023');
 
   return (
-    <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 transition-colors duration-300">
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
-          {/* Left side - Search only */}
-          <div className="flex items-center space-x-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
-              <input
-                type="text"
-                placeholder='Search transactions, reports...'
-                className="pl-10 pr-4 py-2 w-80 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-pink-500 focus:bg-white dark:focus:bg-slate-700 transition-all duration-300 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-              />
-            </div>
+    <header className="border-b border-white/70 bg-[#f2eeee]/92 px-5 py-4 text-slate-950 backdrop-blur transition-colors dark:border-slate-800 dark:bg-slate-950/92 dark:text-white">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <div className="relative w-full max-w-xl">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder='Try searching "inventory valuation"'
+              className="h-12 w-full rounded-full border border-white/80 bg-white/88 pl-12 pr-4 text-sm font-medium text-slate-900 shadow-sm shadow-slate-200/70 outline-none transition placeholder:text-slate-400 focus:border-rose-300 focus:bg-white focus:ring-4 focus:ring-rose-100 dark:border-slate-700 dark:bg-slate-900/78 dark:text-white dark:shadow-black/20 dark:placeholder:text-slate-500 dark:focus:border-rose-700 dark:focus:bg-slate-900 dark:focus:ring-rose-950/50"
+            />
           </div>
-          
-          {/* Right side - Actions and user */}
-          <div className="flex items-center space-x-4">
-            {/* Theme Toggle - Enhanced with smooth animation */}
-            <button 
-              onClick={toggleDarkMode}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-white transition-all duration-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 group relative overflow-hidden"
-              aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              <div className="relative z-10">
-                {isDarkMode ? (
-                  <Sun className="w-5 h-5 text-amber-400 group-hover:text-amber-300 transition-colors duration-300" />
-                ) : (
-                  <Moon className="w-5 h-5 group-hover:text-indigo-400 transition-colors duration-300" />
-                )}
-              </div>
-              {/* Hover glow effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            </button>
-            
-            {/* Notifications */}
-            <button className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-white transition-all duration-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 relative">
-              <Bell className="w-5 h-5" />
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center shadow-sm">
-                <span className="text-white text-xs font-medium">3</span>
-              </div>
-            </button>
-            
-            {/* Settings */}
-            <button className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-white transition-all duration-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
-              <Settings className="w-5 h-5" />
-            </button>
-            
-            {/* User Avatar */}
-            <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full flex items-center justify-center shadow-md">
-              <span className="text-white text-sm font-medium">JD</span>
-            </div>
-            
-            <button className="w-8 h-8 bg-pink-500 hover:bg-pink-600 dark:bg-pink-600 dark:hover:bg-pink-500 rounded-full flex items-center justify-center text-white transition-all duration-300 shadow-md hover:shadow-lg">
-              <span className="text-lg font-light">+</span>
-            </button>
+
+          <div className="hidden items-center gap-2 rounded-full bg-white/70 px-2 py-1 shadow-sm shadow-slate-200/60 dark:bg-slate-900/70 dark:shadow-black/20 2xl:flex">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-xs font-bold text-white dark:bg-white dark:text-slate-950">A</span>
+            <span className="whitespace-nowrap text-sm font-semibold text-slate-800 dark:text-slate-200">Akiva ERP</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
           </div>
         </div>
-      </div>
-      
-      {/* Secondary header with user avatars and timeframe */}
-      <div className="px-6 py-3 border-b border-gray-100 dark:border-slate-700/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button className="w-8 h-8 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-300 hover:bg-gray-200 dark:hover:bg-slate-700">
-              <span className="text-lg font-light">+</span>
-            </button>
-            
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-gray-200 dark:ring-slate-600">
-                <img src="https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=32&h=32&dpr=1" alt="Armin A." className="w-full h-full object-cover" />
-              </div>
-              <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-gray-200 dark:ring-slate-600">
-                <img src="https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=32&h=32&dpr=1" alt="Eren Y." className="w-full h-full object-cover" />
-              </div>
-              <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-gray-200 dark:ring-slate-600">
-                <img src="https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=32&h=32&dpr=1" alt="Mikasa A." className="w-full h-full object-cover" />
-              </div>
-              <div className="w-8 h-8 bg-gray-900 dark:bg-white rounded-full flex items-center justify-center ring-2 ring-gray-300 dark:ring-slate-500">
-                <span className="text-white dark:text-gray-900 text-xs font-medium">JD</span>
-              </div>
+
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          <div className="flex items-center gap-2 rounded-full border border-white/80 bg-white/82 px-3 py-2 shadow-sm shadow-slate-200/60 dark:border-slate-700 dark:bg-slate-900/76 dark:shadow-black/20">
+            <CalendarDays className="h-4 w-4 text-slate-400" />
+            <span className="hidden text-sm font-semibold text-slate-700 dark:text-slate-200 sm:inline">Timeframe</span>
+            <SearchableSelect
+              value={timeframe}
+              onChange={(value) => setTimeframe(value)}
+              options={TIMEFRAME_OPTIONS}
+              className="w-[170px]"
+              inputClassName="h-auto rounded-none border-0 bg-transparent px-0 py-0 pr-6 text-sm font-semibold text-slate-800 shadow-none outline-none focus:border-transparent focus:ring-0 dark:border-transparent dark:bg-transparent dark:text-slate-200"
+              panelClassName="right-0 min-w-[190px]"
+              placeholder="Search timeframe"
+            />
+          </div>
+
+          <HeaderIconButton label="Dashboard filters">
+            <SlidersHorizontal className="h-4 w-4" />
+          </HeaderIconButton>
+          <HeaderIconButton label="Export">
+            <Download className="h-4 w-4" />
+          </HeaderIconButton>
+          <HeaderIconButton label="Share">
+            <Share2 className="h-4 w-4" />
+          </HeaderIconButton>
+          <HeaderIconButton label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={toggleDarkMode}>
+            {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
+          </HeaderIconButton>
+          <HeaderIconButton label="Notifications">
+            <Bell className="h-4 w-4" />
+            <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-600 ring-2 ring-white dark:ring-slate-900" />
+          </HeaderIconButton>
+          <HeaderIconButton label="Settings">
+            <Settings className="h-4 w-4" />
+          </HeaderIconButton>
+
+          <div className="ml-1 flex items-center gap-2 rounded-full bg-white/82 p-1.5 shadow-sm shadow-slate-200/60 dark:bg-slate-900/76 dark:shadow-black/20">
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              className="h-9 w-9 rounded-full object-cover ring-2 ring-white dark:ring-slate-800"
+            />
+            <div className="hidden pr-2 md:block">
+              <p className="max-w-[110px] truncate text-sm font-semibold text-slate-900 dark:text-white">{currentUser.name}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{currentUser.role}</p>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-4">
-            <button className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-white transition-all duration-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
-              <Filter className="w-4 h-4" />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-white transition-all duration-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
-              <Download className="w-4 h-4" />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-white transition-all duration-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800">
-              <Share className="w-4 h-4" />
-            </button>
-            
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-3 bg-gray-300 dark:bg-slate-600 rounded-full relative">
-                <div className="w-3 h-3 bg-gray-900 dark:bg-white rounded-full absolute right-0 top-0 shadow-sm"></div>
-              </div>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">Timeframe</span>
-              <span className="text-sm text-gray-600 dark:text-gray-400">{timeframe}</span>
-            </div>
-          </div>
+
+          <button
+            type="button"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg shadow-rose-600/25 transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+            aria-label="Create new item"
+            title="Create new item"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
         </div>
       </div>
     </header>

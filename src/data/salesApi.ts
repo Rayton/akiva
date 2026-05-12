@@ -23,8 +23,8 @@ import {
   SalesTransaction,
 } from '../types/sales';
 import { apiFetch } from '../lib/network/apiClient';
+import { buildApiUrl } from '../lib/network/apiBase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8877';
 
 interface ApiListResponse<T> {
   success: boolean;
@@ -38,7 +38,7 @@ interface ApiObjectResponse<T> {
 
 export async function fetchOnlineSalesOrders(limit = 250): Promise<OnlineSalesOrder[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/orders?limit=${limit}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/orders?limit=${limit}`));
     if (!response.ok) return [];
 
     const data: ApiListResponse<OnlineSalesOrder> = await response.json();
@@ -56,7 +56,7 @@ export async function fetchSalesTransactions(limit = 250, search = ''): Promise<
       limit: String(limit),
       q: search,
     });
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/transactions?${query.toString()}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/transactions?${query.toString()}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesTransaction> = await response.json();
     return data.success && Array.isArray(data.data) ? data.data : [];
@@ -68,7 +68,7 @@ export async function fetchSalesTransactions(limit = 250, search = ''): Promise<
 
 export async function fetchSalesReportSummary(months = 12): Promise<SalesReportSummary | null> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/reports/summary?months=${months}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/reports/summary?months=${months}`));
     if (!response.ok) return null;
     const data: ApiObjectResponse<SalesReportSummary> = await response.json();
     return data.success && data.data ? data.data : null;
@@ -80,7 +80,7 @@ export async function fetchSalesReportSummary(months = 12): Promise<SalesReportS
 
 export async function fetchSalesSettings(): Promise<SalesSettings | null> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/settings`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/settings`));
     if (!response.ok) return null;
     const data: ApiObjectResponse<SalesSettings> = await response.json();
     return data.success && data.data ? data.data : null;
@@ -93,7 +93,7 @@ export async function fetchSalesSettings(): Promise<SalesSettings | null> {
 export async function fetchSalesCustomers(search = ''): Promise<SalesCustomer[]> {
   try {
     const query = new URLSearchParams({ q: search, limit: '50' });
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/customers?${query.toString()}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/customers?${query.toString()}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesCustomer> = await response.json();
     return data.success ? data.data : [];
@@ -106,7 +106,7 @@ export async function fetchSalesCustomers(search = ''): Promise<SalesCustomer[]>
 export async function fetchSalesItems(search = ''): Promise<SalesStockItem[]> {
   try {
     const query = new URLSearchParams({ q: search, limit: '80' });
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/items?${query.toString()}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/items?${query.toString()}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesStockItem> = await response.json();
     return data.success ? data.data : [];
@@ -120,7 +120,7 @@ export async function createSalesOrderOnline(
   payload: CreateSalesOrderPayload
 ): Promise<CreateSalesOrderResult | null> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/orders`, {
+    const response = await apiFetch(buildApiUrl(`/api/sales/orders`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -137,7 +137,7 @@ export async function createSalesOrderOnline(
 export async function fetchOutstandingSalesOrders(search = ''): Promise<SalesOutstandingOrder[]> {
   try {
     const query = new URLSearchParams({ q: search, limit: '120' });
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/outstanding-orders?${query.toString()}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/outstanding-orders?${query.toString()}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesOutstandingOrder> = await response.json();
     return data.success ? data.data : [];
@@ -150,7 +150,7 @@ export async function fetchOutstandingSalesOrders(search = ''): Promise<SalesOut
 export async function fetchPickingListCandidates(search = ''): Promise<SalesPickingCandidate[]> {
   try {
     const query = new URLSearchParams({ q: search, limit: '120' });
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/picking-lists?${query.toString()}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/picking-lists?${query.toString()}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesPickingCandidate> = await response.json();
     return data.success ? data.data : [];
@@ -163,7 +163,7 @@ export async function fetchPickingListCandidates(search = ''): Promise<SalesPick
 export async function fetchRecurringTemplates(search = ''): Promise<SalesRecurringTemplate[]> {
   try {
     const query = new URLSearchParams({ q: search, limit: '120' });
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/recurring/templates?${query.toString()}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/recurring/templates?${query.toString()}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesRecurringTemplate> = await response.json();
     return data.success ? data.data : [];
@@ -175,7 +175,7 @@ export async function fetchRecurringTemplates(search = ''): Promise<SalesRecurri
 
 export async function processRecurringOrders(templateIds: number[]): Promise<SalesRecurringProcessResult | null> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/recurring/process`, {
+    const response = await apiFetch(buildApiUrl(`/api/sales/recurring/process`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ templateIds }),
@@ -191,7 +191,7 @@ export async function processRecurringOrders(templateIds: number[]): Promise<Sal
 
 export async function fetchSalesPriceList(limit = 200): Promise<SalesPriceListItem[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/reports/price-list?limit=${limit}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/reports/price-list?limit=${limit}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesPriceListItem> = await response.json();
     return data.success ? data.data : [];
@@ -204,7 +204,7 @@ export async function fetchSalesPriceList(limit = 200): Promise<SalesPriceListIt
 export async function fetchSalesOrderStatus(search = ''): Promise<SalesOrderStatusRow[]> {
   try {
     const query = new URLSearchParams({ q: search, limit: '120' });
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/reports/order-status?${query.toString()}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/reports/order-status?${query.toString()}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesOrderStatusRow> = await response.json();
     return data.success ? data.data : [];
@@ -216,7 +216,7 @@ export async function fetchSalesOrderStatus(search = ''): Promise<SalesOrderStat
 
 export async function fetchSalesDailyInquiry(days = 30): Promise<SalesDailySalesRow[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/reports/daily-inquiry?days=${days}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/reports/daily-inquiry?days=${days}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesDailySalesRow> = await response.json();
     return data.success ? data.data : [];
@@ -228,7 +228,7 @@ export async function fetchSalesDailyInquiry(days = 30): Promise<SalesDailySales
 
 export async function fetchSalesTopItems(limit = 20): Promise<SalesTopItem[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/reports/top-items?limit=${limit}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/reports/top-items?limit=${limit}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesTopItem> = await response.json();
     return data.success ? data.data : [];
@@ -240,7 +240,7 @@ export async function fetchSalesTopItems(limit = 20): Promise<SalesTopItem[]> {
 
 export async function fetchSalesLowGrossReport(limit = 20): Promise<SalesLowGrossRow[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/reports/low-gross?limit=${limit}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/reports/low-gross?limit=${limit}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesLowGrossRow> = await response.json();
     return data.success ? data.data : [];
@@ -252,7 +252,7 @@ export async function fetchSalesLowGrossReport(limit = 20): Promise<SalesLowGros
 
 export async function fetchSalesContractLookups(): Promise<SalesContractLookups | null> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/contracts/lookups`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/contracts/lookups`));
     if (!response.ok) return null;
     const data: ApiObjectResponse<SalesContractLookups> = await response.json();
     return data.success ? data.data : null;
@@ -275,7 +275,7 @@ export async function fetchSalesContracts(params?: {
     if (params?.debtorNo) query.set('debtorNo', params.debtorNo);
     if (params?.limit !== undefined) query.set('limit', String(params.limit));
 
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/contracts?${query.toString()}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/contracts?${query.toString()}`));
     if (!response.ok) return [];
     const data: ApiListResponse<SalesContractSummary> = await response.json();
     return data.success ? data.data : [];
@@ -287,7 +287,7 @@ export async function fetchSalesContracts(params?: {
 
 export async function fetchSalesContractDetail(contractRef: string): Promise<SalesContractDetail | null> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/contracts/${encodeURIComponent(contractRef)}`);
+    const response = await apiFetch(buildApiUrl(`/api/sales/contracts/${encodeURIComponent(contractRef)}`));
     if (!response.ok) return null;
     const data: ApiObjectResponse<SalesContractDetail> = await response.json();
     return data.success ? data.data : null;
@@ -299,7 +299,7 @@ export async function fetchSalesContractDetail(contractRef: string): Promise<Sal
 
 export async function createSalesContract(payload: SalesContractPayload): Promise<SalesContractDetail | null> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/contracts`, {
+    const response = await apiFetch(buildApiUrl(`/api/sales/contracts`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -318,7 +318,7 @@ export async function updateSalesContract(
   payload: Omit<SalesContractPayload, 'contractRef'>
 ): Promise<SalesContractDetail | null> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/contracts/${encodeURIComponent(contractRef)}`, {
+    const response = await apiFetch(buildApiUrl(`/api/sales/contracts/${encodeURIComponent(contractRef)}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -349,7 +349,7 @@ export async function quoteSalesContract(contractRef: string): Promise<SalesCont
 
 export async function cancelSalesContract(contractRef: string): Promise<boolean> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/sales/contracts/${encodeURIComponent(contractRef)}`, {
+    const response = await apiFetch(buildApiUrl(`/api/sales/contracts/${encodeURIComponent(contractRef)}`), {
       method: 'DELETE',
     });
     if (!response.ok) return false;

@@ -1,14 +1,13 @@
 import { MenuItem, MenuCategory, MenuResponse } from '../types/menu';
 import { apiFetch } from '../lib/network/apiClient';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8877';
+import { buildApiUrl } from '../lib/network/apiBase';
 
 /**
  * Fetch all menu items (hierarchical). Returns empty array on failure so UI can load.
  */
 export async function fetchMenu(): Promise<MenuCategory[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/menu`);
+    const response = await apiFetch(buildApiUrl('/api/menu'));
     const data: MenuResponse = await response.json();
 
     if (data.success && Array.isArray(data.data)) {
@@ -26,7 +25,7 @@ export async function fetchMenu(): Promise<MenuCategory[]> {
  */
 export async function fetchMenuCategories(): Promise<MenuCategory[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/menu/categories`);
+    const response = await apiFetch(buildApiUrl('/api/menu/categories'));
     const data = await response.json();
 
     if (data.success && Array.isArray(data.data)) {
@@ -44,7 +43,7 @@ export async function fetchMenuCategories(): Promise<MenuCategory[]> {
  */
 export async function fetchMenuByParent(parentId: number): Promise<MenuItem[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/api/menu/parent/${parentId}`);
+    const response = await apiFetch(buildApiUrl(`/api/menu/parent/${parentId}`));
     const data = await response.json();
 
     if (data.success && Array.isArray(data.data)) {

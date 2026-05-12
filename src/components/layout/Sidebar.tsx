@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { 
-  ChevronDown,
   Settings,
   ChevronUp,
   ChevronRight,
@@ -30,6 +29,7 @@ import {
 import { useApp } from '../../contexts/AppContext';
 import { fetchMenu, hrefToSlug } from '../../data/menuApi';
 import { MenuCategory } from '../../types/menu';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 const MAIN_MENU_ICONS: Record<string, LucideIcon> = {
   sales: ShoppingCart,
@@ -294,6 +294,7 @@ function Sidebar() {
   const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
   const [hoveredIcon, setHoveredIcon] = useState<string | null>(null);
   const [hoveredMainMenuId, setHoveredMainMenuId] = useState<number | null>(null);
+  const [companyName, setCompanyName] = useState('Entice Tech Ltd');
   const [isResizingIcon, setIsResizingIcon] = useState(false);
   const [isResizingMain, setIsResizingMain] = useState(false);
   
@@ -784,15 +785,16 @@ function Sidebar() {
             {/* Header - Company Selector */}
             <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
               <div className="relative">
-                <select 
+                <SearchableSelect
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
                   className="w-full bg-transparent border-none text-sm font-medium text-gray-900 dark:text-white focus:ring-0 cursor-pointer appearance-none pr-6"
-                  defaultValue="Entice Tech Ltd"
+                  placeholder="Search company"
                 >
                   <option className="dark:bg-slate-800">Entice Tech Ltd</option>
                   <option className="dark:bg-slate-800">Sample Company 2</option>
                   <option className="dark:bg-slate-800">Sample Company 3</option>
-                </select>
-                <ChevronDown className="absolute right-0 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                </SearchableSelect>
               </div>
             </div>
 

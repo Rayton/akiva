@@ -23,6 +23,13 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='select']",
+          message: 'Use `SearchableSelect` instead of native `<select>` so dropdowns stay searchable project-wide.',
+        },
+      ],
     },
   }
 );

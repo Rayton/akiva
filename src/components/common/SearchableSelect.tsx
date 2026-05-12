@@ -1,152 +1,235 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Children, Fragment, ReactNode, isValidElement, useMemo, useState } from 'react';
+import { Combobox, Transition } from '@headlessui/react';
+import { Check, ChevronsUpDown } from 'lucide-react';
 
-export interface SearchableSelectOption {
-  value: string;
+interface ChangeEventLike {
+  target: {
+    value: string;
+    name?: string;
+  };
+}
+
+type SearchableSelectChangeHandler = ((event: ChangeEventLike) => void) | ((value: string) => void);
+
+interface SearchableSelectOption {
+  value: string | number;
   label: string;
-  searchText?: string;
   disabled?: boolean;
+  searchText?: string;
 }
 
 interface SearchableSelectProps {
-  value: string;
-  onChange: (value: string) => void;
-  options: SearchableSelectOption[];
-  placeholder?: string;
-  emptyMessage?: string;
-  disabled?: boolean;
+  value?: string | number;
+  onChange?: SearchableSelectChangeHandler;
+  options?: SearchableSelectOption[];
+  children?: ReactNode;
   className?: string;
   inputClassName?: string;
   panelClassName?: string;
+  disabled?: boolean;
+  required?: boolean;
+  id?: string;
+  name?: string;
+  placeholder?: string;
 }
 
-const BASE_INPUT_CLASS =
-  'w-full rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-brand-800 dark:bg-slate-950 dark:text-white dark:focus:border-brand-400 dark:focus:ring-brand-900/50';
+interface SelectOption {
+  value: string;
+  label: string;
+  disabled: boolean;
+  searchText: string;
+}
 
-const BASE_PANEL_CLASS =
-  'absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-brand-100 bg-white p-1 shadow-xl dark:border-brand-900/50 dark:bg-slate-900';
+function extractLayoutClasses(className: string): string {
+  return className
+    .split(/\s+/)
+    .filter((token) =>
+      /^(?:[a-z]+:)*(?:w-|min-w-|max-w-|col-span-|col-start-|col-end-|row-span-|row-start-|row-end-|order-|justify-self-|self-|place-self-|basis-|grow|shrink)/.test(
+        token
+      )
+    )
+    .join(' ');
+}
+
+function flattenText(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map((child) => flattenText(child)).join(' ');
+  if (isValidElement(node)) return flattenText(node.props.children);
+  return '';
+}
+
+function extractOptions(children: ReactNode): SelectOption[] {
+  const options: SelectOption[] = [];
+
+  const walk = (nodes: ReactNode) => {
+    Children.forEach(nodes, (child) => {
+      if (!isValidElement(child)) return;
+      if (child.type === 'option') {
+        const rawValue = child.props.value ?? '';
+        const label = flattenText(child.props.children).trim();
+        options.push({
+          value: String(rawValue),
+          label,
+          disabled: Boolean(child.props.disabled),
+          searchText: `${label} ${String(rawValue)}`.trim(),
+        });
+        return;
+      }
+      walk(child.props.children);
+    });
+  };
+
+  walk(children);
+  return options;
+}
 
 export function SearchableSelect({
-  value,
+  value = '',
   onChange,
-  options,
-  placeholder = 'Select option',
-  emptyMessage = 'No matching options.',
-  disabled = false,
+  options: propOptions,
+  children,
   className = '',
   inputClassName = '',
   panelClassName = '',
+  disabled = false,
+  required = false,
+  id,
+  name,
+  placeholder = 'Search...',
 }: SearchableSelectProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-
-  const selectedOption = useMemo(
-    () => options.find((option) => option.value === value) ?? null,
-    [options, value]
-  );
-
-  useEffect(() => {
-    if (!open) {
-      setQuery(selectedOption?.label ?? '');
+  const usesPropOptions = Array.isArray(propOptions);
+  const layoutClassName = useMemo(() => extractLayoutClasses(className), [className]);
+  const options = useMemo(() => {
+    if (usesPropOptions) {
+      return (propOptions ?? []).map((option) => {
+        const normalizedValue = String(option.value ?? '');
+        const label = String(option.label ?? '');
+        return {
+          value: normalizedValue,
+          label,
+          disabled: Boolean(option.disabled),
+          searchText: option.searchText?.trim() || `${label} ${normalizedValue}`.trim(),
+        };
+      });
     }
-  }, [open, selectedOption]);
 
-  useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
-      if (!containerRef.current) return;
-      if (containerRef.current.contains(event.target as Node)) return;
-      setOpen(false);
-    };
-
-    window.addEventListener('mousedown', onPointerDown);
-    return () => {
-      window.removeEventListener('mousedown', onPointerDown);
-    };
-  }, []);
+    return extractOptions(children);
+  }, [children, propOptions, usesPropOptions]);
+  const normalizedValue = String(value ?? '');
+  const selectedOption = options.find((option) => option.value === normalizedValue) ?? null;
+  const [query, setQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
   const filteredOptions = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return options;
-    return options.filter((option) => {
-      const haystack = `${option.label} ${option.searchText ?? ''}`.toLowerCase();
-      return haystack.includes(needle);
-    });
+    const search = query.trim().toLowerCase();
+    if (search === '') return options;
+    return options.filter(
+      (option) =>
+        option.searchText.toLowerCase().includes(search) ||
+        option.label.toLowerCase().includes(search) ||
+        option.value.toLowerCase().includes(search)
+    );
   }, [options, query]);
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
-      <input
-        type="text"
-        value={open ? query : selectedOption?.label ?? ''}
-        onFocus={() => {
-          if (disabled) return;
-          setOpen(true);
-          setQuery('');
-        }}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          if (!open) setOpen(true);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            setOpen(false);
-            return;
-          }
-          if (event.key === 'Enter' && filteredOptions.length > 0) {
-            const first = filteredOptions[0];
-            if (first.disabled) return;
-            onChange(first.value);
-            setOpen(false);
-            setQuery(first.label);
-          }
-        }}
-        placeholder={placeholder}
-        disabled={disabled}
-        className={`${BASE_INPUT_CLASS} ${disabled ? 'cursor-not-allowed opacity-70' : ''} ${inputClassName}`}
-      />
-      <button
-        type="button"
-        onClick={() => {
-          if (disabled) return;
-          setOpen((previous) => !previous);
-          if (!open) setQuery('');
-        }}
-        tabIndex={-1}
-        className="absolute inset-y-0 right-0 flex items-center px-2 text-brand-500 dark:text-brand-300"
-      >
-        <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
+    <Combobox
+      immediate
+      value={selectedOption}
+      onChange={(option: SelectOption | null) => {
+        const nextValue = option?.value ?? '';
+        setIsSearching(false);
+        setQuery('');
 
-      {open ? (
-        <div className={`${BASE_PANEL_CLASS} ${panelClassName}`}>
-          {filteredOptions.length === 0 ? (
-            <p className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">{emptyMessage}</p>
-          ) : (
-            filteredOptions.map((option) => (
-              <button
-                type="button"
-                key={option.value}
-                disabled={option.disabled}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  if (option.disabled) return;
-                  onChange(option.value);
-                  setOpen(false);
-                  setQuery(option.label);
-                }}
-                className={`flex w-full items-start rounded-md px-2 py-2 text-left text-sm ${
-                  option.value === value
-                    ? 'bg-brand-100 text-brand-900 dark:bg-brand-900/50 dark:text-brand-100'
-                    : 'text-gray-700 hover:bg-brand-50 dark:text-gray-200 dark:hover:bg-brand-900/30'
-                } ${option.disabled ? 'cursor-not-allowed opacity-50' : ''}`}
-              >
-                {option.label}
-              </button>
-            ))
-          )}
-        </div>
-      ) : null}
-    </div>
+        if (usesPropOptions) {
+          (onChange as ((value: string) => void) | undefined)?.(nextValue);
+          return;
+        }
+
+        (onChange as ((event: ChangeEventLike) => void) | undefined)?.({
+          target: {
+            value: nextValue,
+            name,
+          },
+        });
+      }}
+      disabled={disabled}
+    >
+      <div className={['relative', layoutClassName].filter(Boolean).join(' ')}>
+        <Combobox.Input
+          id={id}
+          name={name}
+          required={required}
+          className={[
+            'w-full rounded-xl border border-gray-300 bg-white px-3 py-2 pr-10 text-sm shadow-sm',
+            'text-gray-900 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-200',
+            'disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white',
+            className,
+            inputClassName,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          displayValue={(option: SelectOption | null) => (isSearching ? '' : option?.label ?? '')}
+          onFocus={() => {
+            setIsSearching(true);
+            setQuery('');
+          }}
+          onChange={(event) => setQuery(event.target.value)}
+          onBlur={() => {
+            setQuery('');
+            setIsSearching(false);
+          }}
+          placeholder={isSearching || !selectedOption ? placeholder : undefined}
+          autoComplete="off"
+        />
+        <Combobox.Button className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600 focus:outline-none dark:text-gray-500 dark:hover:text-gray-300 border-0 bg-transparent">
+          <ChevronsUpDown className="h-4 w-4" />
+        </Combobox.Button>
+
+        <Transition
+          as={Fragment}
+          leave="transition ease-in duration-100"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <Combobox.Options
+            className={[
+              'absolute z-40 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-gray-200 bg-white py-1 text-sm shadow-lg',
+              'dark:border-slate-600 dark:bg-slate-900',
+              panelClassName,
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-gray-500 dark:text-gray-400">No results found</div>
+            ) : (
+              filteredOptions.map((option) => (
+                <Combobox.Option
+                  key={`${option.value}-${option.label}`}
+                  value={option}
+                  disabled={option.disabled}
+                  className={({ active, disabled: optionDisabled }) =>
+                    `relative cursor-pointer select-none py-2 pl-3 pr-9 ${
+                      active ? 'bg-brand-50 text-brand-900 dark:bg-slate-700 dark:text-white' : 'text-gray-900 dark:text-gray-100'
+                    } ${optionDisabled ? 'cursor-not-allowed opacity-50' : ''}`
+                  }
+                >
+                  {({ selected }) => (
+                    <>
+                      <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>{option.label || option.value}</span>
+                      {selected ? (
+                        <span className="absolute inset-y-0 right-2 flex items-center text-brand-600 dark:text-brand-300">
+                          <Check className="h-4 w-4" />
+                        </span>
+                      ) : null}
+                    </>
+                  )}
+                </Combobox.Option>
+              ))
+            )}
+          </Combobox.Options>
+        </Transition>
+      </div>
+    </Combobox>
   );
 }

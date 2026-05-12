@@ -1,23 +1,19 @@
 import React, { ReactNode } from 'react';
 
-interface ButtonProps {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   variant?: 'primary' | 'secondary' | 'danger' | 'success';
   size?: 'sm' | 'md' | 'lg';
-  onClick?: () => void;
-  disabled?: boolean;
-  className?: string;
-  type?: 'button' | 'submit' | 'reset';
 }
 
 export function Button({
   children,
   variant = 'primary',
   size = 'md',
-  onClick,
   disabled = false,
   className = '',
-  type = 'button'
+  type = 'button',
+  ...props
 }: ButtonProps) {
   const baseClasses = 'font-medium rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2';
   
@@ -37,9 +33,9 @@ export function Button({
   return (
     <button
       type={type}
-      onClick={onClick}
       disabled={disabled}
       className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      {...props}
     >
       {children}
     </button>

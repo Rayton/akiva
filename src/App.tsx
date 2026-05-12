@@ -14,6 +14,7 @@ import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { Home, ShoppingCart, FileBarChart, Settings, Star, Menu, Clock, X, ChevronRight } from 'lucide-react';
 import type { SalesModuleMode } from './pages/SalesOrders';
+import type { MenuCategory, MenuItem } from './types/menu';
 
 function normalizeMenuSlug(pageId: string): string {
   if (!pageId.startsWith('menu-')) return '';
@@ -53,6 +54,67 @@ function isSalesMenuSlug(slug: string): boolean {
     'selectcompletedorder',
     'selectsalesorder',
   ].some((keyword) => key.includes(keyword));
+}
+
+function isGeneralLedgerMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  if (!key) return false;
+  return [
+    'gl',
+    'journal',
+    'bankaccount',
+    'bankmatching',
+    'bankreconciliation',
+    'accountgroup',
+    'accountsection',
+    'glaccount',
+    'trialbalance',
+    'balancesheet',
+    'profitloss',
+    'cashflows',
+    'gltag',
+    'selectglaccount',
+    'glaccountgraph',
+    'glaccountreport',
+    'glaccountcsv',
+    'dailybanktransactions',
+    'importbanktrans',
+    'customerreceipt',
+    'payment',
+  ].some((keyword) => key.includes(keyword));
+}
+
+function isGeneralLedgerPathSegment(segment: string): boolean {
+  const key = segment.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return key === 'generalledger' || key === 'gl';
+}
+
+type GeneralLedgerView = 'transactions' | 'accounts';
+
+function resolveGeneralLedgerView(slug: string): GeneralLedgerView {
+  const key = normalizedSlugKey(slug);
+
+  if (
+    key.includes('accountsection') ||
+    key.includes('accountgroup') ||
+    key.includes('glaccounts')
+  ) {
+    return 'accounts';
+  }
+
+  if (
+    key.includes('trialbalance') ||
+    key.includes('balancesheet') ||
+    key.includes('profitloss') ||
+    key.includes('cashflows') ||
+    key.includes('gltag') ||
+    key.includes('analysishorizontal') ||
+    key.includes('tax')
+  ) {
+    return 'transactions';
+  }
+
+  return 'transactions';
 }
 
 function resolveSalesMode(slug: string): SalesModuleMode {
@@ -109,6 +171,28 @@ function menuSlugToTitle(slug: string): string {
     .join(' ');
 }
 
+type MenuNode = MenuCategory | MenuItem;
+
+function parseMenuNodeId(pageId: string): number | null {
+  if (!pageId.startsWith('menu-')) return null;
+  const firstDash = pageId.indexOf('-', 5);
+  if (firstDash <= 5) return null;
+  const rawId = pageId.slice(5, firstDash);
+  const id = Number(rawId);
+  return Number.isFinite(id) ? id : null;
+}
+
+function findMenuNodeById(nodes: MenuNode[], id: number): MenuNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const children = node.children as MenuNode[] | undefined;
+    if (!children || children.length === 0) continue;
+    const match = findMenuNodeById(children, id);
+    if (match) return match;
+  }
+  return null;
+}
+
 function AppContent() {
   const { currentPage, mobileSidebarOpen, setMobileSidebarOpen, appMenu } = useApp();
 
@@ -131,11 +215,24 @@ function AppContent() {
 
     const menuSlug = normalizeMenuSlug(currentPage);
     const primaryPathSegment = window.location.pathname.split('/').filter(Boolean)[0]?.toLowerCase() ?? '';
-    if (primaryPathSegment === 'sales' || isSalesMenuSlug(menuSlug)) {
-      return <SalesOrders mode={resolveSalesMode(menuSlug)} sourceSlug={menuSlug} />;
-    }
+    const menuNodeId = parseMenuNodeId(currentPage);
+    const currentMenuNode = menuNodeId !== null ? findMenuNodeById(appMenu as MenuNode[], menuNodeId) : null;
+    const currentMenuHref = currentMenuNode?.href ?? '';
+    const currentMenuCaption = currentMenuNode?.caption ?? '';
 
     if (menuSlug) {
+      if (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug)) {
+        const glView = resolveGeneralLedgerView(menuSlug);
+        if (glView === 'accounts') {
+          return <ChartOfAccounts sourceSlug={menuSlug} />;
+        }
+        return <GeneralLedger sourceSlug={menuSlug} sourceHref={currentMenuHref} sourceCaption={currentMenuCaption} />;
+      }
+
+      if (primaryPathSegment === 'sales' || isSalesMenuSlug(menuSlug)) {
+        return <SalesOrders mode={resolveSalesMode(menuSlug)} sourceSlug={menuSlug} />;
+      }
+
       return (
         <div className="p-4 md:p-8">
           <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
@@ -154,7 +251,7 @@ function AppContent() {
       case 'accounts':
         return <ChartOfAccounts />;
       case 'general-ledger':
-        return <GeneralLedger />;
+        return <GeneralLedger sourceSlug="general-ledger" sourceCaption="General Ledger" />;
       case 'receivables':
         return <AccountsReceivable />;
       case 'payables':

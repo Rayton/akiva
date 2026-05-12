@@ -19,6 +19,21 @@
 html {
   transition: background-color var(--transition-duration) var(--transition-timing),
               color var(--transition-duration) var(--transition-timing);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+body {
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
 }
 
 /* Dark mode specific styles */

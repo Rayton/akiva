@@ -276,9 +276,9 @@ export function Dashboard() {
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Operating margin</p>
-                    <div className="mt-2 flex flex-wrap items-baseline gap-3">
-                      <span className="text-4xl font-semibold tracking-normal text-slate-950 dark:text-white sm:text-5xl">$159,976</span>
-                      <span className="rounded-full bg-rose-600 px-2.5 py-1 text-sm font-semibold text-white">30.2%</span>
+	                    <div className="mt-2 flex flex-wrap items-baseline gap-3">
+	                      <span className="text-3xl font-medium tracking-normal text-slate-900 dark:text-slate-100 sm:text-4xl">$159,976</span>
+	                      <span className="rounded-full bg-rose-50 px-2.5 py-1 text-sm font-semibold text-rose-700 ring-1 ring-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/60">30.2%</span>
                     </div>
                     <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                       Revenue {currency.format(528976)} vs expenses {currency.format(369000)}

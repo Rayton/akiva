@@ -4,6 +4,18 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          '"IBM Plex Sans"',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif',
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+          '"Noto Color Emoji"',
+        ],
+      },
       colors: {
         // Brand colors - update these values to change the brand color
         brand: {

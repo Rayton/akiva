@@ -37,7 +37,7 @@ function HeaderIconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/86 text-slate-700 shadow-sm shadow-slate-200/60 transition hover:bg-white hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white"
+      className="relative flex h-10 w-10 items-center justify-center rounded-full border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text"
     >
       {children}
     </button>
@@ -49,35 +49,35 @@ export function Header() {
   const [timeframe, setTimeframe] = useState('Sep 1 - Nov 30, 2023');
 
   return (
-    <header className="border-b border-white/70 bg-[#f2eeee]/92 px-5 py-4 text-slate-950 backdrop-blur transition-colors dark:border-slate-800 dark:bg-slate-950/92 dark:text-white">
+    <header className="border-b border-akiva-border bg-akiva-bg px-5 py-4 text-akiva-text backdrop-blur transition-colors">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div className="relative w-full max-w-xl">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-akiva-text-muted" />
             <input
               type="text"
               placeholder='Try searching "inventory valuation"'
-              className="h-12 w-full rounded-full border border-white/80 bg-white/88 pl-12 pr-4 text-sm font-medium text-slate-900 shadow-sm shadow-slate-200/70 outline-none transition placeholder:text-slate-400 focus:border-rose-300 focus:bg-white focus:ring-4 focus:ring-rose-100 dark:border-slate-700 dark:bg-slate-900/78 dark:text-white dark:shadow-black/20 dark:placeholder:text-slate-500 dark:focus:border-rose-700 dark:focus:bg-slate-900 dark:focus:ring-rose-950/50"
+              className="h-12 w-full rounded-full border border-akiva-border bg-akiva-surface-raised pl-12 pr-4 text-sm font-medium text-akiva-text shadow-sm outline-none transition placeholder:text-akiva-text-muted focus:border-akiva-accent focus:ring-2 focus:ring-akiva-accent"
             />
           </div>
 
-          <div className="hidden items-center gap-2 rounded-full bg-white/70 px-2 py-1 shadow-sm shadow-slate-200/60 dark:bg-slate-900/70 dark:shadow-black/20 2xl:flex">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-xs font-bold text-white dark:bg-white dark:text-slate-950">A</span>
-            <span className="whitespace-nowrap text-sm font-semibold text-slate-800 dark:text-slate-200">Akiva ERP</span>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
+          <div className="hidden items-center gap-2 rounded-full bg-akiva-surface-raised px-2 py-1 shadow-sm 2xl:flex">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-akiva-text text-xs font-bold text-akiva-surface-raised">A</span>
+            <span className="whitespace-nowrap text-sm font-semibold text-akiva-text">Akiva ERP</span>
+            <ChevronDown className="h-4 w-4 text-akiva-text-muted" />
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          <div className="flex items-center gap-2 rounded-full border border-white/80 bg-white/82 px-3 py-2 shadow-sm shadow-slate-200/60 dark:border-slate-700 dark:bg-slate-900/76 dark:shadow-black/20">
-            <CalendarDays className="h-4 w-4 text-slate-400" />
-            <span className="hidden text-sm font-semibold text-slate-700 dark:text-slate-200 sm:inline">Timeframe</span>
+          <div className="flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-2 shadow-sm">
+            <CalendarDays className="h-4 w-4 text-akiva-text-muted" />
+            <span className="hidden text-sm font-semibold text-akiva-text sm:inline">Timeframe</span>
             <SearchableSelect
               value={timeframe}
               onChange={(value) => setTimeframe(value)}
               options={TIMEFRAME_OPTIONS}
               className="w-[170px]"
-              inputClassName="h-auto rounded-none border-0 bg-transparent px-0 py-0 pr-6 text-sm font-semibold text-slate-800 shadow-none outline-none focus:border-transparent focus:ring-0 dark:border-transparent dark:bg-transparent dark:text-slate-200"
+              inputClassName="h-auto rounded-none border-0 bg-transparent px-0 py-0 pr-6 text-sm font-semibold text-akiva-text shadow-none outline-none focus:border-transparent focus:ring-0"
               panelClassName="right-0 min-w-[190px]"
               placeholder="Search timeframe"
             />
@@ -97,27 +97,27 @@ export function Header() {
           </HeaderIconButton>
           <HeaderIconButton label="Notifications">
             <Bell className="h-4 w-4" />
-            <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-600 ring-2 ring-white dark:ring-slate-900" />
+            <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-akiva-accent ring-2 ring-akiva-surface-raised" />
           </HeaderIconButton>
           <HeaderIconButton label="Settings">
             <Settings className="h-4 w-4" />
           </HeaderIconButton>
 
-          <div className="ml-1 flex items-center gap-2 rounded-full bg-white/82 p-1.5 shadow-sm shadow-slate-200/60 dark:bg-slate-900/76 dark:shadow-black/20">
+          <div className="ml-1 flex items-center gap-2 rounded-full bg-akiva-surface-raised p-1.5 shadow-sm">
             <img
               src={currentUser.avatar}
               alt={currentUser.name}
-              className="h-9 w-9 rounded-full object-cover ring-2 ring-white dark:ring-slate-800"
+              className="h-9 w-9 rounded-full object-cover ring-2 ring-akiva-surface-raised"
             />
             <div className="hidden pr-2 md:block">
-              <p className="max-w-[110px] truncate text-sm font-semibold text-slate-900 dark:text-white">{currentUser.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{currentUser.role}</p>
+              <p className="max-w-[110px] truncate text-sm font-semibold text-akiva-text">{currentUser.name}</p>
+              <p className="text-xs text-akiva-text-muted">{currentUser.role}</p>
             </div>
           </div>
 
           <button
             type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg shadow-rose-600/25 transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-akiva-accent text-white shadow-lg shadow-rose-600/25 transition hover:bg-akiva-accent-strong"
             aria-label="Create new item"
             title="Create new item"
           >

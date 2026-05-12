@@ -49,6 +49,19 @@ const compactCurrency = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 });
 
+const chartTooltipContentStyle = {
+  backgroundColor: 'var(--akiva-chart-tooltip-bg)',
+  border: '1px solid var(--akiva-chart-tooltip-border)',
+  borderRadius: '12px',
+  color: 'var(--akiva-chart-tooltip-text)',
+  boxShadow: '0 18px 38px rgba(0, 0, 0, 0.22)',
+};
+
+const chartTooltipTextStyle = {
+  color: 'var(--akiva-chart-tooltip-text)',
+  fontWeight: 600,
+};
+
 const summaryMetrics = [
   {
     label: 'Net sales',
@@ -209,16 +222,16 @@ function MetricCard({ label, value, detail, change, trend, icon: Icon }: MetricC
 function KpiTile({ label, value, subvalue, tone }: { label: string; value: string; subvalue: string; tone: string }) {
   const classes =
     tone === 'dark'
-      ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950'
+      ? 'bg-slate-950 text-white dark:bg-[#fff7fb] dark:text-[#140a0f]'
       : tone === 'rose'
-        ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/40 dark:text-rose-200'
+        ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-[#8f3d5d] dark:bg-[#351320] dark:text-[#ffd8e5]'
         : 'border-slate-200 bg-white/80 text-slate-900 dark:border-slate-700 dark:bg-slate-900/70 dark:text-white';
 
   return (
     <article className={`rounded-lg border p-4 shadow-sm shadow-slate-200/50 dark:shadow-black/20 ${classes}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide opacity-85">{label}</p>
       <p className="mt-3 text-2xl font-semibold">{value}</p>
-      <p className="mt-2 text-sm opacity-70">{subvalue}</p>
+      <p className="mt-2 text-sm opacity-85">{subvalue}</p>
     </article>
   );
 }
@@ -296,20 +309,25 @@ export function Dashboard() {
                     <AreaChart data={revenueTrend} margin={{ top: 8, right: 10, left: -22, bottom: 0 }}>
                       <defs>
                         <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#db2777" stopOpacity={0.22} />
-                          <stop offset="95%" stopColor="#db2777" stopOpacity={0} />
+                          <stop offset="5%" stopColor="var(--akiva-chart-brand)" stopOpacity={0.22} />
+                          <stop offset="95%" stopColor="var(--akiva-chart-brand)" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="expenseFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#111827" stopOpacity={0.12} />
-                          <stop offset="95%" stopColor="#111827" stopOpacity={0} />
+                          <stop offset="5%" stopColor="var(--akiva-chart-ink)" stopOpacity={0.12} />
+                          <stop offset="95%" stopColor="var(--akiva-chart-ink)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="4 6" />
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--akiva-chart-muted)' }} />
                       <YAxis hide domain={['dataMin - 20000', 'dataMax + 20000']} />
-                      <Tooltip formatter={(value: number) => compactCurrency.format(value)} />
-                      <Area type="monotone" dataKey="expenses" stroke="#94a3b8" strokeWidth={2} fill="url(#expenseFill)" />
-                      <Area type="monotone" dataKey="revenue" stroke="#db2777" strokeWidth={3} fill="url(#revenueFill)" />
+                      <Tooltip
+                        formatter={(value: number) => compactCurrency.format(value)}
+                        contentStyle={chartTooltipContentStyle}
+                        labelStyle={chartTooltipTextStyle}
+                        itemStyle={chartTooltipTextStyle}
+                      />
+                      <Area type="monotone" dataKey="expenses" stroke="var(--akiva-chart-muted)" strokeWidth={2} fill="url(#expenseFill)" />
+                      <Area type="monotone" dataKey="revenue" stroke="var(--akiva-chart-brand)" strokeWidth={3} fill="url(#revenueFill)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -358,12 +376,12 @@ export function Dashboard() {
                   <div className="h-56">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={stockFlow} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
-                        <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="4 6" />
-                        <XAxis dataKey="item" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                        <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
+                        <XAxis dataKey="item" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--akiva-chart-muted)' }} />
                         <YAxis hide />
-                        <Tooltip />
-                        <Bar dataKey="onHand" fill="#111827" radius={[8, 8, 8, 8]} />
-                        <Bar dataKey="committed" fill="#db2777" radius={[8, 8, 8, 8]} />
+                        <Tooltip contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipTextStyle} itemStyle={chartTooltipTextStyle} />
+                        <Bar dataKey="onHand" fill="var(--akiva-chart-ink)" radius={[8, 8, 8, 8]} />
+                        <Bar dataKey="committed" fill="var(--akiva-chart-brand)" radius={[8, 8, 8, 8]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -436,7 +454,7 @@ export function Dashboard() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200/80 bg-rose-50/80 p-4 shadow-sm shadow-rose-100/60 dark:border-rose-900/40 dark:bg-rose-950/24 dark:shadow-black/20">
+	              <section className="rounded-2xl border border-slate-200/80 bg-rose-50/80 p-4 shadow-sm shadow-rose-100/60 dark:border-[#6e344c] dark:bg-[#211018] dark:shadow-black/30">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">Cash movement</p>
@@ -447,12 +465,17 @@ export function Dashboard() {
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={revenueTrend} margin={{ top: 12, right: 8, left: -24, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke="#fecdd3" strokeDasharray="4 6" />
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
                       <YAxis hide />
-                      <Tooltip formatter={(value: number) => compactCurrency.format(value)} />
-                      <Line type="monotone" dataKey="cash" stroke="#db2777" strokeWidth={3} dot={false} />
-                      <Line type="monotone" dataKey="expenses" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                      <Tooltip
+                        formatter={(value: number) => compactCurrency.format(value)}
+                        contentStyle={chartTooltipContentStyle}
+                        labelStyle={chartTooltipTextStyle}
+                        itemStyle={chartTooltipTextStyle}
+                      />
+                      <Line type="monotone" dataKey="cash" stroke="var(--akiva-chart-brand)" strokeWidth={3} dot={false} />
+                      <Line type="monotone" dataKey="expenses" stroke="var(--akiva-chart-muted)" strokeWidth={2} strokeDasharray="5 5" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>

@@ -100,13 +100,13 @@ export function OfflineStatusBar({ compact = false }: OfflineStatusBarProps) {
   }, []);
 
   return (
-    <div className="border-b border-brand-100/80 bg-brand-50/70 dark:border-brand-900/40 dark:bg-brand-900/20">
+    <div className="border-b border-akiva-border bg-akiva-accent-soft text-akiva-text">
       <div className={`${compact ? 'px-4 py-1.5' : 'px-6 py-1.5'} flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] md:text-xs`}>
         <span
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${
             isOnline
-              ? 'bg-brand-100 text-brand-800 dark:bg-brand-900/50 dark:text-brand-200'
-              : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+              ? 'bg-akiva-surface-raised text-akiva-accent-text'
+              : 'bg-akiva-surface-muted text-akiva-text-muted'
           }`}
         >
           {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
@@ -116,7 +116,7 @@ export function OfflineStatusBar({ compact = false }: OfflineStatusBarProps) {
         <span
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${
             serviceWorkerActive
-              ? 'bg-brand-100 text-brand-800 dark:bg-brand-900/50 dark:text-brand-200'
+              ? 'bg-akiva-surface-raised text-akiva-accent-text'
               : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
           }`}
         >
@@ -124,9 +124,9 @@ export function OfflineStatusBar({ compact = false }: OfflineStatusBarProps) {
           SW: {serviceWorkerActive ? 'Active' : 'Not Active'}
         </span>
 
-        <span className="text-gray-700 dark:text-gray-300">Last sync: {formatWhen(meta.lastNetworkSyncAt)}</span>
-        <span className="text-gray-700 dark:text-gray-300">Last cached read: {formatWhen(meta.lastApiReadAt)}</span>
-        <span className="text-gray-700 dark:text-gray-300">
+        <span className="text-akiva-text-muted">Last sync: {formatWhen(meta.lastNetworkSyncAt)}</span>
+        <span className="text-akiva-text-muted">Last cached read: {formatWhen(meta.lastApiReadAt)}</span>
+        <span className="text-akiva-text-muted">
           Cache: {formatBytes(storage.usageBytes)}
           {storage.quotaBytes ? ` / ${formatBytes(storage.quotaBytes)} (${storageRatio}%)` : ''}
           {storage.persisted === true ? ' persisted' : ''}

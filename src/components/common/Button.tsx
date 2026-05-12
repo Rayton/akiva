@@ -15,13 +15,13 @@ export function Button({
   type = 'button',
   ...props
 }: ButtonProps) {
-  const baseClasses = 'font-medium rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseClasses = 'font-medium rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-akiva-accent focus:ring-offset-2 focus:ring-offset-akiva-bg';
   
   const variantClasses = {
-    primary: 'bg-brand-600 text-white hover:bg-brand-700 focus:ring-brand-500 disabled:bg-brand-300 dark:disabled:bg-brand-800',
-    secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 disabled:bg-gray-50 dark:bg-slate-700 dark:text-gray-100 dark:hover:bg-slate-600 dark:disabled:bg-slate-800',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 disabled:bg-red-300 dark:disabled:bg-red-900',
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 disabled:bg-green-300 dark:disabled:bg-green-900'
+    primary: 'bg-akiva-accent text-white hover:bg-akiva-accent-strong disabled:bg-akiva-accent-soft disabled:text-akiva-text-muted',
+    secondary: 'border border-akiva-border bg-akiva-surface-muted text-akiva-text hover:bg-akiva-surface-raised disabled:bg-akiva-surface disabled:text-akiva-text-muted',
+    danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-200 disabled:text-red-900 dark:disabled:bg-red-950 dark:disabled:text-red-200',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-200 disabled:text-emerald-900 dark:disabled:bg-emerald-950 dark:disabled:text-emerald-200'
   };
   
   const sizeClasses = {

@@ -124,30 +124,30 @@ export function DatePicker({
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         disabled={disabled}
-        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-left text-sm text-gray-800 shadow-sm transition hover:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-brand-400"
+        className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-left text-sm text-akiva-text shadow-sm transition hover:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent disabled:bg-akiva-surface-muted disabled:text-akiva-text-muted"
       >
         <span className="flex items-center justify-between gap-2">
-          <span className={value ? '' : 'text-gray-400 dark:text-slate-400'}>{value ? formatDisplayDate(value) : placeholder}</span>
-          <CalendarDays className="h-4 w-4 text-brand-500" />
+          <span className={value ? '' : 'text-akiva-text-muted'}>{value ? formatDisplayDate(value) : placeholder}</span>
+          <CalendarDays className="h-4 w-4 text-akiva-accent-text" />
         </span>
       </button>
 
       {isOpen ? (
-        <div className="absolute z-30 mt-2 w-[296px] rounded-2xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="absolute z-30 mt-2 w-[296px] rounded-2xl border border-akiva-border bg-akiva-surface-raised p-3 shadow-xl">
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
-              className="rounded-lg p-1 text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-lg p-1 text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text"
               onClick={() =>
                 setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
               }
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">{monthLabel}</div>
+            <div className="text-sm font-semibold text-akiva-text">{monthLabel}</div>
             <button
               type="button"
-              className="rounded-lg p-1 text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-lg p-1 text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text"
               onClick={() =>
                 setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
               }
@@ -158,7 +158,7 @@ export function DatePicker({
 
           <div className="mb-1 grid grid-cols-7 gap-1">
             {WEEKDAY_LABELS.map((label) => (
-              <div key={label} className="py-1 text-center text-[11px] font-medium text-gray-500 dark:text-slate-400">
+              <div key={label} className="py-1 text-center text-[11px] font-medium text-akiva-text-muted">
                 {label}
               </div>
             ))}
@@ -180,10 +180,10 @@ export function DatePicker({
                   }}
                   className={`h-8 rounded-lg text-sm ${
                     isSelected
-                      ? 'bg-brand-500 font-semibold text-white'
+                      ? 'bg-akiva-accent font-semibold text-white'
                       : day.inCurrentMonth
-                        ? 'text-gray-800 hover:bg-brand-100 dark:text-slate-100 dark:hover:bg-slate-800'
-                        : 'text-gray-400 hover:bg-gray-100 dark:text-slate-500 dark:hover:bg-slate-800'
+                        ? 'text-akiva-text hover:bg-akiva-accent-soft'
+                        : 'text-akiva-text-muted hover:bg-akiva-surface-muted'
                   } ${isDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
                 >
                   {day.label}
@@ -192,11 +192,11 @@ export function DatePicker({
             })}
           </div>
 
-          <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-2 dark:border-slate-700">
+          <div className="mt-3 flex items-center justify-between border-t border-akiva-border pt-2">
             <button
               type="button"
               onClick={() => onChange(toIsoDate(new Date()))}
-              className="rounded-lg px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-slate-800"
+              className="rounded-lg px-2 py-1 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
             >
               Today
             </button>
@@ -204,7 +204,7 @@ export function DatePicker({
               <button
                 type="button"
                 onClick={() => onChange('')}
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text"
               >
                 <X className="h-3 w-3" />
                 Clear

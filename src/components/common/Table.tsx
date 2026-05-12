@@ -18,11 +18,11 @@ export function Table({ columns, data, className = '' }: TableProps) {
     <div className={`overflow-x-auto ${className}`}>
       <table className="w-full">
         <thead>
-          <tr className="bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
+          <tr className="border-b border-akiva-border bg-akiva-surface-muted">
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={`px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
+                className={`px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-akiva-text-muted ${
                   column.className || ''
                 }`}
               >
@@ -31,13 +31,13 @@ export function Table({ columns, data, className = '' }: TableProps) {
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
+        <tbody className="divide-y divide-akiva-border bg-akiva-surface-raised">
           {data.map((row, index) => (
-            <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200">
+            <tr key={index} className="transition-colors duration-200 hover:bg-akiva-surface-muted">
               {columns.map((column) => (
                 <td
                   key={column.key}
-                  className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 ${
+                  className={`whitespace-nowrap px-6 py-4 text-sm text-akiva-text ${
                     column.className || ''
                   }`}
                 >

@@ -33,7 +33,7 @@ export function Dropdown({ trigger, items, align = 'right' }: DropdownProps) {
         leaveTo="transform opacity-0 scale-95"
       >
         <Menu.Items className={clsx(
-          'absolute z-10 mt-2 w-56 origin-top-right divide-y divide-gray-100 rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none',
+          'absolute z-10 mt-2 w-56 origin-top-right divide-y divide-akiva-border rounded-lg bg-akiva-surface-raised text-akiva-text shadow-lg ring-1 ring-akiva-border focus:outline-none',
           align === 'left' ? 'left-0' : 'right-0'
         )}>
           <div className="px-1 py-1">
@@ -44,7 +44,7 @@ export function Dropdown({ trigger, items, align = 'right' }: DropdownProps) {
                     onClick={item.onClick}
                     className={clsx(
                       'group flex w-full items-center rounded-md px-2 py-2 text-sm transition-colors',
-                      active ? 'bg-blue-50 text-blue-900' : 'text-gray-900',
+                      active ? 'bg-akiva-accent-soft text-akiva-text' : 'text-akiva-text',
                       item.disabled && 'opacity-50 cursor-not-allowed'
                     )}
                     disabled={item.disabled}

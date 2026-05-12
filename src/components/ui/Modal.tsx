@@ -242,7 +242,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black bg-opacity-25 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-[#10090d]/45 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-hidden">
@@ -261,23 +261,23 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
                 onPointerCancel={onPointerUp}
-                className={`absolute transform overflow-hidden bg-white shadow-2xl transition-all dark:bg-slate-900 ${
+                className={`absolute transform overflow-hidden bg-akiva-surface-raised text-akiva-text shadow-2xl transition-all ${
                   isMaximized ? '' : 'rounded-xl'
                 }`}
               >
                 <div className="flex h-full flex-col">
                   <div
                     onPointerDown={startDrag}
-                    className="flex cursor-move select-none items-center justify-between gap-3 border-b border-brand-100 bg-gradient-to-r from-brand-50 to-white px-4 py-3 dark:border-slate-700 dark:from-slate-900 dark:to-slate-900"
+                    className="flex cursor-move select-none items-center justify-between gap-3 border-b border-akiva-border bg-akiva-surface-muted px-4 py-3"
                   >
-                    <Dialog.Title as="h3" className="text-lg font-semibold leading-6 text-gray-900 dark:text-white">
+                    <Dialog.Title as="h3" className="text-lg font-semibold leading-6 text-akiva-text">
                       {title}
                     </Dialog.Title>
                     <div className="flex items-center gap-1">
                       <button
                         data-window-control="true"
                         onClick={onToggleMinimize}
-                        className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-white hover:text-gray-700 dark:text-gray-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                        className="rounded-md p-1.5 text-akiva-text-muted transition-colors hover:bg-akiva-surface-raised hover:text-akiva-text"
                         aria-label={isMinimized ? 'Restore dialog' : 'Minimize dialog'}
                         type="button"
                       >
@@ -286,7 +286,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                       <button
                         data-window-control="true"
                         onClick={onToggleMaximize}
-                        className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-white hover:text-gray-700 dark:text-gray-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                        className="rounded-md p-1.5 text-akiva-text-muted transition-colors hover:bg-akiva-surface-raised hover:text-akiva-text"
                         aria-label={isMaximized ? 'Restore dialog size' : 'Maximize dialog'}
                         type="button"
                       >
@@ -295,7 +295,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                       <button
                         data-window-control="true"
                         onClick={onClose}
-                        className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-red-500 hover:text-white dark:text-gray-300 dark:hover:bg-red-600"
+                        className="rounded-md p-1.5 text-akiva-text-muted transition-colors hover:bg-akiva-accent hover:text-white"
                         aria-label="Close dialog"
                         type="button"
                       >
@@ -307,7 +307,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                     <>
                       <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
                       {footer ? (
-                        <div className="border-t border-gray-200 bg-gray-50/90 px-6 py-4 dark:border-slate-700 dark:bg-slate-950/80">
+                        <div className="border-t border-akiva-border bg-akiva-surface-muted px-6 py-4">
                           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{footer}</div>
                         </div>
                       ) : null}

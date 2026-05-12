@@ -13,25 +13,25 @@ interface RightDrawerProps {
 export function RightDrawer({ isOpen, onClose, title, subtitle, children }: RightDrawerProps) {
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-slate-900/35 backdrop-blur-[1px]" aria-hidden="true" />
+      <div className="fixed inset-0 bg-[#10090d]/45 backdrop-blur-[1px]" aria-hidden="true" />
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-4">
             <Dialog.Panel className="pointer-events-auto w-[70vw] max-w-[1080px] min-w-[320px] transform transition-transform duration-300 ease-out">
-              <div className="flex h-full flex-col border-l border-brand-200 dark:border-brand-900/60 bg-white dark:bg-slate-900 shadow-xl">
-                <div className="flex items-start justify-between border-b border-brand-100 dark:border-brand-900/50 px-4 py-3">
+              <div className="flex h-full flex-col border-l border-akiva-border bg-akiva-surface-raised text-akiva-text shadow-xl">
+                <div className="flex items-start justify-between border-b border-akiva-border px-4 py-3">
                   <div>
-                    <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-white">
+                    <Dialog.Title className="text-base font-semibold text-akiva-text">
                       {title}
                     </Dialog.Title>
                     {subtitle ? (
-                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
+                      <p className="mt-0.5 text-xs text-akiva-text-muted">{subtitle}</p>
                     ) : null}
                   </div>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="rounded-lg p-2 text-gray-500 hover:bg-brand-50 hover:text-brand-700 dark:text-gray-400 dark:hover:bg-brand-900/30 dark:hover:text-brand-300"
+                    className="rounded-lg p-2 text-akiva-text-muted hover:bg-akiva-accent-soft hover:text-akiva-accent-text"
                     aria-label="Close panel"
                   >
                     <X className="h-4 w-4" />

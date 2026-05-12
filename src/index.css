@@ -6,6 +6,30 @@
 :root {
   --transition-duration: 300ms;
   --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --akiva-bg: #f2eeee;
+  --akiva-surface: #fffafb;
+  --akiva-surface-muted: #fbf4f6;
+  --akiva-surface-raised: #ffffff;
+  --akiva-border: #eadfe3;
+  --akiva-border-strong: #d8c7cf;
+  --akiva-text: #22151b;
+  --akiva-text-muted: #7b626d;
+  --akiva-accent: #db2777;
+  --akiva-accent-strong: #be185d;
+  --akiva-accent-text: #be185d;
+  --akiva-accent-soft: #fce7f3;
+  --akiva-chart-grid: #eadfe3;
+  --akiva-chart-muted: #7b626d;
+  --akiva-chart-ink: #22151b;
+  --akiva-chart-brand: #db2777;
+  --akiva-chart-brand-fill: rgba(219, 39, 119, 0.22);
+  --akiva-chart-ink-fill: rgba(34, 21, 27, 0.12);
+  --akiva-chart-tooltip-bg: #fffafb;
+  --akiva-chart-tooltip-border: #eadfe3;
+  --akiva-chart-tooltip-text: #22151b;
+  --akiva-focus-ring: #db2777;
+  --akiva-table-row-hover: #fff6f9;
+  --akiva-table-header: #fbf4f6;
 }
 
 /* Base transitions for all color changes */
@@ -36,14 +60,155 @@ button {
   font: inherit;
 }
 
+:where(a, button, input, textarea, select, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--akiva-focus-ring);
+  outline-offset: 2px;
+}
+
+:where(button, input, textarea, select):disabled,
+:where(button, input, textarea, select)[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+html.dark :where(button, input, textarea, select):disabled,
+html.dark :where(button, input, textarea, select)[aria-disabled="true"] {
+  opacity: 0.72;
+}
+
 /* Dark mode specific styles */
 html.dark {
   color-scheme: dark;
+  --akiva-bg: #10090d;
+  --akiva-surface: #181014;
+  --akiva-surface-muted: #21161c;
+  --akiva-surface-raised: #241820;
+  --akiva-border: #2f1d27;
+  --akiva-border-strong: #5a3748;
+  --akiva-text: #fff7fb;
+  --akiva-text-muted: #c8aeb9;
+  --akiva-accent: #e51660;
+  --akiva-accent-strong: #c91050;
+  --akiva-accent-text: #ff74a4;
+  --akiva-accent-soft: #351320;
+  --akiva-chart-grid: rgba(255, 223, 235, 0.2);
+  --akiva-chart-muted: #c8aeb9;
+  --akiva-chart-ink: #c6a1b1;
+  --akiva-chart-brand: #ff3f7f;
+  --akiva-chart-brand-fill: rgba(255, 63, 127, 0.24);
+  --akiva-chart-ink-fill: rgba(183, 156, 168, 0.12);
+  --akiva-chart-tooltip-bg: #1c1016;
+  --akiva-chart-tooltip-border: #5a3748;
+  --akiva-chart-tooltip-text: #fff7fb;
+  --akiva-focus-ring: #ff3f7f;
+  --akiva-table-row-hover: rgba(52, 33, 43, 0.62);
+  --akiva-table-header: #21161c;
 }
 
 html.dark body {
-  background-color: #0f172a;
-  color: #f1f5f9;
+  background-color: #10090d;
+  color: #fff7fb;
+}
+
+/* Akiva dark theme: warm brand neutrals instead of default blue/slate dark UI. */
+html.dark .dark\:bg-slate-950 {
+  background-color: #10090d !important;
+}
+
+html.dark .dark\:bg-slate-900 {
+  background-color: #181014 !important;
+}
+
+html.dark .dark\:bg-slate-800 {
+  background-color: #241820 !important;
+}
+
+html.dark .dark\:bg-slate-700 {
+  background-color: #34212b !important;
+}
+
+html.dark .dark\:bg-slate-950\/50,
+html.dark .dark\:bg-slate-950\/60 {
+  background-color: rgba(16, 9, 13, 0.72) !important;
+}
+
+html.dark .dark\:bg-slate-950\/80,
+html.dark .dark\:bg-slate-950\/92,
+html.dark .dark\:bg-slate-950\/95 {
+  background-color: rgba(16, 9, 13, 0.94) !important;
+}
+
+html.dark .dark\:bg-slate-900\/70,
+html.dark .dark\:bg-slate-900\/72,
+html.dark .dark\:bg-slate-900\/76,
+html.dark .dark\:bg-slate-900\/78,
+html.dark .dark\:bg-slate-900\/80,
+html.dark .dark\:bg-slate-900\/92 {
+  background-color: rgba(24, 16, 20, 0.88) !important;
+}
+
+html.dark .dark\:hover\:bg-slate-900:hover {
+  background-color: #181014 !important;
+}
+
+html.dark .dark\:hover\:bg-slate-800:hover,
+html.dark .dark\:hover\:bg-slate-800\/80:hover {
+  background-color: rgba(36, 24, 32, 0.88) !important;
+}
+
+html.dark .dark\:hover\:bg-slate-700\/50:hover {
+  background-color: rgba(52, 33, 43, 0.5) !important;
+}
+
+html.dark .dark\:border-slate-600 {
+  border-color: #5a3748 !important;
+}
+
+html.dark .dark\:border-slate-800 {
+  border-color: #2f1d27 !important;
+}
+
+html.dark .dark\:border-slate-700,
+html.dark .dark\:border-slate-700\/80 {
+  border-color: #432a36 !important;
+}
+
+html.dark .dark\:text-slate-600 {
+  color: #725462 !important;
+}
+
+html.dark .dark\:text-slate-500 {
+  color: #a98997 !important;
+}
+
+html.dark .dark\:text-slate-400 {
+  color: #b79ca8 !important;
+}
+
+html.dark .dark\:text-slate-300,
+html.dark .dark\:text-slate-200 {
+  color: #ead8df !important;
+}
+
+html.dark .dark\:text-slate-100 {
+  color: #fff7fb !important;
+}
+
+html.dark .dark\:placeholder\:text-slate-500::placeholder {
+  color: #8f6f7d !important;
+}
+
+html.dark .dark\:ring-slate-800 {
+  --tw-ring-color: #2f1d27 !important;
+}
+
+html.dark .dark\:ring-slate-900 {
+  --tw-ring-color: #181014 !important;
+}
+
+html.dark .dark\:shadow-black\/20,
+html.dark .dark\:shadow-black\/30 {
+  --tw-shadow-color: rgba(0, 0, 0, 0.34) !important;
 }
 
 /* Ensure transitions work for all elements */
@@ -91,16 +256,16 @@ html.dark ::-webkit-scrollbar {
 }
 
 html.dark ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #10090d;
 }
 
 html.dark ::-webkit-scrollbar-thumb {
-  background: rgba(236, 72, 153, 0.4);
+  background: rgba(255, 47, 125, 0.58);
   border-radius: 3px;
 }
 
 html.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(236, 72, 153, 0.6);
+  background: rgba(255, 47, 125, 0.78);
 }
 
 /* Focus ring adjustments for dark mode */
@@ -108,7 +273,7 @@ html.dark .focus-ring {
   outline: none;
   ring: 2px;
   ring-offset: 2px;
-  ring-offset-color: #1e293b;
+  ring-offset-color: #181014;
 }
 
 /* Card hover effects for dark mode */
@@ -125,19 +290,27 @@ html.dark table {
 
 html.dark th,
 html.dark td {
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid #3a2530;
+}
+
+html.dark thead tr {
+  background-color: var(--akiva-table-header);
+}
+
+html.dark tbody tr:hover {
+  background-color: var(--akiva-table-row-hover);
 }
 
 /* Input styles for dark mode */
 html.dark input,
 html.dark textarea,
 html.dark select {
-  caret-color: #60a5fa;
+  caret-color: #ec4899;
 }
 
 /* Button hover glow for dark mode */
 html.dark .btn-glow:hover {
-  box-shadow: 0 0 20px rgba(96, 165, 250, 0.4);
+  box-shadow: 0 0 20px rgba(236, 72, 153, 0.35);
 }
 
 /* Hide scrollbar but allow scrolling */

@@ -203,7 +203,7 @@ export function AdvancedTable<T>({
           <button
             type="button"
             onClick={() => setShowColumnsPanel((previous) => !previous)}
-            className="inline-flex items-center gap-1 rounded-md border border-brand-200 px-2.5 py-1.5 text-xs text-brand-700 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300 dark:hover:bg-brand-900/20"
+            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
           >
             <Columns3 className="h-3.5 w-3.5" />
             Columns
@@ -211,7 +211,7 @@ export function AdvancedTable<T>({
           <button
             type="button"
             onClick={onExportExcel}
-            className="inline-flex items-center gap-1 rounded-md border border-brand-200 px-2.5 py-1.5 text-xs text-brand-700 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300 dark:hover:bg-brand-900/20"
+            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
             Excel
@@ -219,30 +219,30 @@ export function AdvancedTable<T>({
           <button
             type="button"
             onClick={onExportPdf}
-            className="inline-flex items-center gap-1 rounded-md border border-brand-200 px-2.5 py-1.5 text-xs text-brand-700 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300 dark:hover:bg-brand-900/20"
+            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
           >
             <FileText className="h-3.5 w-3.5" />
             PDF
           </button>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-xs text-akiva-text-muted">
           <span>
             Showing {rangeStart} to {rangeEnd} of {filteredRows.length} items
           </span>
-          <span className="text-gray-400">|</span>
+          <span className="text-akiva-border-strong">|</span>
           <span>{rows.length} total rows</span>
         </div>
       </div>
 
       {showColumnsPanel ? (
-        <div className="rounded-lg border border-brand-100 bg-brand-50/60 p-3 dark:border-brand-900/50 dark:bg-brand-900/20">
-          <p className="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">Column Visibility</p>
+        <div className="rounded-lg border border-akiva-border bg-akiva-surface-muted p-3">
+          <p className="mb-2 text-xs font-medium text-akiva-text">Column Visibility</p>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {columns.map((column) => {
               const checked = visibleColumnIds.includes(column.id);
               return (
-                <label key={column.id} className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
+                <label key={column.id} className="inline-flex items-center gap-2 text-xs text-akiva-text-muted">
                   <input
                     type="checkbox"
                     checked={checked}
@@ -254,7 +254,7 @@ export function AdvancedTable<T>({
                         return next.length === 0 ? previous : next;
                       });
                     }}
-                    className="h-3.5 w-3.5 rounded border-brand-300 text-brand-600 focus:ring-brand-500"
+                    className="h-3.5 w-3.5 rounded border-akiva-border-strong text-akiva-accent-text focus:ring-akiva-accent"
                   />
                   {column.header}
                 </label>
@@ -264,10 +264,10 @@ export function AdvancedTable<T>({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-lg border border-brand-100 dark:border-brand-900/50">
+      <div className="overflow-x-auto rounded-lg border border-akiva-border">
         <table className="w-full min-w-[640px] table-fixed">
           <thead>
-            <tr className="bg-brand-50/70 text-left text-xs uppercase tracking-wide text-gray-600 dark:bg-brand-900/20 dark:text-gray-300">
+            <tr className="bg-akiva-table-header text-left text-xs uppercase tracking-wide text-akiva-text-muted">
               {visibleColumns.map((column) => {
                 const width = columnWidths[column.id] ?? column.width ?? 180;
                 return (
@@ -280,13 +280,13 @@ export function AdvancedTable<T>({
                         document.body.style.cursor = 'col-resize';
                         document.body.style.userSelect = 'none';
                       }}
-                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-brand-400"
+                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-akiva-accent"
                     />
                   </th>
                 );
               })}
             </tr>
-            <tr className="border-t border-brand-100 bg-white dark:border-brand-900/50 dark:bg-slate-900">
+            <tr className="border-t border-akiva-border bg-akiva-surface-raised">
               {visibleColumns.map((column) => (
                 <th key={`${column.id}-filter`} className="px-3 py-2">
                   {column.filterable === false ? null : (
@@ -299,7 +299,7 @@ export function AdvancedTable<T>({
                         }))
                       }
                       placeholder={`Filter ${column.header}`}
-                      className="w-full rounded-md border border-brand-200 bg-white px-2 py-1 text-xs text-gray-800 dark:border-brand-800 dark:bg-slate-950 dark:text-gray-100"
+                      className="w-full rounded-md border border-akiva-border bg-akiva-surface px-2 py-1 text-xs text-akiva-text placeholder:text-akiva-text-muted"
                     />
                   )}
                 </th>
@@ -309,13 +309,13 @@ export function AdvancedTable<T>({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={visibleColumns.length} className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td colSpan={visibleColumns.length} className="px-3 py-8 text-center text-sm text-akiva-text-muted">
                   {loadingMessage}
                 </td>
               </tr>
             ) : pagedRows.length === 0 ? (
               <tr>
-                <td colSpan={visibleColumns.length} className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td colSpan={visibleColumns.length} className="px-3 py-8 text-center text-sm text-akiva-text-muted">
                   {emptyMessage}
                 </td>
               </tr>
@@ -323,12 +323,12 @@ export function AdvancedTable<T>({
               pagedRows.map((row, index) => (
                 <tr
                   key={rowKey ? rowKey(row, index) : `${tableId}-${pageIndex}-${index}`}
-                  className="border-t border-brand-50 dark:border-brand-900/40"
+                  className="border-t border-akiva-border hover:bg-akiva-table-row-hover"
                 >
                   {visibleColumns.map((column) => {
                     const value = column.accessor(row);
                     return (
-                      <td key={column.id} className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
+                      <td key={column.id} className="px-3 py-2 text-sm text-akiva-text">
                         {column.cell ? column.cell(row) : asText(value)}
                       </td>
                     );
@@ -341,7 +341,7 @@ export function AdvancedTable<T>({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-akiva-text-muted">
           <span>Rows per page</span>
           <SearchableSelect
             value={String(pageSize)}
@@ -360,12 +360,12 @@ export function AdvancedTable<T>({
           />
         </div>
 
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-akiva-text-muted">
           <button
             type="button"
             onClick={() => setPageIndex((previous) => Math.max(0, previous - 1))}
             disabled={pageIndex === 0}
-            className="inline-flex items-center gap-1 rounded-md border border-brand-200 px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40 dark:border-brand-800"
+            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2 py-1 text-akiva-text hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-70"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             Prev
@@ -377,7 +377,7 @@ export function AdvancedTable<T>({
             type="button"
             onClick={() => setPageIndex((previous) => Math.min(pageCount - 1, previous + 1))}
             disabled={pageIndex >= pageCount - 1}
-            className="inline-flex items-center gap-1 rounded-md border border-brand-200 px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40 dark:border-brand-800"
+            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2 py-1 text-akiva-text hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-70"
           >
             Next
             <ChevronRight className="h-3.5 w-3.5" />

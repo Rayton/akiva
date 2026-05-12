@@ -17,6 +17,22 @@ export default {
         ],
       },
       colors: {
+        akiva: {
+          bg: 'var(--akiva-bg)',
+          surface: 'var(--akiva-surface)',
+          'surface-muted': 'var(--akiva-surface-muted)',
+          'surface-raised': 'var(--akiva-surface-raised)',
+          border: 'var(--akiva-border)',
+          'border-strong': 'var(--akiva-border-strong)',
+          text: 'var(--akiva-text)',
+          'text-muted': 'var(--akiva-text-muted)',
+          accent: 'var(--akiva-accent)',
+          'accent-strong': 'var(--akiva-accent-strong)',
+          'accent-text': 'var(--akiva-accent-text)',
+          'accent-soft': 'var(--akiva-accent-soft)',
+          'table-header': 'var(--akiva-table-header)',
+          'table-row-hover': 'var(--akiva-table-row-hover)',
+        },
         // Brand colors - update these values to change the brand color
         brand: {
           50: 'rgba(236, 72, 153, 0.1)',
@@ -40,31 +56,31 @@ export default {
         // Custom amber color
         'amber-150': '#fef3c7',
         
-        // Dark mode specific colors with high contrast
+        // Dark mode specific colors with warm Akiva brand neutrals
         dark: {
           bg: {
-            primary: '#0f172a',     // Slate 900 - main background
-            secondary: '#1e293b',   // Slate 800 - cards/sidebar
-            tertiary: '#334155',    // Slate 700 - hover states
+            primary: '#10090d',
+            secondary: '#181014',
+            tertiary: '#34212b',
           },
           text: {
-            primary: '#f8fafc',     // Slate 50 - primary text
-            secondary: '#e2e8f0',   // Slate 200 - secondary text
-            muted: '#94a3b8',       // Slate 400 - muted text
+            primary: '#fff7fb',
+            secondary: '#ead8df',
+            muted: '#b79ca8',
           },
           border: {
-            DEFAULT: '#334155',     // Slate 700
-            light: '#475569',       // Slate 600
+            DEFAULT: '#2f1d27',
+            light: '#432a36',
           },
         },
         
         // High contrast dark variants
-        'dark-bg': '#0f172a',
-        'dark-card': '#1e293b',
-        'dark-border': '#334155',
-        'dark-text': '#f1f5f9',
-        'dark-text-secondary': '#cbd5e1',
-        'dark-text-muted': '#94a3b8',
+        'dark-bg': '#10090d',
+        'dark-card': '#181014',
+        'dark-border': '#2f1d27',
+        'dark-text': '#fff7fb',
+        'dark-text-secondary': '#ead8df',
+        'dark-text-muted': '#b79ca8',
       },
       
       // Custom box shadows for dark mode

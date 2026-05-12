@@ -160,9 +160,9 @@ export function SearchableSelect({
           name={name}
           required={required}
           className={[
-            'w-full rounded-xl border border-gray-300 bg-white px-3 py-2 pr-10 text-sm shadow-sm',
-            'text-gray-900 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-200',
-            'disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white',
+            'w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 pr-10 text-sm shadow-sm',
+            'text-akiva-text placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent',
+            'disabled:cursor-not-allowed disabled:opacity-70',
             className,
             inputClassName,
           ]
@@ -181,7 +181,7 @@ export function SearchableSelect({
           placeholder={isSearching || !selectedOption ? placeholder : undefined}
           autoComplete="off"
         />
-        <Combobox.Button className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600 focus:outline-none dark:text-gray-500 dark:hover:text-gray-300 border-0 bg-transparent">
+        <Combobox.Button className="absolute inset-y-0 right-0 flex items-center border-0 bg-transparent px-3 text-akiva-text-muted hover:text-akiva-text focus:outline-none">
           <ChevronsUpDown className="h-4 w-4" />
         </Combobox.Button>
 
@@ -193,15 +193,14 @@ export function SearchableSelect({
         >
           <Combobox.Options
             className={[
-              'absolute z-40 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-gray-200 bg-white py-1 text-sm shadow-lg',
-              'dark:border-slate-600 dark:bg-slate-900',
+              'absolute z-40 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-akiva-border bg-akiva-surface-raised py-1 text-sm text-akiva-text shadow-lg',
               panelClassName,
             ]
               .filter(Boolean)
               .join(' ')}
           >
             {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-gray-500 dark:text-gray-400">No results found</div>
+              <div className="px-3 py-2 text-akiva-text-muted">No results found</div>
             ) : (
               filteredOptions.map((option) => (
                 <Combobox.Option
@@ -210,15 +209,15 @@ export function SearchableSelect({
                   disabled={option.disabled}
                   className={({ active, disabled: optionDisabled }) =>
                     `relative cursor-pointer select-none py-2 pl-3 pr-9 ${
-                      active ? 'bg-brand-50 text-brand-900 dark:bg-slate-700 dark:text-white' : 'text-gray-900 dark:text-gray-100'
-                    } ${optionDisabled ? 'cursor-not-allowed opacity-50' : ''}`
+                      active ? 'bg-akiva-accent-soft text-akiva-text' : 'text-akiva-text'
+	                    } ${optionDisabled ? 'cursor-not-allowed opacity-70' : ''}`
                   }
                 >
                   {({ selected }) => (
                     <>
                       <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>{option.label || option.value}</span>
                       {selected ? (
-                        <span className="absolute inset-y-0 right-2 flex items-center text-brand-600 dark:text-brand-300">
+                        <span className="absolute inset-y-0 right-2 flex items-center text-akiva-accent-text">
                           <Check className="h-4 w-4" />
                         </span>
                       ) : null}

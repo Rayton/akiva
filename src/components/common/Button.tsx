@@ -15,7 +15,7 @@ export function Button({
   type = 'button',
   ...props
 }: ButtonProps) {
-  const baseClasses = 'font-medium rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-akiva-accent focus:ring-offset-2 focus:ring-offset-akiva-bg';
+  const baseClasses = 'min-h-11 font-medium rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-akiva-accent focus:ring-offset-2 focus:ring-offset-akiva-bg';
   
   const variantClasses = {
     primary: 'bg-akiva-accent text-white hover:bg-akiva-accent-strong disabled:bg-akiva-accent-soft disabled:text-akiva-text-muted',

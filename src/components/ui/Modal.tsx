@@ -262,15 +262,15 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                 onPointerUp={onPointerUp}
                 onPointerCancel={onPointerUp}
                 className={`absolute transform overflow-hidden bg-akiva-surface-raised text-akiva-text shadow-2xl transition-all ${
-                  isMaximized ? '' : 'rounded-xl'
+                  isMaximized ? '' : 'rounded-none md:rounded-xl'
                 }`}
               >
                 <div className="flex h-full flex-col">
                   <div
                     onPointerDown={startDrag}
-                    className="flex cursor-move select-none items-center justify-between gap-3 border-b border-akiva-border bg-akiva-surface-muted px-4 py-3"
+                    className="flex cursor-move select-none items-center justify-between gap-3 border-b border-akiva-border bg-akiva-surface-muted px-4 py-3 sm:px-5"
                   >
-                    <Dialog.Title as="h3" className="text-lg font-semibold leading-6 text-akiva-text">
+                    <Dialog.Title as="h3" className="min-w-0 truncate text-base font-semibold leading-6 text-akiva-text sm:text-lg">
                       {title}
                     </Dialog.Title>
                     <div className="flex items-center gap-1">
@@ -305,10 +305,10 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                   </div>
                   {!isMinimized ? (
                     <>
-                      <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
+                      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">{children}</div>
                       {footer ? (
-                        <div className="border-t border-akiva-border bg-akiva-surface-muted px-6 py-4">
-                          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{footer}</div>
+                        <div className="border-t border-akiva-border bg-akiva-surface-muted px-4 py-3 sm:px-6 sm:py-4">
+                          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&_button]:w-full sm:[&_button]:w-auto">{footer}</div>
                         </div>
                       ) : null}
                     </>

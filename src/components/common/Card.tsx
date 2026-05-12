@@ -11,11 +11,11 @@ export function Card({ title, children, className = '', padding = true }: CardPr
   return (
     <div className={`rounded-lg border border-akiva-border bg-akiva-surface-raised text-akiva-text shadow-sm ${className}`}>
       {title && (
-        <div className="border-b border-akiva-border px-6 py-4">
+        <div className="border-b border-akiva-border px-4 py-3 sm:px-6 sm:py-4">
           <h3 className="text-lg font-semibold text-akiva-text">{title}</h3>
         </div>
       )}
-      <div className={padding ? 'p-6' : ''}>
+      <div className={padding ? 'p-4 sm:p-6' : ''}>
         {children}
       </div>
     </div>

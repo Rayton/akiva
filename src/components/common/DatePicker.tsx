@@ -133,7 +133,7 @@ export function DatePicker({
       </button>
 
       {isOpen ? (
-        <div className="absolute z-30 mt-2 w-[296px] rounded-2xl border border-akiva-border bg-akiva-surface-raised p-3 shadow-xl">
+        <div className="absolute z-30 mt-2 max-w-[calc(100vw-2rem)] rounded-2xl border border-akiva-border bg-akiva-surface-raised p-3 shadow-xl" style={{ width: 'min(296px, calc(100vw - 2rem))' }}>
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"

@@ -193,7 +193,7 @@ export function SearchableSelect({
         >
           <Combobox.Options
             className={[
-              'absolute z-40 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-akiva-border bg-akiva-surface-raised py-1 text-sm text-akiva-text shadow-lg',
+              'absolute z-40 mt-1 max-h-60 w-full min-w-full max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-akiva-border bg-akiva-surface-raised py-1 text-sm text-akiva-text shadow-lg',
               panelClassName,
             ]
               .filter(Boolean)
@@ -210,7 +210,7 @@ export function SearchableSelect({
                   className={({ active, disabled: optionDisabled }) =>
                     `relative cursor-pointer select-none py-2 pl-3 pr-9 ${
                       active ? 'bg-akiva-accent-soft text-akiva-text' : 'text-akiva-text'
-	                    } ${optionDisabled ? 'cursor-not-allowed opacity-70' : ''}`
+                    } ${optionDisabled ? 'cursor-not-allowed opacity-70' : ''}`
                   }
                 >
                   {({ selected }) => (

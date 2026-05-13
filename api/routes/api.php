@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\GeneralLedgerController;
 use App\Http\Controllers\Api\CompanyPreferencesController;
 use App\Http\Controllers\Api\SystemParametersController;
 use App\Http\Controllers\Api\AuditTrailController;
+use App\Http\Controllers\Api\SystemCheckController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -16,6 +17,7 @@ Route::get('/company/preferences', [CompanyPreferencesController::class, 'show']
 Route::put('/company/preferences', [CompanyPreferencesController::class, 'update']);
 Route::get('/system/parameters', [SystemParametersController::class, 'show']);
 Route::put('/system/parameters', [SystemParametersController::class, 'update']);
+Route::get('/system/check', [SystemCheckController::class, 'show']);
 Route::get('/audit-trail', [AuditTrailController::class, 'index']);
 
 Route::prefix('sales')->group(function () {

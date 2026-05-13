@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\SystemCheckController;
 use App\Http\Controllers\Api\GeocodeSetupController;
 use App\Http\Controllers\Api\DocumentTemplateController;
 use App\Http\Controllers\Api\LabelController;
+use App\Http\Controllers\Api\SmtpServerController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -45,6 +46,9 @@ Route::get('/labels', [LabelController::class, 'index']);
 Route::post('/labels', [LabelController::class, 'store']);
 Route::put('/labels/{id}', [LabelController::class, 'update']);
 Route::delete('/labels/{id}', [LabelController::class, 'destroy']);
+Route::get('/smtp/server', [SmtpServerController::class, 'show']);
+Route::put('/smtp/server', [SmtpServerController::class, 'update']);
+Route::post('/smtp/server/test', [SmtpServerController::class, 'test']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

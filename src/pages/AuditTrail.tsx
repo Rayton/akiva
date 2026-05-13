@@ -157,29 +157,41 @@ export function AuditTrail() {
   const summary = payload?.summary;
 
   return (
-    <div className="min-h-full bg-akiva-background p-4 md:p-6 lg:p-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-akiva-surface-raised text-akiva-accent shadow-sm ring-1 ring-akiva-border">
-                <ShieldCheck className="h-5 w-5" />
-              </span>
-              <div>
-                <h1 className="text-2xl font-semibold text-akiva-text">Audit Trail</h1>
-                <p className="mt-1 text-sm text-akiva-text-muted">Review recent system activity and changes.</p>
+    <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+      <div className="mx-auto max-w-[1520px]">
+        <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/72 shadow-xl shadow-slate-300/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/72 dark:shadow-black/30">
+          <div className="flex flex-col gap-4 border-b border-akiva-border px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-akiva-text px-3 py-1 text-xs font-semibold text-akiva-surface-raised">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Security
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                  <Database className="h-3.5 w-3.5" />
+                  Activity log
+                </span>
               </div>
+              <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
+                Audit Trail
+              </h1>
+              <p className="mt-2 text-sm text-akiva-text-muted">
+                Review recent system activity and changes.
+              </p>
             </div>
+
+            <button
+              type="button"
+              aria-label="Refresh audit trail"
+              title="Refresh audit trail"
+              onClick={() => void loadAuditTrail(filters)}
+              className="flex h-10 w-10 items-center justify-center self-start rounded-full border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text lg:self-center"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => void loadAuditTrail(filters)}
-            className="inline-flex h-10 items-center gap-2 self-start rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm font-medium text-akiva-text shadow-sm transition hover:bg-akiva-surface-muted lg:self-auto"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
-        </div>
+
+          <div className="space-y-5 px-4 py-4 sm:px-6 lg:px-8 lg:py-7">
 
         <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
@@ -323,6 +335,8 @@ export function AuditTrail() {
             </button>
           </div>
         </div>
+          </div>
+        </section>
       </div>
     </div>
   );

@@ -68,7 +68,12 @@ function isConfigurationMenu(caption: string): boolean {
 function isHiddenMenuNode(node: MenuCategory | MenuItem): boolean {
   const captionKey = node.caption.toLowerCase().replace(/[^a-z0-9]/g, '');
   const slugKey = hrefToSlug(node.href ?? '').replace(/[^a-z0-9]/g, '');
-  return captionKey === 'reportbuildertool' || slugKey === 'reportcreator';
+  return (
+    captionKey.includes('pagesecurity') ||
+    slugKey === 'pagesecurity' ||
+    captionKey === 'reportbuildertool' ||
+    slugKey === 'reportcreator'
+  );
 }
 
 function filterHiddenMenuNodes<T extends MenuCategory | MenuItem>(nodes: T[]): T[] {

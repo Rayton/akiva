@@ -318,7 +318,7 @@ export function SystemParameters() {
                     System controls
                   </span>
                 </div>
-                <h1 className="mt-4 text-3xl font-semibold tracking-normal text-akiva-text sm:text-4xl lg:text-5xl">
+                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
                   System settings
                 </h1>
                 <p className="mt-2 text-sm text-akiva-text-muted">

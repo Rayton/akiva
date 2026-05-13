@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Building2,
   CalendarDays,
+  Check,
   CheckCircle2,
   Download,
   Landmark,
@@ -155,17 +156,27 @@ function ToggleRow({
 }) {
   const checked = Boolean(form[field]);
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-akiva-border bg-akiva-surface p-3">
-      <span>
-        <span className="block text-sm font-semibold text-akiva-text">{label}</span>
+    <label className="group flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted/70">
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold leading-5 text-akiva-text">{label}</span>
         <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{description}</span>
       </span>
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(field, event.target.checked)}
-        className="mt-1 h-5 w-5 rounded border-akiva-border-strong text-akiva-accent focus:ring-akiva-accent"
+        className="peer sr-only"
       />
+      <span
+        aria-hidden="true"
+        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-white shadow-sm transition group-hover:scale-105 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-akiva-accent ${
+          checked
+            ? 'border-akiva-accent bg-akiva-accent'
+            : 'border-akiva-border-strong bg-akiva-surface text-transparent'
+        }`}
+      >
+        <Check className="h-4 w-4 stroke-[3]" />
+      </span>
     </label>
   );
 }
@@ -402,7 +413,7 @@ export function CompanyPreferences() {
                     Company profile
                   </span>
                 </div>
-                <h1 className="mt-4 text-3xl font-semibold tracking-normal text-akiva-text sm:text-4xl lg:text-5xl">
+                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
                   Company preferences
                 </h1>
                 <p className="mt-2 text-sm text-akiva-text-muted">
@@ -502,14 +513,14 @@ export function CompanyPreferences() {
                 </div>
 
                 <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-akiva-text">GL integration</p>
-                      <p className="text-xs text-akiva-text-muted">Controls journal creation for sub-ledger activity.</p>
+                      <p className="mt-1 text-xs leading-5 text-akiva-text-muted">Controls journal creation for sub-ledger activity.</p>
                     </div>
-                    <ShieldCheck className="h-5 w-5 text-akiva-text-muted" />
+                    <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-akiva-text-muted" />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <ToggleRow field="glLinkDebtors" label="Accounts receivable transactions" description="Create GL entries for customer invoices, receipts, and adjustments." form={form} onChange={updateField} />
                     <ToggleRow field="glLinkCreditors" label="Accounts payable transactions" description="Create GL entries for supplier invoices, credits, and payments." form={form} onChange={updateField} />
                     <ToggleRow field="glLinkStock" label="Stock transactions" description="Create GL entries for inventory movements and stock valuation." form={form} onChange={updateField} />

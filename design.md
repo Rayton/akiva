@@ -42,7 +42,7 @@ Page headers sit inside the main rounded frame and use a bottom divider.
 - Header padding: `px-4 py-4 sm:px-6 lg:px-8`
 - Layout: stacked on mobile, horizontal on large screens
 - Eyebrow chips: compact rounded pills with icon plus label
-- Title: `text-3xl font-semibold tracking-normal sm:text-4xl lg:text-5xl`
+- Title: `text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl`
 - Supporting text: `text-sm text-akiva-text-muted`
 - Header actions: icon buttons first; text buttons only for clear creation or submission commands
 
@@ -135,8 +135,41 @@ Controls should be familiar:
 - Search inputs include a leading `Search` icon
 - Option sets use `SearchableSelect`
 - Dates use `DatePicker`
-- Booleans use toggles or checkboxes
+- Single booleans use toggles or checkboxes
+- Grouped booleans use themed checklist rows
 - Tables use `AdvancedTable` when filtering, pagination, column visibility, or export is needed
+
+### Themed Checklists
+
+Use themed checklist rows for grouped on/off settings, readiness lists, and configuration steps. They should look like part of the Akiva surface system, not browser-default checkboxes.
+
+Checklist conventions:
+
+- Container: `rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm`
+- Header: compact title, muted explanatory copy, optional status icon on the right
+- Row: `rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 shadow-sm`
+- Row spacing: `space-y-2.5`
+- Label: `text-sm font-semibold text-akiva-text`
+- Description: `text-xs leading-5 text-akiva-text-muted`
+- Control: visually hide the real checkbox with `sr-only`, then render a 24px square check indicator
+- Checked state: `border-akiva-accent bg-akiva-accent text-white`
+- Unchecked state: token border, raised surface, transparent check icon
+- Focus: keep a visible `peer-focus-visible` accent outline on the visual indicator
+
+Recommended checklist row:
+
+```tsx
+<label className="group flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted/70">
+  <span className="min-w-0">
+    <span className="block text-sm font-semibold leading-5 text-akiva-text">Checklist item</span>
+    <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">Short operational description.</span>
+  </span>
+  <input type="checkbox" checked={checked} onChange={onChange} className="peer sr-only" />
+  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-akiva-accent bg-akiva-accent text-white shadow-sm peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-akiva-accent">
+    <Check className="h-4 w-4 stroke-[3]" />
+  </span>
+</label>
+```
 
 ### Date Picker
 
@@ -278,6 +311,7 @@ Use this checklist when updating a page:
 - Header matches dashboard spacing and action placement
 - Raw `gray-*` and `blue-*` classes are replaced with Akiva tokens where practical
 - Cards use `rounded-lg` unless they are large analytical panels
+- Checklist groups use themed checklist rows instead of browser-default checkbox lists
 - Tables use `AdvancedTable` for operational datasets
 - Actions use Lucide icons and accessible labels
 - Mobile layout is one column and has no overlapping text
@@ -305,7 +339,7 @@ export function ModulePage() {
                   Current period
                 </span>
               </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-normal text-akiva-text sm:text-4xl lg:text-5xl">
+              <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
                 Page title
               </h1>
               <p className="mt-2 text-sm text-akiva-text-muted">Short operational context for this page.</p>

@@ -29,6 +29,7 @@ import {
   Receipt,
   ShoppingCart,
   SquaresFour,
+  UserGear,
   Wrench,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
@@ -183,6 +184,7 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIc
   const lower = caption.toLowerCase();
   if (lower.includes('company preference') || lower.includes('company preferences')) return Buildings;
   if (lower.includes('configuration settings') || lower.includes('system parameter') || lower.includes('system parameters')) return GearSix;
+  if (lower.includes('access permission') || lower.includes('role permission') || lower.includes('www access')) return UserGear;
   if (lower.includes('geocode') || lower.includes('map')) return MapPin;
   if (lower.includes('report') || lower.includes('listing')) return ChartBar;
   if (lower.includes('inquiry') || lower.includes('inquiries') || lower.includes('status')) return MagnifyingGlass;

@@ -34,6 +34,7 @@ import { startSalesSync } from '../lib/offline/salesSync';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { DatePicker } from '../components/common/DatePicker';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   SalesCustomer,
   SalesContractDetail,
@@ -330,6 +331,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
   const [contractForm, setContractForm] = useState<ContractFormState>(() => newContractFormState());
   const [contractBomLines, setContractBomLines] = useState<ContractBomDraftLine[]>([]);
   const [contractRequirementLines, setContractRequirementLines] = useState<ContractRequirementDraftLine[]>([]);
+  const { confirm, confirmationDialog } = useConfirmDialog();
 
   const drawerKey = useMemo(() => resolveSalesDrawerKey(sourceSlug), [sourceSlug]);
   const drawerDetails = drawerKey ? drawerMeta(drawerKey) : null;
@@ -970,7 +972,13 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
       return;
     }
 
-    const confirmed = window.confirm(`Cancel contract ${selectedContractRef}?`);
+    const confirmed = await confirm({
+      title: 'Cancel Contract',
+      description: 'This will cancel the selected sales contract.',
+      detail: selectedContractRef,
+      confirmLabel: 'Cancel Contract',
+      tone: 'warning',
+    });
     if (!confirmed) return;
 
     setDrawerLoading(true);
@@ -989,7 +997,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
     } finally {
       setDrawerLoading(false);
     }
-  }, [reloadDrawerData, resetContractEditor, selectedContractRef]);
+  }, [confirm, reloadDrawerData, resetContractEditor, selectedContractRef]);
 
   const modeTitle =
     mode === 'transactions' ? 'Sales Transactions' : mode === 'reports' ? 'Sales Reports' : 'Sales Settings';
@@ -2203,6 +2211,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
         {errorMessage ? (
           <p className="text-xs text-brand-700 dark:text-brand-300">{errorMessage}</p>
         ) : null}
+        {confirmationDialog}
       </div>
     </>
   );

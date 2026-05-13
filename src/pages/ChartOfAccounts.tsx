@@ -17,6 +17,7 @@ import { Button } from '../components/common/Button';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   DEFAULT_GL_SETTINGS,
   changeGlAccountCode,
@@ -157,6 +158,7 @@ export function ChartOfAccounts({ sourceSlug = '' }: ChartOfAccountsProps) {
 
   const [salesStatusChecking, setSalesStatusChecking] = useState(false);
   const [salesHealthy, setSalesHealthy] = useState<boolean | null>(null);
+  const { confirm, confirmationDialog } = useConfirmDialog();
 
   useEffect(() => {
     setActiveView(resolveInitialView(sourceSlug));
@@ -372,7 +374,13 @@ export function ChartOfAccounts({ sourceSlug = '' }: ChartOfAccountsProps) {
   };
 
   const onDeleteAccount = async (account: GlAccount) => {
-    if (!window.confirm(`Delete account ${account.accountCode}? Additional dependency checks will run.`)) {
+    const confirmed = await confirm({
+      title: 'Delete GL Account',
+      description: 'The account will be removed after additional dependency checks run.',
+      detail: `${account.accountCode} - ${account.accountName}`,
+      confirmLabel: 'Delete Account',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -414,7 +422,13 @@ export function ChartOfAccounts({ sourceSlug = '' }: ChartOfAccountsProps) {
   };
 
   const onDeleteGroup = async (group: GlGroup) => {
-    if (!window.confirm(`Delete group ${group.groupName}?`)) {
+    const confirmed = await confirm({
+      title: 'Delete Account Group',
+      description: 'This account group will be removed if dependency checks pass.',
+      detail: group.groupName,
+      confirmLabel: 'Delete Group',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -453,7 +467,13 @@ export function ChartOfAccounts({ sourceSlug = '' }: ChartOfAccountsProps) {
   };
 
   const onDeleteSection = async (section: GlSection) => {
-    if (!window.confirm(`Delete section ${section.sectionId}?`)) {
+    const confirmed = await confirm({
+      title: 'Delete Account Section',
+      description: 'This account section will be removed if dependency checks pass.',
+      detail: `${section.sectionId} - ${section.sectionName}`,
+      confirmLabel: 'Delete Section',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -1326,6 +1346,7 @@ export function ChartOfAccounts({ sourceSlug = '' }: ChartOfAccountsProps) {
           </label>
         </form>
       </Modal>
+      {confirmationDialog}
     </div>
   );
 }

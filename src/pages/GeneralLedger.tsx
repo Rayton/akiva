@@ -17,6 +17,7 @@ import { Table } from '../components/common/Table';
 import { Button } from '../components/common/Button';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { DatePicker } from '../components/common/DatePicker';
 import { DateRangePicker, getDefaultDateRange } from '../components/common/DateRangePicker';
 import {
@@ -498,6 +499,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
   const [permissionFormCanView, setPermissionFormCanView] = useState(true);
   const [permissionFormCanUpdate, setPermissionFormCanUpdate] = useState(false);
   const [deletingPermissionKey, setDeletingPermissionKey] = useState<string | null>(null);
+  const { confirm, confirmationDialog } = useConfirmDialog();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1331,7 +1333,12 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
   };
 
   const onDeleteBankAccount = async (account: GlBankAccount) => {
-    const confirmed = window.confirm(`Delete bank account ${account.accountCode} - ${account.bankAccountName || account.accountName}?`);
+    const confirmed = await confirm({
+      title: 'Delete Bank Account',
+      description: 'This bank account will be removed if dependency checks pass.',
+      detail: `${account.accountCode} - ${account.bankAccountName || account.accountName}`,
+      confirmLabel: 'Delete Account',
+    });
     if (!confirmed) return;
 
     try {
@@ -1489,7 +1496,12 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
 
   const onDeletePermission = async (row: GlAccountUserPermission) => {
     const key = `${row.scope}|${row.userId}|${row.accountCode}`;
-    const confirmed = window.confirm(`Remove ${row.scope.toUpperCase()} authorisation for user ${row.userId} on account ${row.accountCode}?`);
+    const confirmed = await confirm({
+      title: 'Remove Authorisation',
+      description: 'This will remove the user authorisation for the selected account.',
+      detail: `${row.scope.toUpperCase()} - ${row.userId} - ${row.accountCode}`,
+      confirmLabel: 'Remove Authorisation',
+    });
     if (!confirmed) return;
 
     try {
@@ -1552,7 +1564,12 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
   };
 
   const onDeleteTag = async (tag: GlTagRow) => {
-    const confirmed = window.confirm(`Delete tag ${tag.tagRef} - ${tag.tagDescription}?`);
+    const confirmed = await confirm({
+      title: 'Delete GL Tag',
+      description: 'This tag will be removed.',
+      detail: `${tag.tagRef} - ${tag.tagDescription}`,
+      confirmLabel: 'Delete Tag',
+    });
     if (!confirmed) return;
 
     try {
@@ -3524,6 +3541,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
           </label>
         </form>
       </Modal>
+      {confirmationDialog}
     </div>
   );
 }

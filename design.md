@@ -329,6 +329,7 @@ Always check new surfaces in both modes:
 - Do not communicate status by color alone; include labels, icons, or numbers
 - Preserve visible focus using the global focus ring
 - Buttons must be real `<button>` elements unless navigating
+- Destructive or irreversible actions must confirm with the system UI confirmation dialog, not `window.confirm` or any browser-native confirmation
 
 ## Migration Checklist
 
@@ -336,11 +337,13 @@ Use this checklist when updating a page:
 
 - Page uses the Akiva shell and max width
 - Header matches dashboard spacing and action placement
+- Configuration/setup page filters, metric tiles, and primary tables stay inside the first rounded header surface unless the page has a clear multi-section workflow
 - Raw `gray-*` and `blue-*` classes are replaced with Akiva tokens where practical
 - Cards use `rounded-lg` unless they are large analytical panels
 - Checklist groups use themed checklist rows instead of browser-default checkbox lists
 - Tables use `AdvancedTable` for operational datasets
 - Actions use Lucide icons and accessible labels
+- Delete, cancel, remove, and other destructive actions use the shared system confirmation dialog
 - Mobile layout is one column and has no overlapping text
 - Dark mode uses tokens and remains readable
 - Empty, loading, and error states are present for live data

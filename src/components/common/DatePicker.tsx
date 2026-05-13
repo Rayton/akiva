@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { formatDateWithSystemFormat, useSystemDateFormat } from '../../lib/dateFormat';
 
@@ -22,8 +23,15 @@ interface CalendarDay {
 }
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const DATE_PICKER_POPOVER_Z_INDEX = 2147483647;
 const baseTriggerClass =
   'h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-left text-sm text-akiva-text shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent disabled:cursor-not-allowed disabled:bg-akiva-surface-muted disabled:text-akiva-text-muted disabled:opacity-70';
+
+interface PopoverPosition {
+  left: number;
+  top: number;
+  width: number;
+}
 
 function parseIsoDate(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -78,10 +86,12 @@ export function DatePicker({
   max,
 }: DatePickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const selectedDate = parseIsoDate(value);
   const initialMonth = selectedDate ?? new Date();
   const [isOpen, setIsOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(new Date(initialMonth.getFullYear(), initialMonth.getMonth(), 1));
+  const [popoverPosition, setPopoverPosition] = useState<PopoverPosition>({ left: 16, top: 16, width: 304 });
   const dateFormat = useSystemDateFormat();
 
   useEffect(() => {
@@ -92,13 +102,42 @@ export function DatePicker({
   useEffect(() => {
     if (!isOpen) return;
     const listener = (event: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (!rootRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) {
         setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', listener);
     return () => document.removeEventListener('mousedown', listener);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      const anchor = rootRef.current;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const width = Math.min(304, Math.max(240, viewportWidth - 32));
+      const estimatedHeight = 360;
+      const left = Math.min(Math.max(16, rect.left), Math.max(16, viewportWidth - width - 16));
+      const belowTop = rect.bottom + 8;
+      const aboveTop = rect.top - estimatedHeight - 8;
+      const top = belowTop + estimatedHeight <= viewportHeight - 16 ? belowTop : Math.max(16, aboveTop);
+
+      setPopoverPosition({ left, top, width });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
   }, [isOpen]);
 
   const monthLabel = useMemo(() => {
@@ -136,17 +175,25 @@ export function DatePicker({
         </span>
       </button>
 
-      {isOpen ? (
+      {isOpen && typeof document !== 'undefined' ? createPortal(
         <div
+          ref={panelRef}
+          data-akiva-date-popover="true"
           role="dialog"
           aria-label="Choose date"
           className={[
-            'absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded-lg border border-akiva-border bg-akiva-surface-raised p-3 text-akiva-text shadow-xl shadow-slate-900/10',
+            'fixed max-w-[calc(100vw-2rem)] rounded-lg border border-akiva-border bg-akiva-surface-raised p-3 text-akiva-text shadow-xl shadow-slate-900/10',
             panelClassName,
           ]
             .filter(Boolean)
             .join(' ')}
-          style={{ width: 'min(304px, calc(100vw - 2rem))' }}
+          style={{
+            left: popoverPosition.left,
+            top: popoverPosition.top,
+            right: 'auto',
+            width: popoverPosition.width,
+            zIndex: DATE_PICKER_POPOVER_Z_INDEX,
+          }}
         >
           <div className="mb-2 flex items-center justify-between">
             <button
@@ -235,7 +282,7 @@ export function DatePicker({
             ) : null}
           </div>
         </div>
-      ) : null}
+      , document.body) : null}
     </div>
   );
 }

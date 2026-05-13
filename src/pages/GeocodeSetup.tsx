@@ -26,6 +26,7 @@ import {
   saveGeocodeRecord,
   updateGeocodeEnabled,
 } from '../data/geocodeSetupApi';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import type {
   GeocodeForm,
   GeocodeLocation,
@@ -207,6 +208,7 @@ export function GeocodeSetup() {
   const [locationTarget, setLocationTarget] = useState<GeocodeRunTarget>('all');
   const [locations, setLocations] = useState<GeocodeLocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<GeocodeLocation | null>(null);
+  const { confirm, confirmationDialog } = useConfirmDialog();
   const [loading, setLoading] = useState(true);
   const [locationsLoading, setLocationsLoading] = useState(true);
   const [geocoding, setGeocoding] = useState(false);
@@ -294,7 +296,13 @@ export function GeocodeSetup() {
   };
 
   const deleteRecord = async (record: GeocodeRecord) => {
-    if (!window.confirm(`Delete geocode setup #${record.id}?`)) return;
+    const confirmed = await confirm({
+      title: 'Delete Geocode Setup',
+      description: 'This geocode provider setup will be removed.',
+      detail: `Setup #${record.id}`,
+      confirmLabel: 'Delete Setup',
+    });
+    if (!confirmed) return;
     setSaving(true);
     setErrorMessage('');
     try {
@@ -620,6 +628,7 @@ export function GeocodeSetup() {
       </div>
 
       {message ? <ToastNotification type="success" message={message} onClose={() => setMessage('')} /> : null}
+      {confirmationDialog}
     </div>
   );
 }

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\DocumentTemplateController;
 use App\Http\Controllers\Api\LabelController;
 use App\Http\Controllers\Api\SmtpServerController;
 use App\Http\Controllers\Api\WwwUsersController;
+use App\Http\Controllers\Api\AccessPermissionsController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -54,6 +55,10 @@ Route::get('/configuration/users/www-users', [WwwUsersController::class, 'index'
 Route::post('/configuration/users/www-users', [WwwUsersController::class, 'store']);
 Route::put('/configuration/users/www-users/{userId}', [WwwUsersController::class, 'update']);
 Route::delete('/configuration/users/www-users/{userId}', [WwwUsersController::class, 'destroy']);
+Route::get('/configuration/users/www-access', [AccessPermissionsController::class, 'index']);
+Route::post('/configuration/users/www-access', [AccessPermissionsController::class, 'store']);
+Route::put('/configuration/users/www-access/{roleId}', [AccessPermissionsController::class, 'update']);
+Route::delete('/configuration/users/www-access/{roleId}', [AccessPermissionsController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

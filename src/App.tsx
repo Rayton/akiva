@@ -12,6 +12,7 @@ import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
+import { AccessPermissions } from './pages/AccessPermissions';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
 import { AuditTrail } from './pages/AuditTrail';
@@ -142,6 +143,11 @@ function isWwwUsersMenuSlug(slug: string): boolean {
   return key === 'wwwusers' || key.includes('wwwusers') || key.includes('usermanagement');
 }
 
+function isAccessPermissionsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'wwwaccess' || key.includes('wwwaccess') || key.includes('accesspermissions');
+}
+
 type GeneralLedgerView = 'transactions' | 'accounts';
 
 function resolveGeneralLedgerView(slug: string): GeneralLedgerView {
@@ -254,6 +260,9 @@ function AppContent() {
     if (currentPathKey.includes('configurationuserswwwusers')) {
       return <UserManagement />;
     }
+    if (currentPathKey.includes('configurationuserswwwaccess')) {
+      return <AccessPermissions />;
+    }
 
     if (currentPage.startsWith('main-')) {
       const mainId = parseInt(currentPage.replace('main-', ''), 10);
@@ -315,6 +324,10 @@ function AppContent() {
         return <UserManagement />;
       }
 
+      if (isAccessPermissionsMenuSlug(menuSlug)) {
+        return <AccessPermissions />;
+      }
+
       if (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug)) {
         const glView = resolveGeneralLedgerView(menuSlug);
         if (glView === 'accounts') {
@@ -360,6 +373,9 @@ function AppContent() {
         return <FinancialReports />;
       case 'users':
         return <UserManagement />;
+      case 'www-access':
+      case 'access':
+        return <AccessPermissions />;
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;

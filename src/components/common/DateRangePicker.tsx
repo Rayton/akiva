@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, Check, ChevronDown } from 'lucide-react';
 import { DatePicker } from './DatePicker';
 import { DEFAULT_SYSTEM_DATE_FORMAT, formatDateRangeWithSystemFormat, useSystemDateFormat } from '../../lib/dateFormat';
 
-export type DateRangePreset = 'last-3-months' | 'this-month' | 'last-month' | 'this-quarter' | 'this-year' | 'custom';
+export type DateRangePreset =
+  | 'last-3-months'
+  | 'this-month'
+  | 'last-month'
+  | 'this-quarter'
+  | 'last-quarter'
+  | 'this-year'
+  | 'last-year'
+  | 'custom';
 
 export interface DateRangeValue {
   from: string;
@@ -22,13 +31,23 @@ interface DateRangePickerProps {
 }
 
 const PRESET_OPTIONS: Array<{ value: DateRangePreset; label: string }> = [
-  { value: 'last-3-months', label: 'Last 3 months' },
   { value: 'this-month', label: 'This month' },
   { value: 'last-month', label: 'Last month' },
+  { value: 'last-3-months', label: 'Last 3 months' },
   { value: 'this-quarter', label: 'This quarter' },
+  { value: 'last-quarter', label: 'Last quarter' },
   { value: 'this-year', label: 'This year' },
+  { value: 'last-year', label: 'Last year' },
   { value: 'custom', label: 'Date range' },
 ];
+
+const DATE_RANGE_POPOVER_Z_INDEX = 2147483646;
+
+interface PopoverPosition {
+  left: number;
+  top: number;
+  width: number;
+}
 
 function pad(value: number): string {
   return String(value).padStart(2, '0');
@@ -51,6 +70,11 @@ function startOfQuarter(value: Date): Date {
   return new Date(value.getFullYear(), quarterStartMonth, 1);
 }
 
+function endOfQuarter(value: Date): Date {
+  const quarterStartMonth = Math.floor(value.getMonth() / 3) * 3;
+  return new Date(value.getFullYear(), quarterStartMonth + 3, 0);
+}
+
 export function getPresetDateRange(preset: DateRangePreset, anchor = new Date()): DateRangeValue {
   const today = toIsoDate(anchor);
 
@@ -67,8 +91,18 @@ export function getPresetDateRange(preset: DateRangePreset, anchor = new Date())
     return { preset, from: toIsoDate(startOfQuarter(anchor)), to: today };
   }
 
+  if (preset === 'last-quarter') {
+    const previousQuarter = new Date(anchor.getFullYear(), Math.floor(anchor.getMonth() / 3) * 3 - 3, 1);
+    return { preset, from: toIsoDate(startOfQuarter(previousQuarter)), to: toIsoDate(endOfQuarter(previousQuarter)) };
+  }
+
   if (preset === 'this-year') {
     return { preset, from: `${anchor.getFullYear()}-01-01`, to: today };
+  }
+
+  if (preset === 'last-year') {
+    const previousYear = anchor.getFullYear() - 1;
+    return { preset, from: `${previousYear}-01-01`, to: `${previousYear}-12-31` };
   }
 
   const start = new Date(anchor.getFullYear(), anchor.getMonth() - 2, 1);
@@ -93,8 +127,10 @@ export function DateRangePicker({
   disabled = false,
 }: DateRangePickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateRangeValue>(value);
+  const [popoverPosition, setPopoverPosition] = useState<PopoverPosition>({ left: 16, top: 16, width: 560 });
   const dateFormat = useSystemDateFormat();
 
   useEffect(() => {
@@ -104,13 +140,46 @@ export function DateRangePicker({
   useEffect(() => {
     if (!open) return;
     const listener = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as HTMLElement;
+      if (target.closest('[data-akiva-date-popover="true"]')) return;
+      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) {
         setOpen(false);
       }
     };
     document.addEventListener('mousedown', listener);
     return () => document.removeEventListener('mousedown', listener);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      const anchor = rootRef.current;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const width = Math.min(560, Math.max(288, viewportWidth - 32));
+      const alignRight = panelClassName.split(/\s+/).includes('right-0');
+      const preferredLeft = alignRight ? rect.right - width : rect.left;
+      const left = Math.min(Math.max(16, preferredLeft), Math.max(16, viewportWidth - width - 16));
+      const estimatedHeight = 520;
+      const belowTop = rect.bottom + 8;
+      const aboveTop = rect.top - estimatedHeight - 8;
+      const top = belowTop + estimatedHeight <= viewportHeight - 16 ? belowTop : Math.max(16, aboveTop);
+
+      setPopoverPosition({ left, top, width });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open, panelClassName]);
 
   const display = useMemo(() => formatDateRangeDisplay(value.from, value.to, dateFormat), [dateFormat, value.from, value.to]);
 
@@ -157,16 +226,24 @@ export function DateRangePicker({
         </span>
       </button>
 
-      {open ? (
+      {open && typeof document !== 'undefined' ? createPortal(
         <div
+          ref={panelRef}
           role="dialog"
           aria-label="Choose timeframe"
           className={[
-            'absolute z-40 mt-2 w-[min(560px,calc(100vw-2rem))] rounded-2xl border border-akiva-border bg-akiva-surface-raised p-3 text-akiva-text shadow-xl shadow-slate-900/10',
+            'fixed rounded-2xl border border-akiva-border bg-akiva-surface-raised p-3 text-akiva-text shadow-xl shadow-slate-900/10',
             panelClassName,
           ]
             .filter(Boolean)
             .join(' ')}
+          style={{
+            left: popoverPosition.left,
+            top: popoverPosition.top,
+            right: 'auto',
+            width: popoverPosition.width,
+            zIndex: DATE_RANGE_POPOVER_Z_INDEX,
+          }}
         >
           <div className="grid gap-3 md:grid-cols-[180px_1fr]">
             <div className="space-y-1">
@@ -219,7 +296,7 @@ export function DateRangePicker({
             </div>
           </div>
         </div>
-      ) : null}
+      , document.body) : null}
     </div>
   );
 }

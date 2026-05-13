@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Columns3, FileSpreadsheet, FileText } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -11,9 +11,11 @@ export interface AdvancedTableColumn<T> {
   accessor: (row: T) => unknown;
   cell?: (row: T) => React.ReactNode;
   exportValue?: (row: T) => string | number;
+  sortValue?: (row: T) => unknown;
   width?: number;
   minWidth?: number;
   filterable?: boolean;
+  sortable?: boolean;
 }
 
 interface AdvancedTableProps<T> {
@@ -32,6 +34,13 @@ type WidthMap = Record<string, number>;
 
 type FilterMap = Record<string, string>;
 
+type SortDirection = 'asc' | 'desc';
+
+type SortState = {
+  columnId: string;
+  direction: SortDirection;
+};
+
 const DEFAULT_PAGE_SIZES = [10, 25, 50, 100];
 
 function asText(value: unknown): string {
@@ -39,6 +48,28 @@ function asText(value: unknown): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return JSON.stringify(value);
+}
+
+function asSortableValue(value: unknown): string | number {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number') return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'string') {
+    const numeric = Number(value.replace(/[$,%\s,]/g, ''));
+    if (value.trim() !== '' && Number.isFinite(numeric)) return numeric;
+    const date = Date.parse(value);
+    if (!Number.isNaN(date) && /[-/:]|^\d{4}/.test(value)) return date;
+    return value.toLowerCase();
+  }
+  return JSON.stringify(value).toLowerCase();
+}
+
+function compareValues(first: unknown, second: unknown): number {
+  const a = asSortableValue(first);
+  const b = asSortableValue(second);
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
 }
 
 export function AdvancedTable<T>({
@@ -55,6 +86,7 @@ export function AdvancedTable<T>({
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [pageIndex, setPageIndex] = useState(0);
   const [filters, setFilters] = useState<FilterMap>({});
+  const [sort, setSort] = useState<SortState | null>(null);
   const [showColumnsPanel, setShowColumnsPanel] = useState(false);
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => columns.map((column) => column.id));
   const [columnWidths, setColumnWidths] = useState<WidthMap>({});
@@ -145,7 +177,20 @@ export function AdvancedTable<T>({
     });
   }, [columns, filters, rows]);
 
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const sortedRows = useMemo(() => {
+    if (!sort) return filteredRows;
+    const column = columns.find((candidate) => candidate.id === sort.columnId);
+    if (!column || column.sortable === false) return filteredRows;
+
+    return [...filteredRows].sort((a, b) => {
+      const first = column.sortValue ? column.sortValue(a) : column.accessor(a);
+      const second = column.sortValue ? column.sortValue(b) : column.accessor(b);
+      const result = compareValues(first, second);
+      return sort.direction === 'asc' ? result : -result;
+    });
+  }, [columns, filteredRows, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
 
   useEffect(() => {
     setPageIndex((previous) => Math.min(previous, pageCount - 1));
@@ -154,14 +199,18 @@ export function AdvancedTable<T>({
   const pagedRows = useMemo(() => {
     const start = pageIndex * pageSize;
     const end = start + pageSize;
-    return filteredRows.slice(start, end);
-  }, [filteredRows, pageIndex, pageSize]);
+    return sortedRows.slice(start, end);
+  }, [sortedRows, pageIndex, pageSize]);
 
-  const rangeStart = filteredRows.length === 0 ? 0 : pageIndex * pageSize + 1;
-  const rangeEnd = Math.min(filteredRows.length, (pageIndex + 1) * pageSize);
+  const rangeStart = sortedRows.length === 0 ? 0 : pageIndex * pageSize + 1;
+  const rangeEnd = Math.min(sortedRows.length, (pageIndex + 1) * pageSize);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [filters, sort]);
 
   const onExportExcel = () => {
-    const exportRows = filteredRows.map((row) => {
+    const exportRows = sortedRows.map((row) => {
       const output: Record<string, string | number> = {};
       visibleColumns.forEach((column) => {
         const value = column.exportValue ? column.exportValue(row) : column.accessor(row);
@@ -179,7 +228,7 @@ export function AdvancedTable<T>({
   const onExportPdf = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
     const head = [visibleColumns.map((column) => column.header)];
-    const body = filteredRows.map((row) =>
+    const body = sortedRows.map((row) =>
       visibleColumns.map((column) => {
         const value = column.exportValue ? column.exportValue(row) : column.accessor(row);
         return typeof value === 'number' ? String(value) : asText(value);
@@ -228,7 +277,7 @@ export function AdvancedTable<T>({
 
         <div className="flex items-center gap-2 text-xs text-akiva-text-muted">
           <span>
-            Showing {rangeStart} to {rangeEnd} of {filteredRows.length} items
+            Showing {rangeStart} to {rangeEnd} of {sortedRows.length} items
           </span>
           <span className="text-akiva-border-strong">|</span>
           <span>{rows.length} total rows</span>
@@ -270,9 +319,34 @@ export function AdvancedTable<T>({
             <tr className="bg-akiva-table-header text-left text-xs uppercase tracking-wide text-akiva-text-muted">
               {visibleColumns.map((column) => {
                 const width = columnWidths[column.id] ?? column.width ?? 180;
+                const sortable = column.sortable !== false;
+                const active = sort?.columnId === column.id;
+                const SortIcon = active ? (sort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
                 return (
-                  <th key={column.id} style={{ width }} className="relative px-3 py-2 align-top">
-                    <span>{column.header}</span>
+                  <th
+                    key={column.id}
+                    style={{ width }}
+                    aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    className="relative px-3 py-2 align-top"
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSort((current) =>
+                            current?.columnId === column.id
+                              ? { columnId: column.id, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+                              : { columnId: column.id, direction: 'asc' }
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-md text-left transition hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                      >
+                        <span>{column.header}</span>
+                        <SortIcon className={`h-3.5 w-3.5 ${active ? 'text-akiva-accent' : 'text-akiva-text-muted'}`} />
+                      </button>
+                    ) : (
+                      <span>{column.header}</span>
+                    )}
                     <div
                       onMouseDown={(event) => {
                         event.preventDefault();

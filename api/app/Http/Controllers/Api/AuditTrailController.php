@@ -22,6 +22,8 @@ class AuditTrailController extends Controller
             'text' => ['nullable', 'string', 'max:120'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'sort' => ['nullable', 'in:transactionDate,userId,event,source,tableName,executionMs'],
+            'sort_dir' => ['nullable', 'in:asc,desc'],
         ]);
 
         if ($validator->fails()) {
@@ -53,6 +55,7 @@ class AuditTrailController extends Controller
         $selectedEvent = trim((string) $request->input('event', ''));
         $text = trim((string) $request->input('text', ''));
         $columns = Schema::getColumnListing('audittrail');
+        [$sortColumn, $sortDirection] = $this->sortRequest($request, $columns);
 
         $query = DB::table('audittrail')
             ->whereBetween('transactiondate', [$from->toDateTimeString(), $to->toDateTimeString()]);
@@ -92,6 +95,7 @@ class AuditTrailController extends Controller
 
         $total = (clone $query)->count();
         $rows = $query
+            ->orderBy($sortColumn, $sortDirection)
             ->orderByDesc('transactiondate')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
@@ -130,6 +134,22 @@ class AuditTrailController extends Controller
     private function toDate(?string $value): Carbon
     {
         return $value ? Carbon::parse($value)->endOfDay() : now()->endOfDay();
+    }
+
+    private function sortRequest(Request $request, array $columns): array
+    {
+        $requested = (string) $request->input('sort', 'transactionDate');
+        $direction = (string) $request->input('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
+        $map = [
+            'transactionDate' => 'transactiondate',
+            'userId' => 'userid',
+            'event' => in_array('event', $columns, true) ? 'event' : 'querystring',
+            'source' => in_array('source', $columns, true) ? 'source' : 'querystring',
+            'tableName' => in_array('table_name', $columns, true) ? 'table_name' : 'querystring',
+            'executionMs' => in_array('execution_ms', $columns, true) ? 'execution_ms' : 'transactiondate',
+        ];
+
+        return [$map[$requested] ?? 'transactiondate', $direction];
     }
 
     private function formatAuditRow(object $row): array

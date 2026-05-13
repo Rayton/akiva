@@ -43,7 +43,13 @@ export interface AuditTrailFilters {
   text: string;
   page: number;
   perPage: number;
+  sort: AuditTrailSortKey;
+  sortDir: AuditTrailSortDirection;
 }
+
+export type AuditTrailSortKey = 'transactionDate' | 'userId' | 'event' | 'source' | 'tableName' | 'executionMs';
+
+export type AuditTrailSortDirection = 'asc' | 'desc';
 
 export interface AuditTrailPayload {
   records: AuditTrailRecord[];

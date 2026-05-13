@@ -256,6 +256,9 @@ Prefer `AdvancedTable` for live operational data. It already provides filtering,
 Table conventions:
 
 - Header: uppercase, `text-xs`, muted
+- Sorting: every sortable header uses an icon button with `ArrowUpDown`, switching to `ArrowUp` or `ArrowDown` for the active column
+- Active sort icon: `text-akiva-accent`
+- Accessibility: sorted headers set `aria-sort` to `ascending`, `descending`, or `none`
 - Row text: `text-sm`
 - Borders: `border-akiva-border`
 - Hover: `hover:bg-akiva-table-row-hover`
@@ -263,7 +266,9 @@ Table conventions:
 - Important IDs/codes: monospace
 - Empty/loading states: centered muted text
 
-For simpler static tables, use `Table`, but align it to Akiva tokens rather than gray/blue classes.
+For simpler static tables, use `Table`, but align it to Akiva tokens rather than gray/blue classes. `Table` columns sort by default unless `sortable: false` is set; action columns should remain unsorted.
+
+Server-paginated tables must sort on the server so users are not sorting only the visible page. Keep the current sort in the filter/query state and reset to page 1 when the sort changes.
 
 ## Charts
 

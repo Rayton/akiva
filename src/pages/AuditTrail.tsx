@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, Database, Filter, Loader2, RefreshCw, Search, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Database, Filter, Loader2, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import { DatePicker } from '../components/common/DatePicker';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { fetchAuditTrail } from '../data/auditTrailApi';
-import type { AuditTrailFilters, AuditTrailPayload, AuditTrailRecord } from '../types/auditTrail';
+import type { AuditTrailFilters, AuditTrailPayload, AuditTrailRecord, AuditTrailSortKey } from '../types/auditTrail';
 
 const inputClass =
   'h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent';
@@ -25,6 +25,8 @@ const DEFAULT_FILTERS: AuditTrailFilters = {
   text: '',
   page: 1,
   perPage: 50,
+  sort: 'transactionDate',
+  sortDir: 'desc',
 };
 
 function eventTone(event: string): string {
@@ -104,6 +106,39 @@ function AuditRow({ record }: { record: AuditTrailRecord }) {
   );
 }
 
+function SortHeader({
+  label,
+  sortKey,
+  filters,
+  onSort,
+  className = '',
+}: {
+  label: string;
+  sortKey: AuditTrailSortKey;
+  filters: AuditTrailFilters;
+  onSort: (sortKey: AuditTrailSortKey) => void;
+  className?: string;
+}) {
+  const active = filters.sort === sortKey;
+  const SortIcon = active ? (filters.sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+  return (
+    <th
+      aria-sort={active ? (filters.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={`px-4 py-3 ${className}`}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1.5 rounded-md text-left transition hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+      >
+        <span>{label}</span>
+        <SortIcon className={`h-3.5 w-3.5 ${active ? 'text-akiva-accent' : 'text-akiva-text-muted'}`} />
+      </button>
+    </th>
+  );
+}
+
 export function AuditTrail() {
   const [filters, setFilters] = useState<AuditTrailFilters>(DEFAULT_FILTERS);
   const [pendingFilters, setPendingFilters] = useState<AuditTrailFilters>(DEFAULT_FILTERS);
@@ -149,6 +184,17 @@ export function AuditTrail() {
 
   const changePage = (page: number) => {
     const next = { ...filters, page };
+    setFilters(next);
+    setPendingFilters(next);
+  };
+
+  const changeSort = (sortKey: AuditTrailSortKey) => {
+    const next: AuditTrailFilters = {
+      ...filters,
+      sort: sortKey,
+      sortDir: filters.sort === sortKey && filters.sortDir === 'asc' ? 'desc' : 'asc',
+      page: 1,
+    };
     setFilters(next);
     setPendingFilters(next);
   };
@@ -287,10 +333,10 @@ export function AuditTrail() {
               <table className="min-w-full">
                 <thead className="bg-akiva-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">
                   <tr>
-                    <th className="px-4 py-3">Date/Time</th>
-                    <th className="px-4 py-3">User</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Table</th>
+                    <SortHeader label="Date/Time" sortKey="transactionDate" filters={filters} onSort={changeSort} />
+                    <SortHeader label="User" sortKey="userId" filters={filters} onSort={changeSort} />
+                    <SortHeader label="Type" sortKey="event" filters={filters} onSort={changeSort} />
+                    <SortHeader label="Table" sortKey="tableName" filters={filters} onSort={changeSort} />
                     <th className="px-4 py-3">Details</th>
                   </tr>
                 </thead>

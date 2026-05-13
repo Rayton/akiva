@@ -13,7 +13,8 @@ export async function fetchAuditTrail(filters: AuditTrailFilters): Promise<Audit
 
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== '' && value !== 0) {
-      params.set(key === 'perPage' ? 'per_page' : key, String(value));
+      const apiKey = key === 'perPage' ? 'per_page' : key === 'sortDir' ? 'sort_dir' : key;
+      params.set(apiKey, String(value));
     }
   });
 

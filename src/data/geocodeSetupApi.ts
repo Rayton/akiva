@@ -1,6 +1,12 @@
 import { apiFetch } from '../lib/network/apiClient';
 import { buildApiUrl } from '../lib/network/apiBase';
-import type { GeocodeForm, GeocodeSetupPayload } from '../types/geocodeSetup';
+import type {
+  GeocodeForm,
+  GeocodeLocation,
+  GeocodeRunPayload,
+  GeocodeRunTarget,
+  GeocodeSetupPayload,
+} from '../types/geocodeSetup';
 
 interface ApiResponse {
   success: boolean;
@@ -77,4 +83,38 @@ export async function updateGeocodeEnabled(enabled: boolean): Promise<GeocodeSet
     body: JSON.stringify({ enabled }),
   });
   return (await readPayload(response, 'Geocode integration setting could not be saved.')).data;
+}
+
+export async function runGeocodeProcess(options: {
+  target: GeocodeRunTarget;
+  limit: number;
+  missingOnly: boolean;
+}): Promise<ApiResponse & { data: GeocodeRunPayload }> {
+  const response = await apiFetch(buildApiUrl('/api/geocode/setup/run'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(options),
+  });
+  return readPayload(response, 'Geocode process could not be completed.') as Promise<ApiResponse & { data: GeocodeRunPayload }>;
+}
+
+export async function fetchGeocodeLocations(options: {
+  target: GeocodeRunTarget;
+  limit: number;
+}): Promise<GeocodeLocation[]> {
+  const params = new URLSearchParams({
+    target: options.target,
+    limit: String(options.limit),
+  });
+  const response = await apiFetch(buildApiUrl(`/api/geocode/setup/locations?${params.toString()}`));
+  const payload = await parseJson<{ success: boolean; data: { locations: GeocodeLocation[] }; message?: string }>(response);
+
+  if (!response.ok || !payload?.success) {
+    throw new Error(errorMessage(payload, 'Geocode locations could not be loaded.'));
+  }
+
+  return Array.isArray(payload.data?.locations) ? payload.data.locations : [];
 }

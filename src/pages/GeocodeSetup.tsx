@@ -20,11 +20,21 @@ import {
 import { Button } from '../components/common/Button';
 import {
   deleteGeocodeRecord,
+  fetchGeocodeLocations,
   fetchGeocodeSetup,
+  runGeocodeProcess,
   saveGeocodeRecord,
   updateGeocodeEnabled,
 } from '../data/geocodeSetupApi';
-import type { GeocodeForm, GeocodeRecord, GeocodeSetupPayload, GeocodeStatsItem } from '../types/geocodeSetup';
+import type {
+  GeocodeForm,
+  GeocodeLocation,
+  GeocodeRecord,
+  GeocodeRunSummary,
+  GeocodeRunTarget,
+  GeocodeSetupPayload,
+  GeocodeStatsItem,
+} from '../types/geocodeSetup';
 
 const inputClass =
   'h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent';
@@ -122,16 +132,20 @@ function ChecklistToggle({
   checked,
   onChange,
   disabled,
+  label,
+  description,
 }: {
   checked: boolean;
   onChange: (value: boolean) => void;
   disabled: boolean;
+  label: string;
+  description: string;
 }) {
   return (
     <label className="group flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted/70">
       <span className="min-w-0">
-        <span className="block text-sm font-semibold leading-5 text-akiva-text">Geocode customers and suppliers</span>
-        <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">Store map coordinates on customer branches and supplier records.</span>
+        <span className="block text-sm font-semibold leading-5 text-akiva-text">{label}</span>
+        <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{description}</span>
       </span>
       <input
         type="checkbox"
@@ -186,7 +200,16 @@ export function GeocodeSetup() {
   const [payload, setPayload] = useState<GeocodeSetupPayload | null>(null);
   const [form, setForm] = useState<GeocodeForm>(emptyForm());
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [runTarget, setRunTarget] = useState<GeocodeRunTarget>('all');
+  const [runLimit, setRunLimit] = useState('25');
+  const [missingOnly, setMissingOnly] = useState(true);
+  const [runSummary, setRunSummary] = useState<GeocodeRunSummary | null>(null);
+  const [locationTarget, setLocationTarget] = useState<GeocodeRunTarget>('all');
+  const [locations, setLocations] = useState<GeocodeLocation[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<GeocodeLocation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [locationsLoading, setLocationsLoading] = useState(true);
+  const [geocoding, setGeocoding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -207,10 +230,33 @@ export function GeocodeSetup() {
     }
   };
 
+  const loadLocations = async (target = locationTarget) => {
+    setLocationsLoading(true);
+    try {
+      const data = await fetchGeocodeLocations({ target, limit: 100 });
+      setLocations(data);
+      setSelectedLocation((current) => {
+        if (current && data.some((location) => `${location.type}-${location.id}` === `${current.type}-${current.id}`)) {
+          return current;
+        }
+        return data[0] ?? null;
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Geocode locations could not be loaded.');
+    } finally {
+      setLocationsLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadSetup();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    void loadLocations(locationTarget);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationTarget]);
 
   const selectedRecord = useMemo(
     () => payload?.records.find((record) => record.id === editingId) ?? null,
@@ -273,6 +319,27 @@ export function GeocodeSetup() {
       setErrorMessage(error instanceof Error ? error.message : 'Geocode integration setting could not be saved.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const runNativeGeocoding = async () => {
+    setGeocoding(true);
+    setErrorMessage('');
+    setRunSummary(null);
+    try {
+      const response = await runGeocodeProcess({
+        target: runTarget,
+        limit: Number(runLimit) || 25,
+        missingOnly,
+      });
+      setPayload(response.data);
+      setRunSummary(response.data.run);
+      setMessage(response.message ?? 'Geocode process finished.');
+      await loadLocations(locationTarget);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Geocode process could not be completed.');
+    } finally {
+      setGeocoding(false);
     }
   };
 
@@ -438,34 +505,113 @@ export function GeocodeSetup() {
                   </div>
                   <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-akiva-text-muted" />
                 </div>
-                <ChecklistToggle checked={Boolean(payload?.enabled)} onChange={(enabled) => void updateEnabled(enabled)} disabled={saving || loading} />
+                <ChecklistToggle
+                  checked={Boolean(payload?.enabled)}
+                  onChange={(enabled) => void updateEnabled(enabled)}
+                  disabled={saving || loading}
+                  label="Geocode customers and suppliers"
+                  description="Store map coordinates on customer branches and supplier records."
+                />
               </section>
 
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-akiva-text">Map tools</p>
-                    <p className="mt-1 text-xs leading-5 text-akiva-text-muted">Open the existing long-running map utilities when needed.</p>
+                    <p className="text-sm font-semibold text-akiva-text">Native geocoding</p>
+                    <p className="mt-1 text-xs leading-5 text-akiva-text-muted">Update missing customer and supplier coordinates from Akiva.</p>
                   </div>
-                  <ExternalLink className="mt-1 h-5 w-5 shrink-0 text-akiva-text-muted" />
+                  <Globe2 className="mt-1 h-5 w-5 shrink-0 text-akiva-text-muted" />
                 </div>
-                <div className="space-y-2">
-                  {payload?.links ? (
-                    <>
-                      <a className="flex items-center justify-between rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 text-sm font-semibold text-akiva-text shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted" href={payload.links.runProcess} target="_blank" rel="noreferrer">
-                        Run geocode process
-                        <ExternalLink className="h-4 w-4 text-akiva-text-muted" />
-                      </a>
-                      <a className="flex items-center justify-between rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 text-sm font-semibold text-akiva-text shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted" href={payload.links.customerMap} target="_blank" rel="noreferrer">
-                        Customer branch map
-                        <ExternalLink className="h-4 w-4 text-akiva-text-muted" />
-                      </a>
-                      <a className="flex items-center justify-between rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 text-sm font-semibold text-akiva-text shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted" href={payload.links.supplierMap} target="_blank" rel="noreferrer">
-                        Supplier map
-                        <ExternalLink className="h-4 w-4 text-akiva-text-muted" />
-                      </a>
-                    </>
+                <div className="space-y-3">
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Records</span>
+                    <select value={runTarget} onChange={(event) => setRunTarget(event.target.value as GeocodeRunTarget)} className={inputClass}>
+                      <option value="all">Customers and suppliers</option>
+                      <option value="customers">Customer branches</option>
+                      <option value="suppliers">Suppliers</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Limit</span>
+                    <input value={runLimit} onChange={(event) => setRunLimit(event.target.value)} className={inputClass} inputMode="numeric" />
+                  </label>
+                  <ChecklistToggle
+                    checked={missingOnly}
+                    onChange={setMissingOnly}
+                    disabled={geocoding || saving || loading}
+                    label="Only missing coordinates"
+                    description="Skip records that already have latitude or longitude values."
+                  />
+                  <Button type="button" onClick={() => void runNativeGeocoding()} disabled={geocoding || saving || loading || !payload?.records.length} className="inline-flex w-full items-center justify-center gap-2">
+                    {geocoding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe2 className="h-4 w-4" />}
+                    Run geocoding
+                  </Button>
+                  {!payload?.records.length ? (
+                    <p className="text-xs leading-5 text-akiva-text-muted">Add a geocode setup record with an API key before running geocoding.</p>
                   ) : null}
+                  {runSummary ? (
+                    <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 text-xs leading-5 text-akiva-text-muted">
+                      {runSummary.updated} updated, {runSummary.failed} failed, {runSummary.skipped} skipped.
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-akiva-text">Mapped locations</p>
+                    <p className="mt-1 text-xs leading-5 text-akiva-text-muted">Native preview of stored coordinates.</p>
+                  </div>
+                  <MapPin className="mt-1 h-5 w-5 shrink-0 text-akiva-text-muted" />
+                </div>
+                <div className="space-y-3">
+                  <select value={locationTarget} onChange={(event) => setLocationTarget(event.target.value as GeocodeRunTarget)} className={inputClass}>
+                    <option value="all">Customers and suppliers</option>
+                    <option value="customers">Customer branches</option>
+                    <option value="suppliers">Suppliers</option>
+                  </select>
+
+                  {selectedLocation ? (
+                    <div className="overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface-raised">
+                      <iframe
+                        title={`${selectedLocation.name} map`}
+                        src={selectedLocation.embedUrl}
+                        className="h-52 w-full border-0"
+                        loading="lazy"
+                      />
+                      <div className="space-y-1 px-3 py-2.5">
+                        <p className="truncate text-sm font-semibold text-akiva-text">{selectedLocation.name}</p>
+                        <p className="line-clamp-2 text-xs leading-5 text-akiva-text-muted">{selectedLocation.address}</p>
+                        <a className="inline-flex items-center gap-1 text-xs font-semibold text-akiva-accent-text hover:underline" href={selectedLocation.mapUrl} target="_blank" rel="noreferrer">
+                          Open map
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-8 text-center text-sm text-akiva-text-muted">
+                      {locationsLoading ? 'Loading mapped locations' : 'No mapped locations found.'}
+                    </div>
+                  )}
+
+                  <div className="max-h-64 space-y-2 overflow-auto pr-1">
+                    {locations.map((location) => (
+                      <button
+                        key={`${location.type}-${location.id}`}
+                        type="button"
+                        onClick={() => setSelectedLocation(location)}
+                        className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                          selectedLocation && `${selectedLocation.type}-${selectedLocation.id}` === `${location.type}-${location.id}`
+                            ? 'border-akiva-accent bg-akiva-accent-soft'
+                            : 'border-akiva-border bg-akiva-surface-raised hover:border-akiva-accent/70 hover:bg-akiva-surface-muted/70'
+                        }`}
+                      >
+                        <span className="block truncate text-sm font-semibold text-akiva-text">{location.name}</span>
+                        <span className="mt-1 block truncate text-xs text-akiva-text-muted">{location.type} · {location.lat}, {location.lng}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </section>
             </aside>

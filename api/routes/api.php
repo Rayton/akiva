@@ -23,6 +23,8 @@ Route::get('/audit-trail', [AuditTrailController::class, 'index']);
 Route::get('/geocode/setup', [GeocodeSetupController::class, 'show']);
 Route::post('/geocode/setup', [GeocodeSetupController::class, 'store']);
 Route::put('/geocode/setup/settings', [GeocodeSetupController::class, 'updateSettings']);
+Route::post('/geocode/setup/run', [GeocodeSetupController::class, 'run']);
+Route::get('/geocode/setup/locations', [GeocodeSetupController::class, 'locations']);
 Route::put('/geocode/setup/{id}', [GeocodeSetupController::class, 'update']);
 Route::delete('/geocode/setup/{id}', [GeocodeSetupController::class, 'destroy']);
 

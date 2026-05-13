@@ -23,6 +23,7 @@ import {
   GearSix,
   HandCoins,
   MagnifyingGlass,
+  MapPin,
   MoneyWavy,
   Package,
   Receipt,
@@ -182,6 +183,7 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIc
   const lower = caption.toLowerCase();
   if (lower.includes('company preference') || lower.includes('company preferences')) return Buildings;
   if (lower.includes('configuration settings') || lower.includes('system parameter') || lower.includes('system parameters')) return GearSix;
+  if (lower.includes('geocode') || lower.includes('map')) return MapPin;
   if (lower.includes('report') || lower.includes('listing')) return ChartBar;
   if (lower.includes('inquiry') || lower.includes('inquiries') || lower.includes('status')) return MagnifyingGlass;
   if (lower.includes('check') || lower.includes('compare') || lower.includes('sheet')) return Checks;

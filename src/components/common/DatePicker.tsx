@@ -6,6 +6,8 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  inputClassName?: string;
+  panelClassName?: string;
   disabled?: boolean;
   clearable?: boolean;
   min?: string;
@@ -19,6 +21,8 @@ interface CalendarDay {
 }
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const baseTriggerClass =
+  'h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-left text-sm text-akiva-text shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent disabled:cursor-not-allowed disabled:bg-akiva-surface-muted disabled:text-akiva-text-muted disabled:opacity-70';
 
 function parseIsoDate(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -75,6 +79,8 @@ export function DatePicker({
   onChange,
   placeholder = 'Select date',
   className = '',
+  inputClassName = '',
+  panelClassName = '',
   disabled = false,
   clearable = false,
   min,
@@ -118,26 +124,41 @@ export function DatePicker({
     return false;
   };
 
+  const todayIso = toIsoDate(new Date());
+
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <button
         type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
         disabled={disabled}
-        className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-left text-sm text-akiva-text shadow-sm transition hover:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent disabled:bg-akiva-surface-muted disabled:text-akiva-text-muted"
+        className={[baseTriggerClass, inputClassName].filter(Boolean).join(' ')}
       >
         <span className="flex items-center justify-between gap-2">
-          <span className={value ? '' : 'text-akiva-text-muted'}>{value ? formatDisplayDate(value) : placeholder}</span>
-          <CalendarDays className="h-4 w-4 text-akiva-accent-text" />
+          <span className={value ? 'truncate' : 'truncate text-akiva-text-muted'}>{value ? formatDisplayDate(value) : placeholder}</span>
+          <CalendarDays className="h-4 w-4 shrink-0 text-akiva-accent-text" />
         </span>
       </button>
 
       {isOpen ? (
-        <div className="absolute z-30 mt-2 max-w-[calc(100vw-2rem)] rounded-2xl border border-akiva-border bg-akiva-surface-raised p-3 shadow-xl" style={{ width: 'min(296px, calc(100vw - 2rem))' }}>
+        <div
+          role="dialog"
+          aria-label="Choose date"
+          className={[
+            'absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded-lg border border-akiva-border bg-akiva-surface-raised p-3 text-akiva-text shadow-xl shadow-slate-900/10',
+            panelClassName,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          style={{ width: 'min(304px, calc(100vw - 2rem))' }}
+        >
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
-              className="rounded-lg p-1 text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text"
+              aria-label="Previous month"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-akiva-text-muted transition hover:bg-akiva-surface-muted hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
               onClick={() =>
                 setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
               }
@@ -147,7 +168,8 @@ export function DatePicker({
             <div className="text-sm font-semibold text-akiva-text">{monthLabel}</div>
             <button
               type="button"
-              className="rounded-lg p-1 text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text"
+              aria-label="Next month"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-akiva-text-muted transition hover:bg-akiva-surface-muted hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
               onClick={() =>
                 setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
               }
@@ -167,6 +189,7 @@ export function DatePicker({
           <div className="grid grid-cols-7 gap-1">
             {days.map((day) => {
               const isSelected = day.iso === value;
+              const isToday = day.iso === todayIso;
               const isDisabled = isOutsideAllowedRange(day.iso);
 
               return (
@@ -178,13 +201,13 @@ export function DatePicker({
                     onChange(day.iso);
                     setIsOpen(false);
                   }}
-                  className={`h-8 rounded-lg text-sm ${
+                  className={`h-8 rounded-lg text-sm transition focus:outline-none focus:ring-2 focus:ring-akiva-accent ${
                     isSelected
-                      ? 'bg-akiva-accent font-semibold text-white'
+                      ? 'bg-akiva-accent font-semibold text-white shadow-sm'
                       : day.inCurrentMonth
                         ? 'text-akiva-text hover:bg-akiva-accent-soft'
                         : 'text-akiva-text-muted hover:bg-akiva-surface-muted'
-                  } ${isDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
+                  } ${isToday && !isSelected ? 'ring-1 ring-inset ring-akiva-accent/60' : ''} ${isDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
                 >
                   {day.label}
                 </button>
@@ -195,7 +218,10 @@ export function DatePicker({
           <div className="mt-3 flex items-center justify-between border-t border-akiva-border pt-2">
             <button
               type="button"
-              onClick={() => onChange(toIsoDate(new Date()))}
+              onClick={() => {
+                onChange(todayIso);
+                setIsOpen(false);
+              }}
               className="rounded-lg px-2 py-1 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
             >
               Today
@@ -203,7 +229,10 @@ export function DatePicker({
             {clearable ? (
               <button
                 type="button"
-                onClick={() => onChange('')}
+                onClick={() => {
+                  onChange('');
+                  setIsOpen(false);
+                }}
                 className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text"
               >
                 <X className="h-3 w-3" />

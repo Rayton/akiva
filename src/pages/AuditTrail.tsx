@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronLeft, ChevronRight, Database, Filter, Loader2, RefreshCw, Search, ShieldCheck } from 'lucide-react';
+import { DatePicker } from '../components/common/DatePicker';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { fetchAuditTrail } from '../data/auditTrailApi';
 import type { AuditTrailFilters, AuditTrailPayload, AuditTrailRecord } from '../types/auditTrail';
@@ -204,11 +205,21 @@ export function AuditTrail() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <label className="space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">From</span>
-              <input type="date" value={pendingFilters.from} onChange={(event) => updatePendingFilter('from', event.target.value)} className={inputClass} />
+              <DatePicker
+                value={pendingFilters.from}
+                onChange={(value) => updatePendingFilter('from', value)}
+                max={pendingFilters.to}
+                inputClassName={inputClass}
+              />
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">To</span>
-              <input type="date" value={pendingFilters.to} onChange={(event) => updatePendingFilter('to', event.target.value)} className={inputClass} />
+              <DatePicker
+                value={pendingFilters.to}
+                onChange={(value) => updatePendingFilter('to', value)}
+                min={pendingFilters.from}
+                inputClassName={inputClass}
+              />
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">User</span>

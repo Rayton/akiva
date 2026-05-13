@@ -138,6 +138,38 @@ Controls should be familiar:
 - Booleans use toggles or checkboxes
 - Tables use `AdvancedTable` when filtering, pagination, column visibility, or export is needed
 
+### Date Picker
+
+Use `src/components/common/DatePicker.tsx` for all editable dates instead of native `input[type="date"]`.
+
+Date picker conventions:
+
+- Trigger: `h-11`, `rounded-lg`, `border-akiva-border`, `bg-akiva-surface-raised`, `text-sm`
+- Icon: trailing `CalendarDays`, muted accent color
+- Placeholder: muted text, never a separate helper sentence
+- Calendar panel: `rounded-lg`, token border, raised surface, compact 7-column grid
+- Month navigation: circular icon buttons with `ChevronLeft` and `ChevronRight`
+- Selected date: `bg-akiva-accent text-white`
+- Today: subtle inset accent ring when it is not selected
+- Disabled/out-of-range dates: low opacity and no hover emphasis
+- Range filters: pair two `DatePicker` controls and wire `min`/`max` between them
+- Clearing: set `clearable` only when a blank date is valid for the workflow
+
+Recommended date range:
+
+```tsx
+<DatePicker
+  value={filters.from}
+  onChange={(value) => updateFilter('from', value)}
+  max={filters.to}
+/>
+<DatePicker
+  value={filters.to}
+  onChange={(value) => updateFilter('to', value)}
+  min={filters.from}
+/>
+```
+
 ## Cards And KPIs
 
 Metric cards should include:

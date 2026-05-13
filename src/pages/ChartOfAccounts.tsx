@@ -713,7 +713,7 @@ export function ChartOfAccounts({ sourceSlug = '' }: ChartOfAccountsProps) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">General Ledger Account Management</h1>
           <p className="text-gray-600 dark:text-gray-300">
-            webERP-aligned maintenance for GL accounts, account groups, and account sections.
+            Maintain GL accounts, account groups, and account sections.
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {glSettings.companyName} • Currency: {glSettings.currencyCode} ({glSettings.currencyDecimalPlaces} decimals)
@@ -1140,7 +1140,7 @@ export function ChartOfAccounts({ sourceSlug = '' }: ChartOfAccountsProps) {
 
           {groupForm.parentGroupName ? (
             <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-              Child groups inherit sequence, section and P/L flags from the parent group (webERP behavior).
+              Child groups inherit sequence, section and P/L flags from the parent group.
             </p>
           ) : null}
         </form>

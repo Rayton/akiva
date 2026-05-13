@@ -243,12 +243,12 @@ function titleFromSource(sourceSlug: string, sourceCaption: string, mode: GlMode
       title: caption,
       description:
         mode === 'reports'
-          ? 'Live GL inquiry data aligned to this webERP report action'
+          ? 'Review live general ledger inquiry data'
           : mode === 'banking'
-            ? 'Live bank and ledger data aligned to this webERP banking action'
+            ? 'Review live bank and ledger activity'
             : mode === 'permissions'
-              ? 'Live account authorization data aligned to this webERP maintenance action'
-              : 'Live general ledger data aligned to this webERP action',
+              ? 'Manage account authorization settings'
+              : 'Review live general ledger activity',
     };
   }
 
@@ -3450,7 +3450,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
               value={permissionFormUserId}
               onChange={(event) => setPermissionFormUserId(event.target.value)}
               className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-              placeholder="Enter existing webERP user ID"
+              placeholder="Enter an existing user ID"
               required
             />
           </label>

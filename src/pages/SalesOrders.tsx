@@ -1920,7 +1920,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
             <div>
               <h1 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white">{modeTitle}</h1>
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                webERP routing slug: {sourceSlug || 'sales'}.
+                Manage sales transactions and customer order activity.
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs">

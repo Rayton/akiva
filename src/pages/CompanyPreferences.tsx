@@ -474,7 +474,7 @@ export function CompanyPreferences() {
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-akiva-text">Accounting controls</p>
-                      <p className="text-xs text-akiva-text-muted">Default currency and GL accounts carried forward from webERP.</p>
+                      <p className="text-xs text-akiva-text-muted">Default currency and control accounts for company transactions.</p>
                     </div>
                     <Landmark className="h-5 w-5 text-akiva-text-muted" />
                   </div>

@@ -14,6 +14,7 @@ import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
+import { AuditTrail } from './pages/AuditTrail';
 import { Home, ShoppingCart, FileBarChart, Settings, Star, Menu, Clock, X, ChevronRight } from 'lucide-react';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { MenuCategory, MenuItem } from './types/menu';
@@ -99,6 +100,11 @@ function isCompanyPreferencesMenuSlug(slug: string): boolean {
 function isSystemParametersMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return key === 'systemparameters' || key.includes('systemparameters');
+}
+
+function isAuditTrailMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'audittrail' || key.includes('audittrail');
 }
 
 type GeneralLedgerView = 'transactions' | 'accounts';
@@ -241,6 +247,10 @@ function AppContent() {
         return <SystemParameters />;
       }
 
+      if (isAuditTrailMenuSlug(menuSlug)) {
+        return <AuditTrail />;
+      }
+
       if (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug)) {
         const glView = resolveGeneralLedgerView(menuSlug);
         if (glView === 'accounts') {
@@ -259,7 +269,7 @@ function AppContent() {
             {menuSlugToTitle(menuSlug)}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            This module will be progressively migrated from webERP logic.
+            This module is not available yet.
           </p>
         </div>
       );
@@ -292,6 +302,9 @@ function AppContent() {
       case 'systemparameters':
       case 'system-parameters':
         return <SystemParameters />;
+      case 'audittrail':
+      case 'audit-trail':
+        return <AuditTrail />;
       // Sales & Customer Management
       case 'sales-invoices':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Sales Invoices</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage customer invoices and billing</p></div>;

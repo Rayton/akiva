@@ -65,6 +65,24 @@ function isConfigurationMenu(caption: string): boolean {
   return caption.toLowerCase().trim() === 'configuration';
 }
 
+function isHiddenMenuNode(node: MenuCategory | MenuItem): boolean {
+  const captionKey = node.caption.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const slugKey = hrefToSlug(node.href ?? '').replace(/[^a-z0-9]/g, '');
+  return captionKey === 'reportbuildertool' || slugKey === 'reportcreator';
+}
+
+function filterHiddenMenuNodes<T extends MenuCategory | MenuItem>(nodes: T[]): T[] {
+  return nodes
+    .filter((node) => !isHiddenMenuNode(node))
+    .map((node) => {
+      const children = node.children ? filterHiddenMenuNodes(node.children) : undefined;
+      return {
+        ...node,
+        children,
+      };
+    });
+}
+
 function menuPageId(id: number, caption: string, href?: string): string {
   const fallbackSlug = caption.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
   const slug = hrefToSlug(href ?? '') || fallbackSlug;
@@ -322,7 +340,7 @@ function Sidebar() {
   const mainResizeRef = useRef<{ left: number } | null>(null);
   const latestMainSidebarWidthRef = useRef(mainSidebarWidth);
   const latestIconSidebarWidthRef = useRef(iconSidebarWidth);
-  const mainMenus = appMenu;
+  const mainMenus = React.useMemo(() => filterHiddenMenuNodes(appMenu), [appMenu]);
   const configurationMainMenu = React.useMemo(
     () => mainMenus.find((menu) => isConfigurationMenu(menu.caption)) ?? null,
     [mainMenus]

@@ -13,6 +13,7 @@ import { PurchaseOrders } from './pages/PurchaseOrders';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
+import { MenuAccess } from './pages/MenuAccess';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
 import { AuditTrail } from './pages/AuditTrail';
@@ -148,6 +149,11 @@ function isAccessPermissionsMenuSlug(slug: string): boolean {
   return key === 'wwwaccess' || key.includes('wwwaccess') || key.includes('accesspermissions');
 }
 
+function isMenuAccessMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'menuaccess' || key.includes('menuaccess') || key.includes('menurights');
+}
+
 type GeneralLedgerView = 'transactions' | 'accounts';
 
 function resolveGeneralLedgerView(slug: string): GeneralLedgerView {
@@ -263,6 +269,9 @@ function AppContent() {
     if (currentPathKey.includes('configurationuserswwwaccess')) {
       return <AccessPermissions />;
     }
+    if (currentPathKey.includes('configurationusersmenuaccess') || currentPathKey.includes('configurationusersmenurights')) {
+      return <MenuAccess />;
+    }
 
     if (currentPage.startsWith('main-')) {
       const mainId = parseInt(currentPage.replace('main-', ''), 10);
@@ -328,6 +337,10 @@ function AppContent() {
         return <AccessPermissions />;
       }
 
+      if (isMenuAccessMenuSlug(menuSlug)) {
+        return <MenuAccess />;
+      }
+
       if (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug)) {
         const glView = resolveGeneralLedgerView(menuSlug);
         if (glView === 'accounts') {
@@ -376,6 +389,10 @@ function AppContent() {
       case 'www-access':
       case 'access':
         return <AccessPermissions />;
+      case 'menu-access':
+      case 'menuaccess':
+      case 'menu-rights':
+        return <MenuAccess />;
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;

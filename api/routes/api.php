@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\LabelController;
 use App\Http\Controllers\Api\SmtpServerController;
 use App\Http\Controllers\Api\WwwUsersController;
 use App\Http\Controllers\Api\AccessPermissionsController;
+use App\Http\Controllers\Api\MenuAccessController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -59,6 +60,8 @@ Route::get('/configuration/users/www-access', [AccessPermissionsController::clas
 Route::post('/configuration/users/www-access', [AccessPermissionsController::class, 'store']);
 Route::put('/configuration/users/www-access/{roleId}', [AccessPermissionsController::class, 'update']);
 Route::delete('/configuration/users/www-access/{roleId}', [AccessPermissionsController::class, 'destroy']);
+Route::get('/configuration/users/menu-access', [MenuAccessController::class, 'index']);
+Route::put('/configuration/users/menu-access/{userId}', [MenuAccessController::class, 'update']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

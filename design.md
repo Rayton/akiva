@@ -203,6 +203,19 @@ Recommended date range:
 />
 ```
 
+### Document Template Designer
+
+Use the native document template system for forms, labels, and operational documents. Templates should be database-backed JSON layouts edited through Akiva UI controls and previewed as HTML/CSS. Do not couple new screens to legacy XML form files or TCPDF-only layout concepts.
+
+Designer conventions:
+
+- Route legacy menu slugs such as `formdesigner` to the native designer screen.
+- Store reusable template metadata separately from the layout JSON: code, name, document type, paper size, orientation, margins, status, and version.
+- Layout JSON should be made of sections (`header`, `body`, `footer`) and blocks (`text`, `field`, `table`, `totals`, `image`, `signature`, `divider`, `spacer`).
+- Use token buttons for fields such as `{company.name}`, `{document.number}`, `{supplier.name}`, and `{totals.grandTotal}`.
+- Keep the editor compact: template list, metadata controls, block list, selected-block controls, and live preview in a dashboard-style grid.
+- Save template records through auditable models with soft deletes.
+
 ## Cards And KPIs
 
 Metric cards should include:

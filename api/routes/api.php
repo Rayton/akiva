@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\SystemParametersController;
 use App\Http\Controllers\Api\AuditTrailController;
 use App\Http\Controllers\Api\SystemCheckController;
 use App\Http\Controllers\Api\GeocodeSetupController;
+use App\Http\Controllers\Api\DocumentTemplateController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -27,6 +28,18 @@ Route::post('/geocode/setup/run', [GeocodeSetupController::class, 'run']);
 Route::get('/geocode/setup/locations', [GeocodeSetupController::class, 'locations']);
 Route::put('/geocode/setup/{id}', [GeocodeSetupController::class, 'update']);
 Route::delete('/geocode/setup/{id}', [GeocodeSetupController::class, 'destroy']);
+Route::get('/document-templates', [DocumentTemplateController::class, 'index']);
+Route::post('/document-templates', [DocumentTemplateController::class, 'store']);
+Route::post('/document-templates/{template}/duplicate', [DocumentTemplateController::class, 'duplicate']);
+Route::get('/document-templates/{template}', [DocumentTemplateController::class, 'show']);
+Route::put('/document-templates/{template}', [DocumentTemplateController::class, 'update']);
+Route::delete('/document-templates/{template}', [DocumentTemplateController::class, 'destroy']);
+Route::get('/form-designer', [DocumentTemplateController::class, 'index']);
+Route::post('/form-designer', [DocumentTemplateController::class, 'store']);
+Route::post('/form-designer/{template}/duplicate', [DocumentTemplateController::class, 'duplicate']);
+Route::get('/form-designer/{template}', [DocumentTemplateController::class, 'show']);
+Route::put('/form-designer/{template}', [DocumentTemplateController::class, 'update']);
+Route::delete('/form-designer/{template}', [DocumentTemplateController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

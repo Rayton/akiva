@@ -175,6 +175,8 @@ Recommended checklist row:
 
 Use `src/components/common/DatePicker.tsx` for all editable dates instead of native `input[type="date"]`.
 
+Use `src/components/common/DateRangePicker.tsx` for all date ranges. The default range is last 3 months, calculated from the start of the month two months ago through today.
+
 Date picker conventions:
 
 - Trigger: `h-11`, `rounded-lg`, `border-akiva-border`, `bg-akiva-surface-raised`, `text-sm`
@@ -185,21 +187,28 @@ Date picker conventions:
 - Selected date: `bg-akiva-accent text-white`
 - Today: subtle inset accent ring when it is not selected
 - Disabled/out-of-range dates: low opacity and no hover emphasis
-- Range filters: pair two `DatePicker` controls and wire `min`/`max` between them
+- Single dates: use one `DatePicker`; date ranges use `DateRangePicker`
 - Clearing: set `clearable` only when a blank date is valid for the workflow
+
+Range picker conventions:
+
+- Trigger: rounded pill or compact rounded control with `CalendarDays`, `Timeframe`, and the formatted range
+- Presets: Last 3 months, This month, Last month, This quarter, This year, Date range
+- Custom dates: use two `DatePicker` controls inside the range panel
+- Default: `getDefaultDateRange()` from `DateRangePicker.tsx`
+- Use the shared picker wherever filters use `from`/`to`, `dateFrom`/`dateTo`, or similar paired date fields
 
 Recommended date range:
 
 ```tsx
-<DatePicker
-  value={filters.from}
-  onChange={(value) => updateFilter('from', value)}
-  max={filters.to}
-/>
-<DatePicker
-  value={filters.to}
-  onChange={(value) => updateFilter('to', value)}
-  min={filters.from}
+const [dateRange, setDateRange] = useState(getDefaultDateRange());
+
+<DateRangePicker
+  value={dateRange}
+  onChange={(range) => {
+    setDateRange(range);
+    updateFilters({ from: range.from, to: range.to });
+  }}
 />
 ```
 

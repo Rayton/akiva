@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Database, Filter, Loader2, RefreshCw, Search, ShieldCheck } from 'lucide-react';
-import { DatePicker } from '../components/common/DatePicker';
+import { DateRangePicker, getDefaultDateRange } from '../components/common/DateRangePicker';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { fetchAuditTrail } from '../data/auditTrailApi';
 import type { AuditTrailFilters, AuditTrailPayload, AuditTrailRecord, AuditTrailSortKey } from '../types/auditTrail';
@@ -8,17 +8,11 @@ import type { AuditTrailFilters, AuditTrailPayload, AuditTrailRecord, AuditTrail
 const inputClass =
   'h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent';
 
-const today = () => new Date().toISOString().slice(0, 10);
-
-function lastMonth() {
-  const date = new Date();
-  date.setMonth(date.getMonth() - 1);
-  return date.toISOString().slice(0, 10);
-}
+const defaultRange = getDefaultDateRange();
 
 const DEFAULT_FILTERS: AuditTrailFilters = {
-  from: lastMonth(),
-  to: today(),
+  from: defaultRange.from,
+  to: defaultRange.to,
   user: 'ALL',
   table: 'ALL',
   event: '',
@@ -261,24 +255,15 @@ export function AuditTrail() {
 
         <form onSubmit={submitFilters} className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <label className="space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">From</span>
-              <DatePicker
-                value={pendingFilters.from}
-                onChange={(value) => updatePendingFilter('from', value)}
-                max={pendingFilters.to}
-                inputClassName={inputClass}
+            <div className="md:col-span-2">
+              <DateRangePicker
+                value={{ from: pendingFilters.from, to: pendingFilters.to, preset: 'custom' }}
+                onChange={(range) => {
+                  setPendingFilters((current) => ({ ...current, from: range.from, to: range.to, page: 1 }));
+                }}
+                triggerClassName="min-h-11 rounded-lg px-3 py-1.5"
               />
-            </label>
-            <label className="space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">To</span>
-              <DatePicker
-                value={pendingFilters.to}
-                onChange={(value) => updatePendingFilter('to', value)}
-                min={pendingFilters.from}
-                inputClassName={inputClass}
-              />
-            </label>
+            </div>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">User</span>
               <SearchableSelect value={pendingFilters.user} onChange={(value) => updatePendingFilter('user', value)} options={userOptions} inputClassName={inputClass} />

@@ -33,6 +33,7 @@ import {
 import { startSalesSync } from '../lib/offline/salesSync';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
 import { SearchableSelect } from '../components/common/SearchableSelect';
+import { DatePicker } from '../components/common/DatePicker';
 import {
   SalesCustomer,
   SalesContractDetail,
@@ -1668,11 +1669,10 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
                     searchText: `${row.workCentreCode} ${row.description}`,
                   }))}
                 />
-                <input
-                  type="date"
+                <DatePicker
                   value={contractForm.requiredDate}
-                  onChange={(event) => setContractForm((previous) => ({ ...previous, requiredDate: event.target.value }))}
-                  className="rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                  onChange={(value) => setContractForm((previous) => ({ ...previous, requiredDate: value }))}
+                  inputClassName="border-brand-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-brand-800 dark:bg-slate-950 dark:text-white"
                 />
                 <input
                   value={contractForm.margin}

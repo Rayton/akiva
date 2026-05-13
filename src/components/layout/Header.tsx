@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Bell,
-  CalendarDays,
   ChevronDown,
   Download,
   Moon,
@@ -13,14 +12,7 @@ import {
   Sun,
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { SearchableSelect } from '../common/SearchableSelect';
-
-const TIMEFRAME_OPTIONS = [
-  { value: 'Sep 1 - Nov 30, 2023', label: 'Sep 1 - Nov 30, 2023' },
-  { value: 'Last 30 days', label: 'Last 30 days' },
-  { value: 'This quarter', label: 'This quarter' },
-  { value: 'This fiscal year', label: 'This fiscal year' },
-];
+import { DateRangePicker, getDefaultDateRange } from '../common/DateRangePicker';
 
 function HeaderIconButton({
   children,
@@ -46,7 +38,7 @@ function HeaderIconButton({
 
 export function Header() {
   const { currentUser, isDarkMode, toggleDarkMode, setCurrentPage } = useApp();
-  const [timeframe, setTimeframe] = useState('Sep 1 - Nov 30, 2023');
+  const [timeframe, setTimeframe] = useState(getDefaultDateRange);
 
   return (
     <header className="border-b border-akiva-border bg-akiva-bg px-5 py-4 text-akiva-text backdrop-blur transition-colors">
@@ -75,19 +67,13 @@ export function Header() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          <div className="flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-2 shadow-sm">
-            <CalendarDays className="h-4 w-4 text-akiva-text-muted" />
-            <span className="hidden text-sm font-semibold text-akiva-text sm:inline">Timeframe</span>
-            <SearchableSelect
-              value={timeframe}
-              onChange={(value) => setTimeframe(value)}
-              options={TIMEFRAME_OPTIONS}
-              className="w-[170px]"
-              inputClassName="h-auto rounded-none border-0 bg-transparent px-0 py-0 pr-6 text-sm font-semibold text-akiva-text shadow-none outline-none focus:border-transparent focus:ring-0"
-              panelClassName="right-0 min-w-[190px]"
-              placeholder="Search timeframe"
-            />
-          </div>
+          <DateRangePicker
+            value={timeframe}
+            onChange={setTimeframe}
+            className="w-full sm:w-[380px]"
+            triggerClassName="min-h-12 gap-3 px-4 py-1"
+            panelClassName="right-0"
+          />
 
           <HeaderIconButton label="Dashboard filters">
             <SlidersHorizontal className="h-4 w-4" />

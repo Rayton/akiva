@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Download, FileText, Calendar, TrendingUp } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
-import { SearchableSelect } from '../components/common/SearchableSelect';
+import { DateRangePicker, formatDateRangeDisplay, getDefaultDateRange } from '../components/common/DateRangePicker';
 
 export function FinancialReports() {
-  const [selectedPeriod, setSelectedPeriod] = useState('current-month');
   const [selectedReport, setSelectedReport] = useState('balance-sheet');
+  const [dateRange, setDateRange] = useState(getDefaultDateRange());
 
   const reports = [
     {
@@ -283,38 +283,7 @@ export function FinancialReports() {
 
       {/* Period Selection */}
       <Card>
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <label className="font-medium text-gray-700">Report Period:</label>
-          <SearchableSelect
-            value={selectedPeriod}
-            onChange={setSelectedPeriod}
-            options={[
-              { value: 'current-month', label: 'Current Month' },
-              { value: 'last-month', label: 'Last Month' },
-              { value: 'current-quarter', label: 'Current Quarter' },
-              { value: 'last-quarter', label: 'Last Quarter' },
-              { value: 'current-year', label: 'Current Year' },
-              { value: 'last-year', label: 'Last Year' },
-              { value: 'custom', label: 'Custom Range' },
-            ]}
-            className="w-60"
-            inputClassName="border-gray-300 focus:ring-brand-200"
-          />
-          
-          {selectedPeriod === 'custom' && (
-            <div className="flex gap-2">
-              <input
-                type="date"
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <span className="flex items-center text-gray-500">to</span>
-              <input
-                type="date"
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          )}
-        </div>
+        <DateRangePicker value={dateRange} onChange={setDateRange} className="max-w-2xl" />
       </Card>
 
       {/* Report Content */}
@@ -327,7 +296,7 @@ export function FinancialReports() {
             {reports.find(r => r.id === selectedReport)?.name}
           </h3>
           <p className="text-center text-gray-600">
-            As of {new Date().toLocaleDateString()}
+            {formatDateRangeDisplay(dateRange.from, dateRange.to)}
           </p>
         </div>
 

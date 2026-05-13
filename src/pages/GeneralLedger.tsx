@@ -18,6 +18,7 @@ import { Button } from '../components/common/Button';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
 import { DatePicker } from '../components/common/DatePicker';
+import { DateRangePicker, getDefaultDateRange } from '../components/common/DateRangePicker';
 import {
   DEFAULT_GL_SETTINGS,
   createGlJournalEntry,
@@ -79,6 +80,8 @@ interface GeneralLedgerProps {
   sourceHref?: string;
   sourceCaption?: string;
 }
+
+const DEFAULT_DATE_RANGE = getDefaultDateRange();
 
 type GlMode = 'transactions' | 'reports' | 'banking' | 'budgets' | 'tags' | 'permissions';
 type ReportFocus =
@@ -359,8 +362,8 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'posted' | 'pending'>('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(DEFAULT_DATE_RANGE.from);
+  const [dateTo, setDateTo] = useState(DEFAULT_DATE_RANGE.to);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
@@ -376,8 +379,8 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
   const [reportSearch, setReportSearch] = useState('');
   const [reportPeriod, setReportPeriod] = useState(0);
   const [reportIncludeZero, setReportIncludeZero] = useState(false);
-  const [reportDateFrom, setReportDateFrom] = useState('');
-  const [reportDateTo, setReportDateTo] = useState('');
+  const [reportDateFrom, setReportDateFrom] = useState(DEFAULT_DATE_RANGE.from);
+  const [reportDateTo, setReportDateTo] = useState(DEFAULT_DATE_RANGE.to);
   const [reportFocus, setReportFocus] = useState<ReportFocus>('trial');
   const [trialRows, setTrialRows] = useState<GlTrialBalanceRow[]>([]);
   const [trialSummary, setTrialSummary] = useState<GlTrialBalanceSummary | null>(null);
@@ -430,8 +433,8 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
   const [bankAccountFilter, setBankAccountFilter] = useState('all');
   const [bankMatchFilter, setBankMatchFilter] = useState<'all' | 'matched' | 'unmatched'>('all');
   const [bankKindFilter, setBankKindFilter] = useState<'all' | 'payments' | 'receipts'>('all');
-  const [bankDateFrom, setBankDateFrom] = useState('');
-  const [bankDateTo, setBankDateTo] = useState('');
+  const [bankDateFrom, setBankDateFrom] = useState(DEFAULT_DATE_RANGE.from);
+  const [bankDateTo, setBankDateTo] = useState(DEFAULT_DATE_RANGE.to);
   const [bankPage, setBankPage] = useState(1);
   const [bankPageSize, setBankPageSize] = useState(50);
   const [bankEntryDialogOpen, setBankEntryDialogOpen] = useState(false);
@@ -479,8 +482,8 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
 
   const [tags, setTags] = useState<GlTagRow[]>([]);
   const [tagSearch, setTagSearch] = useState('');
-  const [tagDateFrom, setTagDateFrom] = useState('');
-  const [tagDateTo, setTagDateTo] = useState('');
+  const [tagDateFrom, setTagDateFrom] = useState(DEFAULT_DATE_RANGE.from);
+  const [tagDateTo, setTagDateTo] = useState(DEFAULT_DATE_RANGE.to);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [savingTag, setSavingTag] = useState(false);
   const [editingTagRef, setEditingTagRef] = useState<number | null>(null);
@@ -2199,7 +2202,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
       {mode === 'transactions' ? (
         <>
           <Card>
-            <div className="mb-5 grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_1fr_1fr_220px_220px]">
+            <div className="mb-5 grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_1fr_1fr_360px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
@@ -2242,23 +2245,14 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                 <option value="pending">Pending</option>
               </SearchableSelect>
 
-              <DatePicker
-                value={dateFrom}
-                onChange={(value) => {
-                  setDateFrom(value);
+              <DateRangePicker
+                value={{ from: dateFrom, to: dateTo, preset: 'custom' }}
+                onChange={(range) => {
+                  setDateFrom(range.from);
+                  setDateTo(range.to);
                   setPage(1);
                 }}
-                placeholder="From date"
-                clearable
-              />
-              <DatePicker
-                value={dateTo}
-                onChange={(value) => {
-                  setDateTo(value);
-                  setPage(1);
-                }}
-                placeholder="To date"
-                clearable
+                triggerClassName="min-h-10 rounded-xl px-3 py-1"
               />
             </div>
 
@@ -2325,7 +2319,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
       {mode === 'reports' ? (
         <>
           <Card>
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_220px_220px_220px_220px]">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_220px_220px_420px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
@@ -2399,15 +2393,17 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
               )}
 
               {reportUsesDateRange ? (
-                <>
-                  <DatePicker value={reportDateFrom} onChange={setReportDateFrom} placeholder="From date" clearable />
-                  <DatePicker value={reportDateTo} onChange={setReportDateTo} placeholder="To date" clearable />
-                </>
+                <DateRangePicker
+                  value={{ from: reportDateFrom, to: reportDateTo, preset: 'custom' }}
+                  onChange={(range) => {
+                    setReportDateFrom(range.from);
+                    setReportDateTo(range.to);
+                    setReportPage(1);
+                  }}
+                  triggerClassName="min-h-10 rounded-xl px-3 py-1"
+                />
               ) : (
-                <>
-                  <div />
-                  <div />
-                </>
+                <div />
               )}
             </div>
           </Card>
@@ -2743,7 +2739,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
           </Card>
 
           <Card>
-            <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-[1fr_180px_180px_220px_220px]">
+            <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-[1fr_180px_180px_360px]">
               <SearchableSelect
                 value={bankAccountFilter}
                 onChange={(event) => {
@@ -2786,23 +2782,14 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                 <option value="receipts">Receipts only</option>
               </SearchableSelect>
 
-              <DatePicker
-                value={bankDateFrom}
-                onChange={(value) => {
-                  setBankDateFrom(value);
+              <DateRangePicker
+                value={{ from: bankDateFrom, to: bankDateTo, preset: 'custom' }}
+                onChange={(range) => {
+                  setBankDateFrom(range.from);
+                  setBankDateTo(range.to);
                   setBankPage(1);
                 }}
-                placeholder="From date"
-                clearable
-              />
-              <DatePicker
-                value={bankDateTo}
-                onChange={(value) => {
-                  setBankDateTo(value);
-                  setBankPage(1);
-                }}
-                placeholder="To date"
-                clearable
+                triggerClassName="min-h-10 rounded-xl px-3 py-1"
               />
             </div>
 
@@ -2921,7 +2908,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
 
       {mode === 'tags' ? (
         <Card>
-          <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_220px_220px]">
+          <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_360px]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -2931,8 +2918,14 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                 placeholder="Search tags"
               />
             </div>
-            <DatePicker value={tagDateFrom} onChange={setTagDateFrom} placeholder="From date" clearable />
-            <DatePicker value={tagDateTo} onChange={setTagDateTo} placeholder="To date" clearable />
+            <DateRangePicker
+              value={{ from: tagDateFrom, to: tagDateTo, preset: 'custom' }}
+              onChange={(range) => {
+                setTagDateFrom(range.from);
+                setTagDateTo(range.to);
+              }}
+              triggerClassName="min-h-10 rounded-xl px-3 py-1"
+            />
           </div>
 
           {loading ? (

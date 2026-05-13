@@ -4,10 +4,14 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\SalesController;
 use App\Http\Controllers\Api\GeneralLedgerController;
+use App\Http\Controllers\Api\CompanyPreferencesController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
 Route::get('/menu/parent/{parentId}', [MenuController::class, 'byParent']);
+
+Route::get('/company/preferences', [CompanyPreferencesController::class, 'show']);
+Route::put('/company/preferences', [CompanyPreferencesController::class, 'update']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

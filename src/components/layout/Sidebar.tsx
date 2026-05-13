@@ -157,6 +157,7 @@ interface MenuCategoryItemProps {
 function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIcon {
   if (hasChildren) return FolderOpen;
   const lower = caption.toLowerCase();
+  if (lower.includes('company preference') || lower.includes('company preferences')) return Buildings;
   if (lower.includes('report') || lower.includes('listing')) return ChartBar;
   if (lower.includes('inquiry') || lower.includes('inquiries') || lower.includes('status')) return MagnifyingGlass;
   if (lower.includes('check') || lower.includes('compare') || lower.includes('sheet')) return Checks;

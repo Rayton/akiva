@@ -13,6 +13,7 @@ import { PurchaseOrders } from './pages/PurchaseOrders';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { CompanyPreferences } from './pages/CompanyPreferences';
+import { SystemParameters } from './pages/SystemParameters';
 import { Home, ShoppingCart, FileBarChart, Settings, Star, Menu, Clock, X, ChevronRight } from 'lucide-react';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { MenuCategory, MenuItem } from './types/menu';
@@ -93,6 +94,11 @@ function isGeneralLedgerPathSegment(segment: string): boolean {
 function isCompanyPreferencesMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return key === 'companypreferences' || key.includes('companypreferences');
+}
+
+function isSystemParametersMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'systemparameters' || key.includes('systemparameters');
 }
 
 type GeneralLedgerView = 'transactions' | 'accounts';
@@ -231,6 +237,10 @@ function AppContent() {
         return <CompanyPreferences />;
       }
 
+      if (isSystemParametersMenuSlug(menuSlug)) {
+        return <SystemParameters />;
+      }
+
       if (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug)) {
         const glView = resolveGeneralLedgerView(menuSlug);
         if (glView === 'accounts') {
@@ -279,6 +289,9 @@ function AppContent() {
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;
+      case 'systemparameters':
+      case 'system-parameters':
+        return <SystemParameters />;
       // Sales & Customer Management
       case 'sales-invoices':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Sales Invoices</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage customer invoices and billing</p></div>;

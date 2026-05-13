@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\AuditTrailController;
 use App\Http\Controllers\Api\SystemCheckController;
 use App\Http\Controllers\Api\GeocodeSetupController;
 use App\Http\Controllers\Api\DocumentTemplateController;
+use App\Http\Controllers\Api\LabelController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -40,6 +41,10 @@ Route::post('/form-designer/{template}/duplicate', [DocumentTemplateController::
 Route::get('/form-designer/{template}', [DocumentTemplateController::class, 'show']);
 Route::put('/form-designer/{template}', [DocumentTemplateController::class, 'update']);
 Route::delete('/form-designer/{template}', [DocumentTemplateController::class, 'destroy']);
+Route::get('/labels', [LabelController::class, 'index']);
+Route::post('/labels', [LabelController::class, 'store']);
+Route::put('/labels/{id}', [LabelController::class, 'update']);
+Route::delete('/labels/{id}', [LabelController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

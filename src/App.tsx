@@ -18,6 +18,7 @@ import { AuditTrail } from './pages/AuditTrail';
 import { SystemCheck } from './pages/SystemCheck';
 import { GeocodeSetup } from './pages/GeocodeSetup';
 import { FormDesigner } from './pages/FormDesigner';
+import { Labels } from './pages/Labels';
 import { Home, ShoppingCart, FileBarChart, Settings, Star, Menu, Clock, X, ChevronRight } from 'lucide-react';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { MenuCategory, MenuItem } from './types/menu';
@@ -123,6 +124,11 @@ function isGeocodeSetupMenuSlug(slug: string): boolean {
 function isFormDesignerMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return key === 'formdesigner' || key.includes('formdesigner') || key.includes('documenttemplate');
+}
+
+function isLabelsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'labels' || key.includes('labeltemplates') || key.includes('pricelabels');
 }
 
 type GeneralLedgerView = 'transactions' | 'accounts';
@@ -281,6 +287,10 @@ function AppContent() {
         return <FormDesigner />;
       }
 
+      if (isLabelsMenuSlug(menuSlug)) {
+        return <Labels />;
+      }
+
       if (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug)) {
         const glView = resolveGeneralLedgerView(menuSlug);
         if (glView === 'accounts') {
@@ -345,6 +355,10 @@ function AppContent() {
       case 'form-designer':
       case 'document-template-designer':
         return <FormDesigner />;
+      case 'labels':
+      case 'label-templates':
+      case 'price-labels':
+        return <Labels />;
       // Sales & Customer Management
       case 'sales-invoices':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Sales Invoices</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage customer invoices and billing</p></div>;

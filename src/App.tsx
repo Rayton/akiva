@@ -137,6 +137,11 @@ function isSmtpServerMenuSlug(slug: string): boolean {
   return key === 'smtpserver' || key.includes('smtpserver') || key.includes('mailserver');
 }
 
+function isWwwUsersMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'wwwusers' || key.includes('wwwusers') || key.includes('usermanagement');
+}
+
 type GeneralLedgerView = 'transactions' | 'accounts';
 
 function resolveGeneralLedgerView(slug: string): GeneralLedgerView {
@@ -245,6 +250,11 @@ function AppContent() {
   const { currentPage, mobileSidebarOpen, appMenu } = useApp();
 
   const renderCurrentPage = () => {
+    const currentPathKey = normalizedSlugKey(window.location.pathname);
+    if (currentPathKey.includes('configurationuserswwwusers')) {
+      return <UserManagement />;
+    }
+
     if (currentPage.startsWith('main-')) {
       const mainId = parseInt(currentPage.replace('main-', ''), 10);
       const mainModule = appMenu.find((item) => item.id === mainId);
@@ -299,6 +309,10 @@ function AppContent() {
 
       if (isSmtpServerMenuSlug(menuSlug)) {
         return <SmtpServer />;
+      }
+
+      if (isWwwUsersMenuSlug(menuSlug)) {
+        return <UserManagement />;
       }
 
       if (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug)) {

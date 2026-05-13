@@ -3,10 +3,12 @@ import { Download, FileText, Calendar, TrendingUp } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { DateRangePicker, formatDateRangeDisplay, getDefaultDateRange } from '../components/common/DateRangePicker';
+import { useSystemDateFormat } from '../lib/dateFormat';
 
 export function FinancialReports() {
   const [selectedReport, setSelectedReport] = useState('balance-sheet');
   const [dateRange, setDateRange] = useState(getDefaultDateRange());
+  const dateFormat = useSystemDateFormat();
 
   const reports = [
     {
@@ -296,7 +298,7 @@ export function FinancialReports() {
             {reports.find(r => r.id === selectedReport)?.name}
           </h3>
           <p className="text-center text-gray-600">
-            {formatDateRangeDisplay(dateRange.from, dateRange.to)}
+            {formatDateRangeDisplay(dateRange.from, dateRange.to, dateFormat)}
           </p>
         </div>
 

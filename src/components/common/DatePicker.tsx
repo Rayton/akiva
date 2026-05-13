@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { formatDateWithSystemFormat, useSystemDateFormat } from '../../lib/dateFormat';
 
 interface DatePickerProps {
   value: string;
@@ -42,16 +43,6 @@ function sameMonth(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
 
-function formatDisplayDate(value: string): string {
-  const date = parseIsoDate(value);
-  if (!date) return '';
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  }).format(date);
-}
-
 function buildCalendarDays(monthDate: Date): CalendarDay[] {
   const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
   const startDay = start.getDay();
@@ -91,6 +82,7 @@ export function DatePicker({
   const initialMonth = selectedDate ?? new Date();
   const [isOpen, setIsOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(new Date(initialMonth.getFullYear(), initialMonth.getMonth(), 1));
+  const dateFormat = useSystemDateFormat();
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -137,7 +129,9 @@ export function DatePicker({
         className={[baseTriggerClass, inputClassName].filter(Boolean).join(' ')}
       >
         <span className="flex items-center justify-between gap-2">
-          <span className={value ? 'truncate' : 'truncate text-akiva-text-muted'}>{value ? formatDisplayDate(value) : placeholder}</span>
+          <span className={value ? 'truncate' : 'truncate text-akiva-text-muted'}>
+            {value ? formatDateWithSystemFormat(value, dateFormat) : placeholder}
+          </span>
           <CalendarDays className="h-4 w-4 shrink-0 text-akiva-accent-text" />
         </span>
       </button>

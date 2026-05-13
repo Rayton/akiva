@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\GeocodeSetupController;
 use App\Http\Controllers\Api\DocumentTemplateController;
 use App\Http\Controllers\Api\LabelController;
 use App\Http\Controllers\Api\SmtpServerController;
+use App\Http\Controllers\Api\WwwUsersController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -49,6 +50,10 @@ Route::delete('/labels/{id}', [LabelController::class, 'destroy']);
 Route::get('/smtp/server', [SmtpServerController::class, 'show']);
 Route::put('/smtp/server', [SmtpServerController::class, 'update']);
 Route::post('/smtp/server/test', [SmtpServerController::class, 'test']);
+Route::get('/configuration/users/www-users', [WwwUsersController::class, 'index']);
+Route::post('/configuration/users/www-users', [WwwUsersController::class, 'store']);
+Route::put('/configuration/users/www-users/{userId}', [WwwUsersController::class, 'update']);
+Route::delete('/configuration/users/www-users/{userId}', [WwwUsersController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Check, ChevronDown } from 'lucide-react';
 import { DatePicker } from './DatePicker';
+import { DEFAULT_SYSTEM_DATE_FORMAT, formatDateRangeWithSystemFormat, useSystemDateFormat } from '../../lib/dateFormat';
 
 export type DateRangePreset = 'last-3-months' | 'this-month' | 'last-month' | 'this-quarter' | 'this-year' | 'custom';
 
@@ -78,16 +79,8 @@ export function getDefaultDateRange(): DateRangeValue {
   return getPresetDateRange('last-3-months');
 }
 
-export function formatDateRangeDisplay(from: string, to: string): string {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-  const fromDate = new Date(`${from}T00:00:00`);
-  const toDate = new Date(`${to}T00:00:00`);
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 'Select dates';
-  return `${formatter.format(fromDate)} - ${formatter.format(toDate)}`;
+export function formatDateRangeDisplay(from: string, to: string, dateFormat = DEFAULT_SYSTEM_DATE_FORMAT): string {
+  return formatDateRangeWithSystemFormat(from, to, dateFormat);
 }
 
 export function DateRangePicker({
@@ -102,6 +95,7 @@ export function DateRangePicker({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateRangeValue>(value);
+  const dateFormat = useSystemDateFormat();
 
   useEffect(() => {
     setDraft(value);
@@ -118,7 +112,7 @@ export function DateRangePicker({
     return () => document.removeEventListener('mousedown', listener);
   }, [open]);
 
-  const display = useMemo(() => formatDateRangeDisplay(value.from, value.to), [value.from, value.to]);
+  const display = useMemo(() => formatDateRangeDisplay(value.from, value.to, dateFormat), [dateFormat, value.from, value.to]);
 
   const selectPreset = (preset: DateRangePreset) => {
     if (preset === 'custom') {
@@ -139,7 +133,7 @@ export function DateRangePicker({
   };
 
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
+    <div ref={rootRef} className={`relative min-w-0 ${className}`}>
       <button
         type="button"
         aria-haspopup="dialog"
@@ -147,18 +141,18 @@ export function DateRangePicker({
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
         className={[
-          'inline-flex min-h-14 w-full items-center justify-between gap-4 rounded-full border border-akiva-border bg-akiva-surface-raised px-5 py-2 text-left shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent disabled:cursor-not-allowed disabled:opacity-60',
+          'inline-flex min-h-10 w-full min-w-0 items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1.5 text-left shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent disabled:cursor-not-allowed disabled:opacity-60',
           triggerClassName,
         ]
           .filter(Boolean)
           .join(' ')}
       >
-        <span className="flex min-w-0 items-center gap-3">
-          <CalendarDays className="h-5 w-5 shrink-0 text-akiva-text-muted" />
-          <span className="text-base font-semibold text-akiva-text">{label}</span>
+        <span className="flex min-w-0 shrink-0 items-center gap-2">
+          <CalendarDays className="h-4 w-4 shrink-0 text-akiva-text-muted" />
+          <span className="truncate text-sm font-semibold text-akiva-text">{label}</span>
         </span>
-        <span className="flex min-w-0 items-center gap-2 rounded-2xl bg-akiva-surface px-4 py-2 shadow-sm">
-          <span className="truncate text-base font-semibold text-akiva-text">{display}</span>
+        <span className="flex min-w-0 flex-1 items-center justify-end gap-2 rounded-full bg-akiva-surface px-2.5 py-1 shadow-sm">
+          <span className="truncate text-sm font-medium text-akiva-text">{display}</span>
           <ChevronDown className="h-4 w-4 shrink-0 text-akiva-text-muted" />
         </span>
       </button>
@@ -183,7 +177,7 @@ export function DateRangePicker({
                     key={option.value}
                     type="button"
                     onClick={() => selectPreset(option.value)}
-                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
+                    className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
                       active ? 'bg-akiva-accent text-white' : 'text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
                     }`}
                   >

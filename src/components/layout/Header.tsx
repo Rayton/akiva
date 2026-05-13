@@ -70,8 +70,8 @@ export function Header() {
           <DateRangePicker
             value={timeframe}
             onChange={setTimeframe}
-            className="w-full sm:w-[380px]"
-            triggerClassName="min-h-12 gap-3 px-4 py-1"
+            className="w-full sm:w-[320px]"
+            triggerClassName="min-h-10 px-3 py-1"
             panelClassName="right-0"
           />
 

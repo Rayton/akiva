@@ -2989,26 +2989,26 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
           </>
         }
       >
-        <form id="gl-entry-form" className="space-y-4" onSubmit={(event) => void onSaveEntry(event)}>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+        <form id="gl-entry-form" className="max-w-full space-y-4 overflow-hidden" onSubmit={(event) => void onSaveEntry(event)}>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <label className="space-y-1 text-sm text-akiva-text-muted">
               <span>Transaction Date</span>
               <DatePicker value={entryDate} onChange={setEntryDate} className="w-full" />
             </label>
-            <label className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+            <label className="space-y-1 text-sm text-akiva-text-muted">
               <span>Narrative</span>
               <input
                 value={entryNarrative}
                 onChange={(event) => setEntryNarrative(event.target.value)}
                 maxLength={200}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text"
                 placeholder="Optional note for this journal"
               />
             </label>
           </div>
 
-          <div className="flex justify-end">
-            <Button type="button" variant="secondary" onClick={addEntryLine}>
+          <div className="flex justify-stretch sm:justify-end">
+            <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={addEntryLine}>
               <Plus className="mr-2 h-4 w-4" />
               Add Line
             </Button>
@@ -3016,12 +3016,12 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
 
           <div className="space-y-3">
             {entryLines.map((line, index) => (
-              <div key={`line-${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_170px_170px_80px]">
+              <div key={`line-${index}`} className="grid grid-cols-1 gap-3 rounded-2xl border border-akiva-border bg-akiva-surface-muted p-3 xl:grid-cols-[minmax(0,1fr)_minmax(140px,170px)_minmax(140px,170px)_48px] xl:items-start xl:border-0 xl:bg-transparent xl:p-0">
                 <SearchableSelect
                   value={line.accountCode}
                   onChange={(event) => updateEntryLine(index, { accountCode: event.target.value })}
                   required
-                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  className="w-full"
                 >
                   <option value="">Select account</option>
                   {accountOptions.map((option) => (
@@ -3037,7 +3037,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                   value={line.debit}
                   onChange={(event) => updateEntryLine(index, { debit: event.target.value })}
                   placeholder="Debit"
-                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text"
                 />
                 <input
                   type="number"
@@ -3046,11 +3046,12 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                   value={line.credit}
                   onChange={(event) => updateEntryLine(index, { credit: event.target.value })}
                   placeholder="Credit"
-                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text"
                 />
                 <Button
                   type="button"
                   variant="secondary"
+                  className="w-full xl:w-auto"
                   onClick={() => removeEntryLine(index)}
                   disabled={entryLines.length <= 2}
                 >
@@ -3079,19 +3080,19 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
           </>
         }
       >
-        <form id="gl-bank-entry-form" className="space-y-4" onSubmit={(event) => void onSaveBankEntry(event)}>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+        <form id="gl-bank-entry-form" className="max-w-full space-y-4 overflow-hidden" onSubmit={(event) => void onSaveBankEntry(event)}>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <label className="space-y-1 text-sm text-akiva-text-muted">
               <span>Transaction Date</span>
               <DatePicker value={bankEntryDate} onChange={setBankEntryDate} className="w-full" />
             </label>
-            <label className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+            <label className="space-y-1 text-sm text-akiva-text-muted">
               <span>Bank Account</span>
               <SearchableSelect
                 value={bankEntryBankAccount}
                 onChange={(event) => setBankEntryBankAccount(event.target.value)}
                 required
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                className="w-full"
               >
                 <option value="">Select bank account</option>
                 {bankAccounts.map((account) => (
@@ -3103,41 +3104,41 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
             </label>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <label className="space-y-1 text-sm text-akiva-text-muted">
               <span>Reference</span>
               <input
                 value={bankEntryReference}
                 onChange={(event) => setBankEntryReference(event.target.value)}
                 maxLength={50}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text"
                 placeholder="Bank transaction reference"
               />
             </label>
-            <label className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+            <label className="space-y-1 text-sm text-akiva-text-muted">
               <span>Cheque No</span>
               <input
                 value={bankEntryChequeNo}
                 onChange={(event) => setBankEntryChequeNo(event.target.value)}
                 maxLength={16}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text"
                 placeholder="Optional cheque number"
               />
             </label>
-            <label className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+            <label className="space-y-1 text-sm text-akiva-text-muted">
               <span>Narrative</span>
               <input
                 value={bankEntryNarrative}
                 onChange={(event) => setBankEntryNarrative(event.target.value)}
                 maxLength={200}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text"
                 placeholder="Optional narrative"
               />
             </label>
           </div>
 
-          <div className="flex justify-end">
-            <Button type="button" variant="secondary" onClick={addBankEntryLine}>
+          <div className="flex justify-stretch sm:justify-end">
+            <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={addBankEntryLine}>
               <Plus className="mr-2 h-4 w-4" />
               Add Line
             </Button>
@@ -3145,12 +3146,12 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
 
           <div className="space-y-3">
             {bankEntryLines.map((line, index) => (
-              <div key={`bank-line-${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_140px_1fr_80px]">
+              <div key={`bank-line-${index}`} className="grid grid-cols-1 gap-3 rounded-2xl border border-akiva-border bg-akiva-surface-muted p-3 xl:grid-cols-[minmax(0,1fr)_minmax(140px,170px)_minmax(0,1fr)_48px] xl:items-start xl:border-0 xl:bg-transparent xl:p-0">
                 <SearchableSelect
                   value={line.accountCode}
                   onChange={(event) => updateBankEntryLine(index, { accountCode: event.target.value })}
                   required
-                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  className="w-full"
                 >
                   <option value="">Select GL account</option>
                   {accountOptions.map((option) => (
@@ -3166,18 +3167,19 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                   value={line.amount}
                   onChange={(event) => updateBankEntryLine(index, { amount: event.target.value })}
                   placeholder="Amount"
-                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text"
                 />
                 <input
                   value={line.narrative}
                   onChange={(event) => updateBankEntryLine(index, { narrative: event.target.value })}
                   maxLength={200}
                   placeholder="Line narrative (optional)"
-                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  className="w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text"
                 />
                 <Button
                   type="button"
                   variant="secondary"
+                  className="w-full xl:w-auto"
                   onClick={() => removeBankEntryLine(index)}
                   disabled={bankEntryLines.length <= 1}
                 >

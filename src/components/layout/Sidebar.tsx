@@ -38,10 +38,10 @@ import { SearchableSelect } from '../common/SearchableSelect';
 
 const COLLAPSED_ICON_SIDEBAR_WIDTH = 88;
 const DEFAULT_EXPANDED_ICON_SIDEBAR_WIDTH = 300;
-const MIN_EXPANDED_ICON_SIDEBAR_WIDTH = 260;
 const MAX_EXPANDED_ICON_SIDEBAR_WIDTH = 360;
-const ICON_EXPAND_DRAG_THRESHOLD = 240;
-const ICON_COLLAPSE_DRAG_THRESHOLD = 180;
+const ICON_LAYOUT_EXPAND_WIDTH = 180;
+const MIN_MAIN_SIDEBAR_WIDTH = 240;
+const MAX_MAIN_SIDEBAR_WIDTH = 520;
 
 const MAIN_MENU_ICONS: Record<string, PhosphorIcon> = {
   sales: ShoppingCart,
@@ -317,6 +317,9 @@ function Sidebar() {
   const mainSidebarRef = useRef<HTMLDivElement>(null);
   const iconCollapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const routeBootstrapDoneRef = useRef(false);
+  const mainResizeRef = useRef<{ left: number } | null>(null);
+  const latestMainSidebarWidthRef = useRef(mainSidebarWidth);
+  const latestIconSidebarWidthRef = useRef(iconSidebarWidth);
   const mainMenus = appMenu;
   const configurationMainMenu = React.useMemo(
     () => mainMenus.find((menu) => isConfigurationMenu(menu.caption)) ?? null,
@@ -328,6 +331,14 @@ function Sidebar() {
   );
   const routeIndex = React.useMemo(() => buildMenuRouteIndex(mainMenus), [mainMenus]);
   const mainMenuPageId = (id: number) => 'main-' + id;
+
+  useEffect(() => {
+    latestMainSidebarWidthRef.current = mainSidebarWidth;
+  }, [mainSidebarWidth]);
+
+  useEffect(() => {
+    latestIconSidebarWidthRef.current = iconSidebarWidth;
+  }, [iconSidebarWidth]);
   
   // Fetch main menus (parent = -1) and full tree from menus table
   useEffect(() => {
@@ -419,18 +430,7 @@ function Sidebar() {
   const selectedMainMenu = selectedMainMenuId != null ? mainMenus.find((m) => m.id === selectedMainMenuId) : null;
   // Keep the secondary sidebar stable. Hover only shows icon tooltips; click changes menus.
   const displayedMainMenu = selectedMainMenu;
-  // Allow the secondary sidebar to appear only after selecting a dynamic module.
-  const hasSecondaryMenuSelected = currentPage.startsWith('menu-');
   const showSecondarySidebar = !sidebarCollapsed && displayedMainMenu != null;
-
-  // Guarded setter: never collapse unless a secondary menu item is active (catches all code paths)
-  const setSidebarCollapsedGuarded = useCallback(
-    (value: boolean) => {
-      if (value === true && !hasSecondaryMenuSelected) return;
-      setSidebarCollapsed(value);
-    },
-    [hasSecondaryMenuSelected, setSidebarCollapsed]
-  );
 
   // Expand all secondary submenus by default when the selected main menu changes.
   const menuForExpand = displayedMainMenu ?? selectedMainMenu;
@@ -487,6 +487,12 @@ function Sidebar() {
 	    setSidebarCollapsed(false);
 	  };
 
+	  const handleLogoClick = () => {
+	    setCurrentPage('dashboard');
+	    setSidebarCollapsed(false);
+	    hideRailTooltip();
+	  };
+
 	  const handleSettingsClick = () => {
 	    if (!configurationMainMenu) return;
 	    handleMainMenuClick(mainMenuPageId(configurationMainMenu.id));
@@ -519,17 +525,6 @@ function Sidebar() {
 	    setIconSidebarWidth(DEFAULT_EXPANDED_ICON_SIDEBAR_WIDTH);
 	  };
 
-	  useEffect(() => {
-	    if (isResizingIcon) return;
-	    if (!iconSidebarExpanded && iconSidebarWidth !== COLLAPSED_ICON_SIDEBAR_WIDTH) {
-	      setIconSidebarWidth(COLLAPSED_ICON_SIDEBAR_WIDTH);
-	      return;
-	    }
-	    if (iconSidebarExpanded && iconSidebarWidth < MIN_EXPANDED_ICON_SIDEBAR_WIDTH) {
-	      setIconSidebarWidth(DEFAULT_EXPANDED_ICON_SIDEBAR_WIDTH);
-	    }
-	  }, [iconSidebarExpanded, iconSidebarWidth, isResizingIcon, setIconSidebarWidth]);
-
 	  // Icon sidebar resize handlers
 	  const handleIconMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -540,47 +535,59 @@ function Sidebar() {
     if (!isResizingIcon) return;
     
 	    const newWidth = Math.max(COLLAPSED_ICON_SIDEBAR_WIDTH, Math.min(MAX_EXPANDED_ICON_SIDEBAR_WIDTH, e.clientX));
+	    latestIconSidebarWidthRef.current = newWidth;
 	    setIconSidebarWidth(newWidth);
-	    
-	    if (newWidth >= ICON_EXPAND_DRAG_THRESHOLD && !iconSidebarExpanded) {
-	      setIconSidebarExpanded(true);
-	    } else if (newWidth <= ICON_COLLAPSE_DRAG_THRESHOLD && iconSidebarExpanded) {
-	      setIconSidebarExpanded(false);
+
+	    if (iconSidebarExpanded) {
+	      hideRailTooltip();
 	    }
-	  }, [isResizingIcon, iconSidebarExpanded, setIconSidebarWidth, setIconSidebarExpanded]);
+	  }, [isResizingIcon, iconSidebarExpanded, setIconSidebarWidth, hideRailTooltip]);
 
 	  const handleIconMouseUp = useCallback(() => {
+	    const finalWidth = Math.max(
+	      COLLAPSED_ICON_SIDEBAR_WIDTH,
+	      Math.min(MAX_EXPANDED_ICON_SIDEBAR_WIDTH, Math.round(latestIconSidebarWidthRef.current))
+	    );
+	    latestIconSidebarWidthRef.current = finalWidth;
+	    setIconSidebarWidth(finalWidth);
+	    setIconSidebarExpanded(finalWidth >= ICON_LAYOUT_EXPAND_WIDTH);
 	    setIsResizingIcon(false);
-	    if (!iconSidebarExpanded) {
-	      setIconSidebarWidth(COLLAPSED_ICON_SIDEBAR_WIDTH);
-	    } else if (iconSidebarWidth < MIN_EXPANDED_ICON_SIDEBAR_WIDTH) {
-	      setIconSidebarWidth(DEFAULT_EXPANDED_ICON_SIDEBAR_WIDTH);
-	    }
-	  }, [iconSidebarExpanded, iconSidebarWidth, setIconSidebarWidth]);
+	  }, [setIconSidebarExpanded, setIconSidebarWidth]);
 
   // Main sidebar resize handlers
   const handleMainMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    const rect = mainSidebarRef.current?.getBoundingClientRect();
+    mainResizeRef.current = {
+      left: rect?.left ?? e.clientX - latestMainSidebarWidthRef.current,
+    };
     setIsResizingMain(true);
   }, []);
 
   const handleMainMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizingMain) return;
-    
-    const iconWidth = iconSidebarWidth;
-    const newWidth = Math.max(240, Math.min(520, e.clientX - iconWidth));
+
+    const resizeOrigin = mainResizeRef.current;
+    if (!resizeOrigin) return;
+
+    const newWidth = Math.max(
+      MIN_MAIN_SIDEBAR_WIDTH,
+      Math.min(MAX_MAIN_SIDEBAR_WIDTH, Math.round(e.clientX - resizeOrigin.left))
+    );
+    latestMainSidebarWidthRef.current = newWidth;
     setMainSidebarWidth(newWidth);
-    
-    if (newWidth < 180 && !sidebarCollapsed) {
-      setSidebarCollapsedGuarded(true);
-    } else if (newWidth >= 180 && sidebarCollapsed) {
-      setSidebarCollapsedGuarded(false);
-    }
-  }, [isResizingMain, iconSidebarWidth, sidebarCollapsed, setMainSidebarWidth, setSidebarCollapsedGuarded]);
+  }, [isResizingMain, setMainSidebarWidth]);
 
   const handleMainMouseUp = useCallback(() => {
+    const finalWidth = Math.max(
+      MIN_MAIN_SIDEBAR_WIDTH,
+      Math.min(MAX_MAIN_SIDEBAR_WIDTH, Math.round(latestMainSidebarWidthRef.current))
+    );
+    latestMainSidebarWidthRef.current = finalWidth;
+    setMainSidebarWidth(finalWidth);
+    mainResizeRef.current = null;
     setIsResizingMain(false);
-  }, []);
+  }, [setMainSidebarWidth]);
 
   // Global mouse event listeners
   useEffect(() => {
@@ -620,7 +627,9 @@ function Sidebar() {
 	      {/* Left Icon Sidebar */}
 	      <div 
 	        ref={iconSidebarRef}
-		        className="relative flex h-screen min-h-screen shrink-0 flex-col overflow-visible border-r border-white/70 bg-[#f4f0f0] transition-all duration-300 ease-in-out dark:border-slate-800 dark:bg-slate-950"
+		        className={`relative flex h-screen min-h-screen shrink-0 flex-col overflow-visible border-r border-white/70 bg-[#f4f0f0] dark:border-slate-800 dark:bg-slate-950 ${
+		          isResizingIcon ? 'transition-none' : 'transition-all duration-300 ease-in-out'
+		        }`}
 	        style={{ width: `${iconSidebarWidth}px` }}
 	        onMouseEnter={handleMouseEnterIconSidebar}
 	        onMouseLeave={handleMouseLeaveIconSidebar}
@@ -638,14 +647,20 @@ function Sidebar() {
 	        }`}>
 	          {/* Logo and primary rail toggle */}
 	          <div className={`relative flex ${iconSidebarExpanded ? 'w-full items-center justify-between px-5' : 'items-center justify-center px-0'}`}>
-	            <div className="flex min-w-0 items-center space-x-3">
+	            <button
+	              type="button"
+	              onClick={handleLogoClick}
+	              className="flex min-w-0 items-center space-x-3 rounded-full text-left outline-none transition hover:opacity-85 focus-visible:ring-2 focus-visible:ring-akiva-accent"
+	              aria-label="Go to dashboard"
+	              title="Go to dashboard"
+	            >
 	              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-black shadow-lg shadow-slate-300/70 dark:bg-white dark:shadow-black/30">
 	                <span className="text-xl font-bold text-white dark:text-gray-900">A</span>
               </div>
               {iconSidebarExpanded && iconSidebarWidth > 132 && (
                 <span className="truncate whitespace-nowrap text-lg font-semibold text-slate-950 dark:text-white">Akiva ERP</span>
               )}
-            </div>
+            </button>
 
             <button
 	              type="button"
@@ -777,7 +792,9 @@ function Sidebar() {
       {/* Main Navigation Sidebar - opens only after selecting a dynamic main menu */}
       <div 
         ref={mainSidebarRef}
-        className={`relative flex h-screen min-h-screen shrink-0 flex-col overflow-hidden border-r border-white/70 bg-[#f7f4f4]/92 transition-all duration-300 ease-in-out dark:border-slate-800 dark:bg-slate-900/92 ${
+        className={`relative flex h-screen min-h-screen shrink-0 flex-col overflow-hidden border-r border-white/70 bg-[#f7f4f4]/92 dark:border-slate-800 dark:bg-slate-900/92 ${
+          isResizingMain ? 'transition-none' : 'transition-all duration-300 ease-in-out'
+        } ${
           !showSecondarySidebar ? 'w-0' : ''
         }`}
         style={{ width: showSecondarySidebar ? `${mainSidebarWidth}px` : '0px' }}

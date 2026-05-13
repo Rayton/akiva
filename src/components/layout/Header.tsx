@@ -45,7 +45,7 @@ function HeaderIconButton({
 }
 
 export function Header() {
-  const { currentUser, isDarkMode, toggleDarkMode } = useApp();
+  const { currentUser, isDarkMode, toggleDarkMode, setCurrentPage } = useApp();
   const [timeframe, setTimeframe] = useState('Sep 1 - Nov 30, 2023');
 
   return (
@@ -61,11 +61,17 @@ export function Header() {
             />
           </div>
 
-          <div className="hidden items-center gap-2 rounded-full bg-akiva-surface-raised px-2 py-1 shadow-sm 2xl:flex">
+          <button
+            type="button"
+            onClick={() => setCurrentPage('dashboard')}
+            className="hidden items-center gap-2 rounded-full bg-akiva-surface-raised px-2 py-1 text-left shadow-sm transition hover:bg-akiva-surface-muted 2xl:flex"
+            aria-label="Go to dashboard"
+            title="Go to dashboard"
+          >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-akiva-text text-xs font-bold text-akiva-surface-raised">A</span>
             <span className="whitespace-nowrap text-sm font-semibold text-akiva-text">Akiva ERP</span>
             <ChevronDown className="h-4 w-4 text-akiva-text-muted" />
-          </div>
+          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">

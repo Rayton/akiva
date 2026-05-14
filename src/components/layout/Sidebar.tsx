@@ -120,6 +120,8 @@ const STATIC_SETUP_ROUTES: Array<[string, string]> = [
   ['/configuration/users/www-access', 'www-access'],
   ['/configuration/users/menu-access', 'menu-access'],
   ['/configuration/users/menu-rights', 'menu-access'],
+  ['/configuration/sales-receivables-setup/salestypes', 'sales-types'],
+  ['/configuration/sales-receivables-setup/sales-types', 'sales-types'],
   ['/configuration/general-ledger-setup', 'general-ledger-setup'],
   ['/configuration/general-ledger-setup/bank-accounts', 'bank-accounts-setup'],
   ['/configuration/general-ledger-setup/bankaccounts', 'bank-accounts-setup'],

@@ -50,6 +50,11 @@ const SECTION_DESCRIPTIONS: Array<{ match: string[]; description: string; icon: 
     description: 'Bank accounts, currencies, tax authorities, tax groups, tax provinces, categories, and accounting periods.',
     icon: Landmark,
   },
+  {
+    match: ['salesreceivablessetup', 'salestypes', 'customertypes', 'paymentterms', 'salespeople'],
+    description: 'Price lists, customer setup, payment terms, sales people, areas, and sales GL interfaces.',
+    icon: Tags,
+  },
 ];
 
 function normalizedKey(value: string): string {
@@ -74,6 +79,7 @@ function iconForCaption(caption: string): LucideIcon {
   const key = normalizedKey(caption);
   if (key.includes('company') || key.includes('generalsettings')) return Building2;
   if (key.includes('user') || key.includes('access') || key.includes('permission')) return Users;
+  if (key.includes('sales') || key.includes('customer') || key.includes('payment')) return Tags;
   if (key.includes('ledger') || key.includes('bank') || key.includes('currenc') || key.includes('tax')) return Landmark;
   if (key.includes('audit') || key.includes('check')) return Activity;
   if (key.includes('geocode') || key.includes('map')) return MapPinned;

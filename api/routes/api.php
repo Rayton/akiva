@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\WwwUsersController;
 use App\Http\Controllers\Api\AccessPermissionsController;
 use App\Http\Controllers\Api\MenuAccessController;
 use App\Http\Controllers\Api\GeneralLedgerSetupController;
+use App\Http\Controllers\Api\SalesReceivablesSetupController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -67,6 +68,10 @@ Route::get('/configuration/general-ledger/setup', [GeneralLedgerSetupController:
 Route::post('/configuration/general-ledger/setup/{entity}', [GeneralLedgerSetupController::class, 'store']);
 Route::put('/configuration/general-ledger/setup/{entity}/{id}', [GeneralLedgerSetupController::class, 'update']);
 Route::delete('/configuration/general-ledger/setup/{entity}/{id}', [GeneralLedgerSetupController::class, 'destroy']);
+Route::get('/configuration/sales-receivables/setup', [SalesReceivablesSetupController::class, 'index']);
+Route::post('/configuration/sales-receivables/setup/{entity}', [SalesReceivablesSetupController::class, 'store']);
+Route::put('/configuration/sales-receivables/setup/{entity}/{id}', [SalesReceivablesSetupController::class, 'update']);
+Route::delete('/configuration/sales-receivables/setup/{entity}/{id}', [SalesReceivablesSetupController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

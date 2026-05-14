@@ -47,6 +47,7 @@ function initialPageFromPath(pathname: string): string {
   if (key.includes('configurationuserswwwusers')) return 'users';
   if (key.includes('configurationuserswwwaccess')) return 'www-access';
   if (key.includes('configurationusersmenuaccess') || key.includes('configurationusersmenurights')) return 'menu-access';
+  if (key.includes('configurationsalesreceivablessetupsalestypes')) return 'sales-types';
 
   if (key.includes('configurationgeneralledgersetup')) {
     if (key.includes('currencies')) return 'currencies';

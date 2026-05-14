@@ -16,6 +16,7 @@ import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
 import { MenuAccess } from './pages/MenuAccess';
 import { GeneralLedgerSetup } from './pages/GeneralLedgerSetup';
+import { SalesReceivablesSetup } from './pages/SalesReceivablesSetup';
 import { ConfigurationDashboard } from './pages/ConfigurationDashboard';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
@@ -177,6 +178,11 @@ function isGeneralLedgerSetupMenuSlug(slug: string): boolean {
   );
 }
 
+function isSalesReceivablesSetupMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'salesreceivablessetup' || key === 'salestypes' || key.includes('salestypes');
+}
+
 function resolveGeneralLedgerSetupTab(slug: string) {
   const key = normalizedSlugKey(slug);
   if (key.includes('currencies')) return 'currencies' as const;
@@ -193,6 +199,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (pathKey.includes('configurationgeneralledgersetup')) {
     return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(pathname)} />;
+  }
+
+  if (pathKey.includes('configurationsalesreceivablessetupsalestypes')) {
+    return <SalesReceivablesSetup initialTab="sales-types" />;
   }
 
   if (pathKey.includes('configurationuserswwwusers')) {
@@ -423,6 +433,10 @@ function AppContent() {
         return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(menuSlug)} />;
       }
 
+      if ((primaryPathSegment === 'configuration' || isConfigurationMenuContext) && isSalesReceivablesSetupMenuSlug(menuSlug)) {
+        return <SalesReceivablesSetup initialTab="sales-types" />;
+      }
+
       if (!isConfigurationMenuContext && (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug))) {
         const glView = resolveGeneralLedgerView(menuSlug);
         if (glView === 'accounts') {
@@ -482,6 +496,9 @@ function AppContent() {
       case 'tax-categories':
       case 'periods':
         return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(currentPage)} />;
+      case 'sales-types':
+      case 'salestypes':
+        return <SalesReceivablesSetup initialTab="sales-types" />;
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;

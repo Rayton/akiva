@@ -16,6 +16,7 @@ import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
 import { MenuAccess } from './pages/MenuAccess';
 import { GeneralLedgerSetup } from './pages/GeneralLedgerSetup';
+import { ConfigurationDashboard } from './pages/ConfigurationDashboard';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
 import { AuditTrail } from './pages/AuditTrail';
@@ -101,6 +102,10 @@ function isGeneralLedgerMenuSlug(slug: string): boolean {
 function isGeneralLedgerPathSegment(segment: string): boolean {
   const key = segment.toLowerCase().replace(/[^a-z0-9]/g, '');
   return key === 'generalledger' || key === 'gl';
+}
+
+function isConfigurationMenuCaption(caption: string): boolean {
+  return normalizedSlugKey(caption) === 'configuration';
 }
 
 function isCompanyPreferencesMenuSlug(slug: string): boolean {
@@ -322,7 +327,7 @@ function findMenuNodeTrailById(nodes: MenuNode[], id: number, trail: MenuNode[] 
 }
 
 function AppContent() {
-  const { currentPage, mobileSidebarOpen, appMenu } = useApp();
+  const { currentPage, setCurrentPage, mobileSidebarOpen, appMenu } = useApp();
   const [locationPathname, setLocationPathname] = useState(() => window.location.pathname);
 
   useEffect(() => {
@@ -339,6 +344,10 @@ function AppContent() {
     if (currentPage.startsWith('main-')) {
       const mainId = parseInt(currentPage.replace('main-', ''), 10);
       const mainModule = appMenu.find((item) => item.id === mainId);
+
+      if (mainModule && isConfigurationMenuCaption(mainModule.caption)) {
+        return <ConfigurationDashboard module={mainModule} onSelectPage={setCurrentPage} />;
+      }
 
       return (
         <div className="p-4 md:p-8">

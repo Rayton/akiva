@@ -37,12 +37,39 @@ interface AppProviderProps {
 
 const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v1';
 
+function normalizedPathKey(pathname: string): string {
+  return pathname.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function initialPageFromPath(pathname: string): string {
+  const key = normalizedPathKey(pathname);
+
+  if (key.includes('configurationuserswwwusers')) return 'users';
+  if (key.includes('configurationuserswwwaccess')) return 'www-access';
+  if (key.includes('configurationusersmenuaccess') || key.includes('configurationusersmenurights')) return 'menu-access';
+
+  if (key.includes('configurationgeneralledgersetup')) {
+    if (key.includes('currencies')) return 'currencies';
+    if (key.includes('taxauthorities')) return 'tax-authorities';
+    if (key.includes('taxgroups')) return 'tax-groups';
+    if (key.includes('taxprovinces')) return 'tax-provinces';
+    if (key.includes('taxcategories')) return 'tax-categories';
+    if (key.includes('periods')) return 'periods';
+    return 'general-ledger-setup';
+  }
+
+  return 'dashboard';
+}
+
 export function AppProvider({ children }: AppProviderProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [iconSidebarExpanded, setIconSidebarExpanded] = useState(false);
   const [iconSidebarWidth, setIconSidebarWidth] = useState(88);
   const [mainSidebarWidth, setMainSidebarWidth] = useState(292);
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(() => {
+    if (typeof window === 'undefined') return 'dashboard';
+    return initialPageFromPath(window.location.pathname);
+  });
   const [activeSection, setActiveSection] = useState('');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [appMenu, setAppMenu] = useState<MenuCategory[]>(() => {

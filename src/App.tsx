@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { Header } from './components/layout/Header';
 import { OfflineStatusBar } from './components/layout/OfflineStatusBar';
@@ -14,6 +15,7 @@ import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
 import { MenuAccess } from './pages/MenuAccess';
+import { GeneralLedgerSetup } from './pages/GeneralLedgerSetup';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
 import { AuditTrail } from './pages/AuditTrail';
@@ -25,6 +27,8 @@ import { SmtpServer } from './pages/SmtpServer';
 import { Home, ShoppingCart, FileBarChart, Settings, Star, Menu, Clock, X, ChevronRight } from 'lucide-react';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { MenuCategory, MenuItem } from './types/menu';
+
+const NAVIGATION_EVENT = 'akiva:navigation';
 
 function normalizeMenuSlug(pageId: string): string {
   if (!pageId.startsWith('menu-')) return '';
@@ -154,6 +158,53 @@ function isMenuAccessMenuSlug(slug: string): boolean {
   return key === 'menuaccess' || key.includes('menuaccess') || key.includes('menurights');
 }
 
+function isGeneralLedgerSetupMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'generalledgersetup' ||
+    key.includes('bankaccounts') ||
+    key.includes('currencies') ||
+    key.includes('taxauthorities') ||
+    key.includes('taxgroups') ||
+    key.includes('taxprovinces') ||
+    key.includes('taxcategories') ||
+    key.includes('periodsinquiry')
+  );
+}
+
+function resolveGeneralLedgerSetupTab(slug: string) {
+  const key = normalizedSlugKey(slug);
+  if (key.includes('currencies')) return 'currencies' as const;
+  if (key.includes('taxauthorities')) return 'tax-authorities' as const;
+  if (key.includes('taxgroups')) return 'tax-groups' as const;
+  if (key.includes('taxprovinces')) return 'tax-provinces' as const;
+  if (key.includes('taxcategories')) return 'tax-categories' as const;
+  if (key.includes('periodsinquiry') || key.includes('periodsdefined')) return 'periods' as const;
+  return 'bank-accounts' as const;
+}
+
+function knownSettingsViewFromPath(pathname: string) {
+  const pathKey = normalizedSlugKey(pathname);
+
+  if (pathKey.includes('configurationgeneralledgersetup')) {
+    return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(pathname)} />;
+  }
+
+  if (pathKey.includes('configurationuserswwwusers')) {
+    return <UserManagement />;
+  }
+
+  if (pathKey.includes('configurationuserswwwaccess')) {
+    return <AccessPermissions />;
+  }
+
+  if (pathKey.includes('configurationusersmenuaccess') || pathKey.includes('configurationusersmenurights')) {
+    return <MenuAccess />;
+  }
+
+  return null;
+}
+
 type GeneralLedgerView = 'transactions' | 'accounts';
 
 function resolveGeneralLedgerView(slug: string): GeneralLedgerView {
@@ -258,21 +309,33 @@ function findMenuNodeById(nodes: MenuNode[], id: number): MenuNode | null {
   return null;
 }
 
+function findMenuNodeTrailById(nodes: MenuNode[], id: number, trail: MenuNode[] = []): MenuNode[] | null {
+  for (const node of nodes) {
+    const nextTrail = [...trail, node];
+    if (node.id === id) return nextTrail;
+    const children = node.children as MenuNode[] | undefined;
+    if (!children || children.length === 0) continue;
+    const match = findMenuNodeTrailById(children, id, nextTrail);
+    if (match) return match;
+  }
+  return null;
+}
+
 function AppContent() {
   const { currentPage, mobileSidebarOpen, appMenu } = useApp();
+  const [locationPathname, setLocationPathname] = useState(() => window.location.pathname);
+
+  useEffect(() => {
+    const syncLocation = () => setLocationPathname(window.location.pathname);
+    window.addEventListener('popstate', syncLocation);
+    window.addEventListener(NAVIGATION_EVENT, syncLocation);
+    return () => {
+      window.removeEventListener('popstate', syncLocation);
+      window.removeEventListener(NAVIGATION_EVENT, syncLocation);
+    };
+  }, []);
 
   const renderCurrentPage = () => {
-    const currentPathKey = normalizedSlugKey(window.location.pathname);
-    if (currentPathKey.includes('configurationuserswwwusers')) {
-      return <UserManagement />;
-    }
-    if (currentPathKey.includes('configurationuserswwwaccess')) {
-      return <AccessPermissions />;
-    }
-    if (currentPathKey.includes('configurationusersmenuaccess') || currentPathKey.includes('configurationusersmenurights')) {
-      return <MenuAccess />;
-    }
-
     if (currentPage.startsWith('main-')) {
       const mainId = parseInt(currentPage.replace('main-', ''), 10);
       const mainModule = appMenu.find((item) => item.id === mainId);
@@ -290,11 +353,14 @@ function AppContent() {
     }
 
     const menuSlug = normalizeMenuSlug(currentPage);
-    const primaryPathSegment = window.location.pathname.split('/').filter(Boolean)[0]?.toLowerCase() ?? '';
+    const primaryPathSegment = locationPathname.split('/').filter(Boolean)[0]?.toLowerCase() ?? '';
     const menuNodeId = parseMenuNodeId(currentPage);
     const currentMenuNode = menuNodeId !== null ? findMenuNodeById(appMenu as MenuNode[], menuNodeId) : null;
+    const currentMenuTrail = menuNodeId !== null ? findMenuNodeTrailById(appMenu as MenuNode[], menuNodeId) ?? [] : [];
     const currentMenuHref = currentMenuNode?.href ?? '';
     const currentMenuCaption = currentMenuNode?.caption ?? '';
+    const isConfigurationMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'configuration');
+    const isGeneralLedgerSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'generalledgersetup');
 
     if (menuSlug) {
       if (isCompanyPreferencesMenuSlug(menuSlug)) {
@@ -341,7 +407,14 @@ function AppContent() {
         return <MenuAccess />;
       }
 
-      if (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug)) {
+      if (
+        (primaryPathSegment === 'configuration' || isConfigurationMenuContext || isGeneralLedgerSetupMenuContext) &&
+        isGeneralLedgerSetupMenuSlug(menuSlug)
+      ) {
+        return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(menuSlug)} />;
+      }
+
+      if (!isConfigurationMenuContext && (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug))) {
         const glView = resolveGeneralLedgerView(menuSlug);
         if (glView === 'accounts') {
           return <ChartOfAccounts sourceSlug={menuSlug} />;
@@ -366,8 +439,6 @@ function AppContent() {
     }
 
     switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard />;
       case 'accounts':
         return <ChartOfAccounts />;
       case 'general-ledger':
@@ -393,6 +464,15 @@ function AppContent() {
       case 'menuaccess':
       case 'menu-rights':
         return <MenuAccess />;
+      case 'general-ledger-setup':
+      case 'bank-accounts-setup':
+      case 'currencies':
+      case 'tax-authorities':
+      case 'tax-groups':
+      case 'tax-provinces':
+      case 'tax-categories':
+      case 'periods':
+        return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(currentPage)} />;
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;
@@ -490,8 +570,13 @@ function AppContent() {
       case 'system-setup':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">System Setup</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Configure system parameters and preferences</p></div>;
       default:
-        return <Dashboard />;
+        break;
     }
+
+    const routeView = knownSettingsViewFromPath(locationPathname);
+    if (routeView) return routeView;
+
+    return <Dashboard />;
   };
 
   return (

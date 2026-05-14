@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\SmtpServerController;
 use App\Http\Controllers\Api\WwwUsersController;
 use App\Http\Controllers\Api\AccessPermissionsController;
 use App\Http\Controllers\Api\MenuAccessController;
+use App\Http\Controllers\Api\GeneralLedgerSetupController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -62,6 +63,10 @@ Route::put('/configuration/users/www-access/{roleId}', [AccessPermissionsControl
 Route::delete('/configuration/users/www-access/{roleId}', [AccessPermissionsController::class, 'destroy']);
 Route::get('/configuration/users/menu-access', [MenuAccessController::class, 'index']);
 Route::put('/configuration/users/menu-access/{userId}', [MenuAccessController::class, 'update']);
+Route::get('/configuration/general-ledger/setup', [GeneralLedgerSetupController::class, 'index']);
+Route::post('/configuration/general-ledger/setup/{entity}', [GeneralLedgerSetupController::class, 'store']);
+Route::put('/configuration/general-ledger/setup/{entity}/{id}', [GeneralLedgerSetupController::class, 'update']);
+Route::delete('/configuration/general-ledger/setup/{entity}/{id}', [GeneralLedgerSetupController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

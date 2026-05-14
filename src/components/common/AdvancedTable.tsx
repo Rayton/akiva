@@ -92,6 +92,7 @@ export function AdvancedTable<T>({
   const [columnWidths, setColumnWidths] = useState<WidthMap>({});
 
   const resizerRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
+  const previousTableIdRef = useRef(tableId);
 
   useEffect(() => {
     const storageKey = `table-col-widths:${tableId}`;
@@ -123,6 +124,15 @@ export function AdvancedTable<T>({
   }, [columnWidths, tableId]);
 
   useEffect(() => {
+    if (previousTableIdRef.current !== tableId) {
+      previousTableIdRef.current = tableId;
+      setVisibleColumnIds(columns.map((column) => column.id));
+      setFilters({});
+      setSort(null);
+      setPageIndex(0);
+      return;
+    }
+
     const knownIds = new Set(columns.map((column) => column.id));
     setVisibleColumnIds((previous) => {
       const next = previous.filter((id) => knownIds.has(id));

@@ -45,6 +45,7 @@ const MAX_EXPANDED_ICON_SIDEBAR_WIDTH = 360;
 const ICON_LAYOUT_EXPAND_WIDTH = 180;
 const MIN_MAIN_SIDEBAR_WIDTH = 240;
 const MAX_MAIN_SIDEBAR_WIDTH = 520;
+const NAVIGATION_EVENT = 'akiva:navigation';
 
 const MAIN_MENU_ICONS: Record<string, PhosphorIcon> = {
   sales: ShoppingCart,
@@ -103,7 +104,7 @@ function menuSlug(caption: string, href?: string): string {
 }
 
 function normalizePath(pathname: string): string {
-  const normalized = pathname.replace(/\/+/g, '/').replace(/\/$/, '');
+  const normalized = pathname.toLowerCase().replace(/\/+/g, '/').replace(/\/$/, '');
   return normalized === '' ? '/' : normalized;
 }
 
@@ -113,6 +114,26 @@ interface MenuRouteIndex {
   pageIdToMainId: Map<string, number>;
   pageIdToExpandIds: Map<string, string[]>;
 }
+
+const STATIC_SETUP_ROUTES: Array<[string, string]> = [
+  ['/configuration/users/www-users', 'users'],
+  ['/configuration/users/www-access', 'www-access'],
+  ['/configuration/users/menu-access', 'menu-access'],
+  ['/configuration/users/menu-rights', 'menu-access'],
+  ['/configuration/general-ledger-setup', 'general-ledger-setup'],
+  ['/configuration/general-ledger-setup/bank-accounts', 'bank-accounts-setup'],
+  ['/configuration/general-ledger-setup/bankaccounts', 'bank-accounts-setup'],
+  ['/configuration/general-ledger-setup/currencies', 'currencies'],
+  ['/configuration/general-ledger-setup/tax-authorities', 'tax-authorities'],
+  ['/configuration/general-ledger-setup/taxauthorities', 'tax-authorities'],
+  ['/configuration/general-ledger-setup/tax-groups', 'tax-groups'],
+  ['/configuration/general-ledger-setup/taxgroups', 'tax-groups'],
+  ['/configuration/general-ledger-setup/tax-provinces', 'tax-provinces'],
+  ['/configuration/general-ledger-setup/taxprovinces', 'tax-provinces'],
+  ['/configuration/general-ledger-setup/tax-categories', 'tax-categories'],
+  ['/configuration/general-ledger-setup/taxcategories', 'tax-categories'],
+  ['/configuration/general-ledger-setup/periods', 'periods'],
+];
 
 function buildMenuRouteIndex(mainMenus: MenuCategory[]): MenuRouteIndex {
   const pathToPageId = new Map<string, string>();
@@ -161,6 +182,16 @@ function buildMenuRouteIndex(mainMenus: MenuCategory[]): MenuRouteIndex {
     mainMenu.children?.forEach((child) => {
       visitNode(child as MenuCategory, mainSlug, [], mainMenu.id, 0, []);
     });
+  });
+
+  const configurationMainId = mainMenus.find((menu) => isConfigurationMenu(menu.caption))?.id;
+  STATIC_SETUP_ROUTES.forEach(([path, pageId]) => {
+    pathToPageId.set(path, pageId);
+    pageIdToPath.set(pageId, path);
+    if (configurationMainId !== undefined) {
+      pageIdToMainId.set(pageId, configurationMainId);
+    }
+    pageIdToExpandIds.set(pageId, []);
   });
 
   return {
@@ -348,6 +379,7 @@ function Sidebar() {
   const mainSidebarRef = useRef<HTMLDivElement>(null);
   const iconCollapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const routeBootstrapDoneRef = useRef(false);
+  const menuFetchAttemptedRef = useRef(false);
   const mainResizeRef = useRef<{ left: number } | null>(null);
   const latestMainSidebarWidthRef = useRef(mainSidebarWidth);
   const latestIconSidebarWidthRef = useRef(iconSidebarWidth);
@@ -374,14 +406,17 @@ function Sidebar() {
   // Fetch main menus (parent = -1) and full tree from menus table
   useEffect(() => {
     const loadMenu = async () => {
-      if (appMenu.length === 0 && !menuLoading) {
-        setMenuLoading(true);
-        try {
-          const menu = await fetchMenu();
+      if (menuFetchAttemptedRef.current || menuLoading) return;
+
+      menuFetchAttemptedRef.current = true;
+      setMenuLoading(true);
+      try {
+        const menu = await fetchMenu();
+        if (menu.length > 0 || appMenu.length === 0) {
           setAppMenu(menu);
-        } finally {
-          setMenuLoading(false);
         }
+      } finally {
+        setMenuLoading(false);
       }
     };
     loadMenu();
@@ -419,6 +454,7 @@ function Sidebar() {
       setCurrentPage(routePageId);
     } else if (currentPage === 'dashboard') {
       window.history.replaceState({}, '', '/dashboard');
+      window.dispatchEvent(new Event(NAVIGATION_EVENT));
     }
 
     routeBootstrapDoneRef.current = true;
@@ -433,6 +469,7 @@ function Sidebar() {
     const activePath = normalizePath(window.location.pathname);
     if (activePath !== targetPath) {
       window.history.pushState({}, '', targetPath);
+      window.dispatchEvent(new Event(NAVIGATION_EVENT));
     }
   }, [currentPage, mainMenus.length, routeIndex.pageIdToPath]);
 

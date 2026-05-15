@@ -180,7 +180,51 @@ function isGeneralLedgerSetupMenuSlug(slug: string): boolean {
 
 function isSalesReceivablesSetupMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
-  return key === 'salesreceivablessetup' || key === 'salestypes' || key.includes('salestypes');
+  return (
+    key === 'salesreceivablessetup' ||
+    key === 'salestypes' ||
+    key.includes('salestypes') ||
+    key === 'customertypes' ||
+    key.includes('customertypes') ||
+    key === 'creditstatus' ||
+    key.includes('creditstatus') ||
+    key === 'holdreasons' ||
+    key.includes('holdreasons') ||
+    key === 'paymentterms' ||
+    key.includes('paymentterms') ||
+    key === 'paymentmethods' ||
+    key.includes('paymentmethods') ||
+    key === 'salespeople' ||
+    key.includes('salespeople') ||
+    key === 'salesman' ||
+    key.includes('salesman') ||
+    key === 'areas' ||
+    key.includes('salesareas') ||
+    key === 'salesglpostings' ||
+    key.includes('salesglpostings') ||
+    key === 'salesglposting' ||
+    key.includes('salesglposting') ||
+    key === 'cogsglpostings' ||
+    key.includes('cogsglpostings') ||
+    key === 'cogsglposting' ||
+    key.includes('cogsglposting') ||
+    key === 'discountmatrix' ||
+    key.includes('discountmatrix')
+  );
+}
+
+function resolveSalesReceivablesSetupTab(slug: string) {
+  const key = normalizedSlugKey(slug);
+  if (key.includes('customertypes')) return 'customer-types' as const;
+  if (key.includes('creditstatus') || key.includes('holdreasons')) return 'credit-status' as const;
+  if (key.includes('paymentterms')) return 'payment-terms' as const;
+  if (key.includes('paymentmethods')) return 'payment-methods' as const;
+  if (key.includes('salespeople') || key.includes('salesman')) return 'sales-people' as const;
+  if (key.includes('areas') || key.includes('salesareas')) return 'areas' as const;
+  if (key.includes('salesglpostings') || key.includes('salesglposting')) return 'sales-gl-postings' as const;
+  if (key.includes('cogsglpostings') || key.includes('cogsglposting')) return 'cogs-gl-postings' as const;
+  if (key.includes('discountmatrix')) return 'discount-matrix' as const;
+  return 'sales-types' as const;
 }
 
 function resolveGeneralLedgerSetupTab(slug: string) {
@@ -201,8 +245,8 @@ function knownSettingsViewFromPath(pathname: string) {
     return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(pathname)} />;
   }
 
-  if (pathKey.includes('configurationsalesreceivablessetupsalestypes')) {
-    return <SalesReceivablesSetup initialTab="sales-types" />;
+  if (pathKey.includes('configurationsalesreceivablessetup')) {
+    return <SalesReceivablesSetup initialTab={resolveSalesReceivablesSetupTab(pathname)} />;
   }
 
   if (pathKey.includes('configurationuserswwwusers')) {
@@ -282,6 +326,12 @@ function resolveSalesMode(slug: string): SalesModuleMode {
     'payment-terms',
     'salespeople',
     'salesman',
+    'salesglpostings',
+    'sales-gl-postings',
+    'cogsglpostings',
+    'cogs-gl-postings',
+    'discountmatrix',
+    'discount-matrix',
     'holdreasons',
     'hold-reasons',
     'maintenance',
@@ -434,7 +484,7 @@ function AppContent() {
       }
 
       if ((primaryPathSegment === 'configuration' || isConfigurationMenuContext) && isSalesReceivablesSetupMenuSlug(menuSlug)) {
-        return <SalesReceivablesSetup initialTab="sales-types" />;
+        return <SalesReceivablesSetup initialTab={resolveSalesReceivablesSetupTab(menuSlug)} />;
       }
 
       if (!isConfigurationMenuContext && (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug))) {
@@ -498,7 +548,33 @@ function AppContent() {
         return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(currentPage)} />;
       case 'sales-types':
       case 'salestypes':
-        return <SalesReceivablesSetup initialTab="sales-types" />;
+      case 'customer-types':
+      case 'customertypes':
+      case 'credit-status':
+      case 'creditstatus':
+      case 'hold-reasons':
+      case 'holdreasons':
+      case 'payment-terms':
+      case 'paymentterms':
+      case 'payment-methods':
+      case 'paymentmethods':
+      case 'sales-people':
+      case 'salespeople':
+      case 'salesman':
+      case 'areas':
+      case 'sales-areas':
+      case 'salesareas':
+      case 'sales-gl-postings':
+      case 'salesglpostings':
+      case 'sales-gl-posting':
+      case 'salesglposting':
+      case 'cogs-gl-postings':
+      case 'cogsglpostings':
+      case 'cogs-gl-posting':
+      case 'cogsglposting':
+      case 'discount-matrix':
+      case 'discountmatrix':
+        return <SalesReceivablesSetup initialTab={resolveSalesReceivablesSetupTab(currentPage)} />;
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;

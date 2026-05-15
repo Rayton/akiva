@@ -12,25 +12,35 @@ import {
   Basket,
   Books,
   Buildings,
+  CalendarDots,
   Cards,
+  Cardholder,
   ChartBar,
+  ChartLineUp,
   ChatCircle,
   Checks,
   ClipboardText,
+  CreditCard,
   Factory,
   FileText,
   FolderOpen,
   GearSix,
   HandCoins,
+  IdentificationBadge,
   ListChecks,
   MagnifyingGlass,
   MapPin,
+  MapTrifold,
   MoneyWavy,
   Package,
+  Percent,
   Receipt,
   ShoppingCart,
+  ShieldCheck,
   SquaresFour,
+  Tag,
   UserGear,
+  UsersThree,
   Wrench,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
@@ -122,6 +132,27 @@ const STATIC_SETUP_ROUTES: Array<[string, string]> = [
   ['/configuration/users/menu-rights', 'menu-access'],
   ['/configuration/sales-receivables-setup/salestypes', 'sales-types'],
   ['/configuration/sales-receivables-setup/sales-types', 'sales-types'],
+  ['/configuration/sales-receivables-setup/customertypes', 'customer-types'],
+  ['/configuration/sales-receivables-setup/customer-types', 'customer-types'],
+  ['/configuration/sales-receivables-setup/creditstatus', 'credit-status'],
+  ['/configuration/sales-receivables-setup/credit-status', 'credit-status'],
+  ['/configuration/sales-receivables-setup/holdreasons', 'credit-status'],
+  ['/configuration/sales-receivables-setup/hold-reasons', 'credit-status'],
+  ['/configuration/sales-receivables-setup/paymentterms', 'payment-terms'],
+  ['/configuration/sales-receivables-setup/payment-terms', 'payment-terms'],
+  ['/configuration/sales-receivables-setup/paymentmethods', 'payment-methods'],
+  ['/configuration/sales-receivables-setup/payment-methods', 'payment-methods'],
+  ['/configuration/sales-receivables-setup/salespeople', 'sales-people'],
+  ['/configuration/sales-receivables-setup/sales-people', 'sales-people'],
+  ['/configuration/sales-receivables-setup/salesman', 'sales-people'],
+  ['/configuration/sales-receivables-setup/areas', 'areas'],
+  ['/configuration/sales-receivables-setup/sales-areas', 'areas'],
+  ['/configuration/sales-receivables-setup/salesglpostings', 'sales-gl-postings'],
+  ['/configuration/sales-receivables-setup/sales-gl-postings', 'sales-gl-postings'],
+  ['/configuration/sales-receivables-setup/cogsglpostings', 'cogs-gl-postings'],
+  ['/configuration/sales-receivables-setup/cogs-gl-postings', 'cogs-gl-postings'],
+  ['/configuration/sales-receivables-setup/discountmatrix', 'discount-matrix'],
+  ['/configuration/sales-receivables-setup/discount-matrix', 'discount-matrix'],
   ['/configuration/general-ledger-setup', 'general-ledger-setup'],
   ['/configuration/general-ledger-setup/bank-accounts', 'bank-accounts-setup'],
   ['/configuration/general-ledger-setup/bankaccounts', 'bank-accounts-setup'],
@@ -216,6 +247,16 @@ interface MenuCategoryItemProps {
 function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIcon {
   if (hasChildren) return FolderOpen;
   const lower = caption.toLowerCase();
+  if (lower.includes('sales types')) return Tag;
+  if (lower.includes('customer types')) return UsersThree;
+  if (lower.includes('credit status')) return ShieldCheck;
+  if (lower.includes('payment terms')) return CalendarDots;
+  if (lower.includes('payment methods')) return Cardholder;
+  if (lower.includes('sales people') || lower.includes('salesperson') || lower.includes('salesman')) return IdentificationBadge;
+  if (lower.includes('sales areas')) return MapTrifold;
+  if (lower.includes('sales gl interface') || lower.includes('sales gl posting')) return ChartLineUp;
+  if (lower.includes('cogs gl interface') || lower.includes('cogs gl posting')) return CreditCard;
+  if (lower.includes('discount matrix')) return Percent;
   if (lower.includes('company preference') || lower.includes('company preferences')) return Buildings;
   if (lower.includes('configuration settings') || lower.includes('system parameter') || lower.includes('system parameters')) return GearSix;
   if (lower.includes('menu access') || lower.includes('menu rights')) return ListChecks;

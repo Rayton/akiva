@@ -51,8 +51,8 @@ const SECTION_DESCRIPTIONS: Array<{ match: string[]; description: string; icon: 
     icon: Landmark,
   },
   {
-    match: ['salesreceivablessetup', 'salestypes', 'customertypes', 'paymentterms', 'salespeople'],
-    description: 'Price lists, customer setup, payment terms, sales people, areas, and sales GL interfaces.',
+    match: ['salesreceivablessetup', 'salestypes', 'customertypes', 'creditstatus', 'holdreasons', 'paymentterms', 'paymentmethods', 'salespeople', 'areas', 'salesareas', 'salesglpostings', 'salesglposting', 'cogsglpostings', 'cogsglposting', 'discountmatrix'],
+    description: 'Price lists, customer setup, credit statuses, payment terms, payment methods, sales people, areas, and sales GL interfaces.',
     icon: Tags,
   },
 ];

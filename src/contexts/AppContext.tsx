@@ -47,6 +47,15 @@ function initialPageFromPath(pathname: string): string {
   if (key.includes('configurationuserswwwusers')) return 'users';
   if (key.includes('configurationuserswwwaccess')) return 'www-access';
   if (key.includes('configurationusersmenuaccess') || key.includes('configurationusersmenurights')) return 'menu-access';
+  if (key.includes('configurationsalesreceivablessetupdiscountmatrix')) return 'discount-matrix';
+  if (key.includes('configurationsalesreceivablessetupcogsglpostings') || key.includes('configurationsalesreceivablessetupcogsglposting')) return 'cogs-gl-postings';
+  if (key.includes('configurationsalesreceivablessetupsalesglpostings') || key.includes('configurationsalesreceivablessetupsalesglposting')) return 'sales-gl-postings';
+  if (key.includes('configurationsalesreceivablessetupareas') || key.includes('configurationsalesreceivablessetupsalesareas')) return 'areas';
+  if (key.includes('configurationsalesreceivablessetupsalespeople') || key.includes('configurationsalesreceivablessetupsalesman')) return 'sales-people';
+  if (key.includes('configurationsalesreceivablessetuppaymentmethods')) return 'payment-methods';
+  if (key.includes('configurationsalesreceivablessetuppaymentterms')) return 'payment-terms';
+  if (key.includes('configurationsalesreceivablessetupcreditstatus') || key.includes('configurationsalesreceivablessetupholdreasons')) return 'credit-status';
+  if (key.includes('configurationsalesreceivablessetupcustomertypes')) return 'customer-types';
   if (key.includes('configurationsalesreceivablessetupsalestypes')) return 'sales-types';
 
   if (key.includes('configurationgeneralledgersetup')) {

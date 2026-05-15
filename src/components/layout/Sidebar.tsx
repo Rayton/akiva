@@ -12,15 +12,19 @@ import {
   Basket,
   Books,
   Buildings,
+  CalendarBlank,
+  CalendarCheck,
   CalendarDots,
   Cards,
   Cardholder,
   ChartBar,
   ChartLineUp,
+  ChartPieSlice,
   ChatCircle,
   Checks,
   ClipboardText,
   CreditCard,
+  CurrencyCircleDollar,
   Factory,
   FileText,
   FolderOpen,
@@ -30,15 +34,22 @@ import {
   ListChecks,
   MagnifyingGlass,
   MapPin,
+  MapPinArea,
   MapTrifold,
   MoneyWavy,
   Package,
   Percent,
   Receipt,
+  Scales,
+  SealCheck,
   ShoppingCart,
+  ShippingContainer,
   ShieldCheck,
   SquaresFour,
   Tag,
+  TagSimple,
+  TreeStructure,
+  Truck,
   UserGear,
   UsersThree,
   Wrench,
@@ -247,6 +258,13 @@ interface MenuCategoryItemProps {
 function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIcon {
   if (hasChildren) return FolderOpen;
   const lower = caption.toLowerCase();
+  if (lower.includes('bank accounts')) return Bank;
+  if (lower.includes('currency maintenance') || lower.includes('currencies')) return CurrencyCircleDollar;
+  if (lower.includes('tax authorities') || lower.includes('tax authority')) return Scales;
+  if (lower.includes('tax group')) return ChartPieSlice;
+  if (lower.includes('tax province')) return MapPinArea;
+  if (lower.includes('tax category')) return Receipt;
+  if (lower.includes('periods defined') || lower.includes('periods are automatically maintained')) return CalendarBlank;
   if (lower.includes('sales types')) return Tag;
   if (lower.includes('customer types')) return UsersThree;
   if (lower.includes('credit status')) return ShieldCheck;
@@ -257,6 +275,18 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIc
   if (lower.includes('sales gl interface') || lower.includes('sales gl posting')) return ChartLineUp;
   if (lower.includes('cogs gl interface') || lower.includes('cogs gl posting')) return CreditCard;
   if (lower.includes('discount matrix')) return Percent;
+  if (lower.includes('supplier types')) return UsersThree;
+  if (lower.includes('supplier payment terms')) return CalendarDots;
+  if (lower.includes('purchase order authorisation') || lower.includes('purchase order authorization')) return SealCheck;
+  if (lower.includes('supplier payment methods')) return Cardholder;
+  if (lower.includes('shippers')) return Truck;
+  if (lower.includes('freight costs')) return ShippingContainer;
+  if (lower.includes('inventory categories')) return Package;
+  if (lower.includes('inventory locations')) return MapPinArea;
+  if (lower.includes('discount category')) return TagSimple;
+  if (lower.includes('units of measure')) return Scales;
+  if (lower.includes('mrp available production days')) return CalendarCheck;
+  if (lower.includes('mrp demand types')) return TreeStructure;
   if (lower.includes('company preference') || lower.includes('company preferences')) return Buildings;
   if (lower.includes('configuration settings') || lower.includes('system parameter') || lower.includes('system parameters')) return GearSix;
   if (lower.includes('menu access') || lower.includes('menu rights')) return ListChecks;

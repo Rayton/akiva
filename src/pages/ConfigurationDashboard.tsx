@@ -146,7 +146,7 @@ export function ConfigurationDashboard({ module, onSelectPage }: ConfigurationDa
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 lg:w-[420px]">
+            <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3 lg:max-w-[420px]">
               {stats.map((stat) => {
                 const Icon = stat.icon;
                 return (
@@ -162,15 +162,15 @@ export function ConfigurationDashboard({ module, onSelectPage }: ConfigurationDa
             </div>
           </div>
 
-          <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:py-7">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-7 min-[1800px]:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4">
               {sections.map((section) => {
                 const Icon = section.icon;
                 return (
                   <article key={section.id} className="rounded-lg border border-white/70 bg-white/82 p-4 shadow-sm shadow-slate-200/60 dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-black/20">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-base font-semibold text-akiva-text">{section.title}</p>
+                        <p className="text-base font-semibold leading-snug text-akiva-text">{section.title}</p>
                         <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{section.description}</p>
                       </div>
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-akiva-surface-muted text-akiva-accent">
@@ -186,7 +186,7 @@ export function ConfigurationDashboard({ module, onSelectPage }: ConfigurationDa
                           onClick={() => onSelectPage(menuPageId(item))}
                           className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-left text-sm text-akiva-text transition hover:border-akiva-accent hover:bg-akiva-accent-soft"
                         >
-                          <span className="min-w-0 truncate">{item.caption}</span>
+                          <span className="min-w-0 leading-snug">{item.caption}</span>
                           <ArrowRight className="h-4 w-4 shrink-0 text-akiva-text-muted" />
                         </button>
                       ))}
@@ -222,7 +222,7 @@ export function ConfigurationDashboard({ module, onSelectPage }: ConfigurationDa
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-akiva-accent-soft text-akiva-accent-text">
                         <Icon className="h-4 w-4" />
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-akiva-text">{item.caption}</span>
+                      <span className="min-w-0 flex-1 text-sm font-medium leading-snug text-akiva-text">{item.caption}</span>
                       <ArrowRight className="h-4 w-4 shrink-0 text-akiva-text-muted" />
                     </button>
                   );

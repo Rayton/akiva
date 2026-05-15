@@ -326,7 +326,7 @@ export function SystemParameters() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 self-start lg:self-center">
+              <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
                 <IconButton icon={RefreshCw} label="Reload settings" onClick={loadParameters} disabled={loading || saving} />
                 <IconButton icon={RotateCcw} label="Reset unsaved changes" onClick={() => setValues(savedValues)} disabled={!hasUnsavedChanges || saving} />
                 <IconButton icon={Download} label="Export settings" onClick={() => exportSettings(values)} disabled={loading} />
@@ -337,8 +337,8 @@ export function SystemParameters() {
               </div>
             </div>
 
-            <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
-              <div className="space-y-4 lg:col-span-8">
+            <div className="grid gap-4 px-4 py-4 sm:px-6 min-[1800px]:grid-cols-12 lg:px-8 lg:py-7">
+              <div className="space-y-4 min-[1800px]:col-span-8">
                 <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm sm:p-5">
                   <div className="grid gap-3 xl:grid-cols-[1fr_260px]">
                     <div className="relative">
@@ -409,7 +409,7 @@ export function SystemParameters() {
                   : null}
               </div>
 
-              <aside className="space-y-4 lg:col-span-4">
+              <aside className="space-y-4 min-[1800px]:col-span-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <StatCard label="Settings" value={String(SYSTEM_PARAMETER_DEFINITIONS.length)} detail="Managed defaults" icon={Settings2} />
                   <StatCard label="Visible" value={String(visibleDefinitions.length)} detail="Filtered settings" icon={Gauge} />

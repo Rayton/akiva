@@ -853,7 +853,7 @@ export function SalesReceivablesSetup({ initialTab = 'sales-types' }: SalesRecei
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-10">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
               {[
                 { key: 'sales-types', label: 'Sales Types', value: stats.salesTypes, icon: Tags },
                 { key: 'customer-types', label: 'Customer Types', value: stats.customerTypes, icon: Users },
@@ -871,7 +871,7 @@ export function SalesReceivablesSetup({ initialTab = 'sales-types' }: SalesRecei
                 const content = (
                   <>
                     <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-xs font-medium text-akiva-text-muted">{stat.label}</p>
+                      <p className="text-xs font-medium leading-snug text-akiva-text-muted">{stat.label}</p>
                       <Icon className="h-4 w-4 text-akiva-accent" />
                     </div>
                     <p className="mt-1 text-xl font-bold text-akiva-text">{stat.value}</p>

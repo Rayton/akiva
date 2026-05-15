@@ -276,22 +276,22 @@ export function SmtpServer() {
             </div>
           </div>
 
-          <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
+          <div className="grid gap-4 px-4 py-4 sm:px-6 min-[1800px]:grid-cols-12 lg:px-8 lg:py-7">
             {errorMessage ? (
-              <div className="lg:col-span-12 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900/70 dark:bg-rose-950 dark:text-rose-100">
+              <div className="min-[1800px]:col-span-12 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900/70 dark:bg-rose-950 dark:text-rose-100">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
                 <p>{errorMessage}</p>
               </div>
             ) : null}
 
             {loading && !payload ? (
-              <div className="lg:col-span-12 flex min-h-80 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-raised text-sm text-akiva-text-muted shadow-sm">
+              <div className="min-[1800px]:col-span-12 flex min-h-80 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-raised text-sm text-akiva-text-muted shadow-sm">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 Loading SMTP settings
               </div>
             ) : (
               <>
-                <main className="space-y-4 lg:col-span-8">
+                <main className="space-y-4 min-[1800px]:col-span-8">
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Status" value={statusLabel} detail="System mail transport" icon={settings.enabled ? MailCheck : MailWarning} />
                     <StatCard label="Host" value={settings.host || 'Not set'} detail={`Port ${settings.port || '-'}`} icon={Server} />
@@ -357,7 +357,7 @@ export function SmtpServer() {
                   </section>
                 </main>
 
-                <aside className="space-y-4 lg:col-span-4">
+                <aside className="space-y-4 min-[1800px]:col-span-4">
                   <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div>

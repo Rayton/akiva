@@ -421,7 +421,7 @@ export function CompanyPreferences() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 self-start lg:self-center">
+              <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
                 <IconButton icon={RefreshCw} label="Reload preferences" onClick={loadPreferences} disabled={loading || saving} />
                 <IconButton icon={RotateCcw} label="Reset unsaved changes" onClick={() => setForm(savedForm)} disabled={!hasUnsavedChanges || saving} />
                 <IconButton icon={Download} label="Export preferences" onClick={() => exportPreferences(form)} disabled={loading} />
@@ -432,8 +432,8 @@ export function CompanyPreferences() {
               </div>
             </div>
 
-            <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
-              <div className="space-y-4 lg:col-span-8">
+            <div className="grid gap-4 px-4 py-4 sm:px-6 min-[1800px]:grid-cols-12 lg:px-8 lg:py-7">
+              <div className="space-y-4 min-[1800px]:col-span-8">
                 <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm sm:p-5">
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
@@ -504,7 +504,7 @@ export function CompanyPreferences() {
                 </section>
               </div>
 
-              <aside className="space-y-4 lg:col-span-4">
+              <aside className="space-y-4 min-[1800px]:col-span-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <StatCard label="Company" value={form.companyNumber || 'Not set'} detail={form.coyName || 'Company name required'} icon={Building2} />
                   <StatCard label="Currency" value={form.currencyDefault || 'Not set'} detail={selectedCurrency?.name || 'Home currency'} icon={Landmark} />

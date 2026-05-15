@@ -553,7 +553,7 @@ export function GeneralLedgerSetup({ initialTab = 'bank-accounts' }: GeneralLedg
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
               {TAB_DEFINITIONS.map((tab) => {
                 const count =
                   tab.id === 'bank-accounts'
@@ -581,7 +581,7 @@ export function GeneralLedgerSetup({ initialTab = 'bank-accounts' }: GeneralLedg
                       activeTab === tab.id ? 'border-akiva-accent ring-2 ring-akiva-accent/25' : 'border-akiva-border'
                     }`}
                   >
-                    <p className="truncate text-xs font-medium text-akiva-text-muted">{tab.label}</p>
+                    <p className="text-xs font-medium leading-snug text-akiva-text-muted">{tab.label}</p>
                     <p className="mt-1 text-xl font-bold text-akiva-text">{count}</p>
                   </button>
                 );

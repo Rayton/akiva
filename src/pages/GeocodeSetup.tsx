@@ -380,7 +380,7 @@ export function GeocodeSetup() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 self-start lg:self-center">
+            <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
               <IconButton icon={RefreshCw} label="Reload geocode setup" onClick={loadSetup} disabled={loading || saving} />
               <Button type="button" onClick={resetForm} disabled={saving} className="inline-flex items-center gap-2">
                 <Plus className="h-4 w-4" />
@@ -389,8 +389,8 @@ export function GeocodeSetup() {
             </div>
           </div>
 
-          <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
-            <div className="space-y-4 lg:col-span-8">
+          <div className="grid gap-4 px-4 py-4 sm:px-6 min-[1800px]:grid-cols-12 lg:px-8 lg:py-7">
+            <div className="space-y-4 min-[1800px]:col-span-8">
               {errorMessage ? (
                 <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900/70 dark:bg-rose-950 dark:text-rose-100">
                   <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
@@ -504,7 +504,7 @@ export function GeocodeSetup() {
               </section>
             </div>
 
-            <aside className="space-y-4 lg:col-span-4">
+            <aside className="space-y-4 min-[1800px]:col-span-4">
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>

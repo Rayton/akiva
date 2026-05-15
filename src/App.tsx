@@ -27,6 +27,7 @@ import { FormDesigner } from './pages/FormDesigner';
 import { Labels } from './pages/Labels';
 import { SmtpServer } from './pages/SmtpServer';
 import { Home, ShoppingCart, FileBarChart, Settings, Star, Menu, Clock, X, ChevronRight } from 'lucide-react';
+import { hrefToSlug } from './data/menuApi';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { MenuCategory, MenuItem } from './types/menu';
 
@@ -384,6 +385,21 @@ function findMenuNodeTrailById(nodes: MenuNode[], id: number, trail: MenuNode[] 
     if (match) return match;
   }
   return null;
+}
+
+function fallbackMenuSlug(caption: string): string {
+  return caption.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function menuNodePageId(node: MenuNode): string {
+  const slug = hrefToSlug(node.href ?? '') || fallbackMenuSlug(node.caption);
+  return `menu-${node.id}-${slug}`;
+}
+
+function isHiddenMobileMenuNode(node: MenuNode): boolean {
+  const captionKey = normalizedSlugKey(node.caption);
+  const slugKey = normalizedSlugKey(hrefToSlug(node.href ?? ''));
+  return captionKey.includes('pagesecurity') || slugKey === 'pagesecurity' || captionKey === 'reportbuildertool' || slugKey === 'reportcreator';
 }
 
 function AppContent() {
@@ -830,44 +846,74 @@ function MobileNav() {
 }
 
 function MobileSidebarOverlay() {
-  const { mobileSidebarOpen, setMobileSidebarOpen, currentPage, setCurrentPage } = useApp();
-  
-  const menuSections = [
-    {
-      id: 'transactions',
-      label: 'Transactions',
-      icon: ShoppingCart,
-      items: [
-        { id: 'sales-orders', label: 'Sales Orders' },
-        { id: 'purchase-orders', label: 'Purchase Orders' },
-        { id: 'general-ledger', label: 'General Ledger' },
-        { id: 'inventory', label: 'Inventory' }
-      ]
-    },
-    {
-      id: 'inquiries',
-      label: 'Reports',
-      icon: FileBarChart,
-      items: [
-        { id: 'financial-reports', label: 'Financial Reports' },
-        { id: 'sales-analysis', label: 'Sales Analysis' },
-        { id: 'purchase-analysis', label: 'Purchase Analysis' },
-        { id: 'stock-status', label: 'Stock Status' }
-      ]
-    },
-    {
-      id: 'maintenance',
-      label: 'Setup',
-      icon: Settings,
-      items: [
-        { id: 'accounts', label: 'Chart of Accounts' },
-        { id: 'receivables', label: 'Accounts Receivable' },
-        { id: 'payables', label: 'Accounts Payable' },
-        { id: 'users', label: 'User Management' },
-        { id: 'company-setup', label: 'Company Setup' }
-      ]
+  const { mobileSidebarOpen, setMobileSidebarOpen, currentPage, setCurrentPage, appMenu } = useApp();
+
+  const visibleMenus = appMenu.filter((node) => !isHiddenMobileMenuNode(node));
+
+  const navigateTo = (pageId: string) => {
+    setCurrentPage(pageId);
+    setMobileSidebarOpen(false);
+  };
+
+  const renderMenuNode = (node: MenuNode, depth = 0): JSX.Element | null => {
+    if (isHiddenMobileMenuNode(node)) return null;
+
+    const children = (node.children ?? []).filter((child) => !isHiddenMobileMenuNode(child as MenuNode)) as MenuNode[];
+    const hasChildren = children.length > 0;
+    const pageId = hasChildren ? `main-${node.id}` : menuNodePageId(node);
+    const isActive = currentPage === pageId;
+
+    if (!hasChildren) {
+      return (
+        <button
+          key={node.id}
+          type="button"
+          onClick={() => navigateTo(pageId)}
+          className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+            isActive
+              ? 'bg-white text-rose-700 shadow-sm dark:bg-slate-900 dark:text-rose-300'
+              : 'text-slate-600 hover:bg-white/70 dark:text-slate-400 dark:hover:bg-slate-900'
+          }`}
+          style={{ paddingLeft: `${12 + depth * 12}px` }}
+        >
+          <span className="min-w-0 text-sm font-medium leading-snug">{node.caption}</span>
+          <ChevronRight className="h-4 w-4 shrink-0" />
+        </button>
+      );
     }
-  ];
+
+    return (
+      <details key={node.id} className="group rounded-lg" open={depth === 0 && isConfigurationMenuCaption(node.caption)}>
+        <summary
+          className={`flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors [&::-webkit-details-marker]:hidden ${
+            isActive
+              ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20'
+              : 'text-slate-700 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900'
+          }`}
+          style={{ paddingLeft: `${12 + depth * 12}px` }}
+        >
+          <span className="min-w-0 text-sm font-semibold leading-snug">{node.caption}</span>
+          <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+        </summary>
+        <div className="mt-1 space-y-1">
+          <button
+            type="button"
+            onClick={() => navigateTo(pageId)}
+            className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+              isActive
+                ? 'bg-white text-rose-700 shadow-sm dark:bg-slate-900 dark:text-rose-300'
+                : 'text-slate-500 hover:bg-white/70 dark:text-slate-400 dark:hover:bg-slate-900'
+            }`}
+            style={{ paddingLeft: `${24 + depth * 12}px` }}
+          >
+            <span className="min-w-0 text-sm leading-snug">Open {node.caption}</span>
+            <ChevronRight className="h-4 w-4 shrink-0" />
+          </button>
+          {children.map((child) => renderMenuNode(child, depth + 1))}
+        </div>
+      </details>
+    );
+  };
   
   if (!mobileSidebarOpen) return null;
   
@@ -902,12 +948,8 @@ function MobileSidebarOverlay() {
         
         {/* Navigation Sections */}
         <nav className="p-4 space-y-2">
-          {/* Dashboard */}
           <button
-            onClick={() => {
-              setCurrentPage('dashboard');
-              setMobileSidebarOpen(false);
-            }}
+            onClick={() => navigateTo('dashboard')}
             className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'dashboard'
                 ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20'
@@ -919,43 +961,15 @@ function MobileSidebarOverlay() {
               <span className="font-medium">Dashboard</span>
             </div>
           </button>
-          
-          {/* Menu Sections */}
-          {menuSections.map((section) => {
-            const Icon = section.icon;
-            return (
-              <div key={section.id} className="space-y-1">
-                <div className="flex items-center space-x-3 px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-                  <Icon className="w-4 h-4" />
-                  <span>{section.label}</span>
-                </div>
-                {section.items.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setCurrentPage(item.id);
-                      setMobileSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 ml-4 rounded-lg transition-colors ${
-                      currentPage === item.id
-                        ? 'bg-white text-rose-700 shadow-sm dark:bg-slate-900 dark:text-rose-300'
-                        : 'text-slate-600 hover:bg-white/70 dark:text-slate-400 dark:hover:bg-slate-900'
-                    }`}
-                  >
-                    <span className="text-sm">{item.label}</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-          
-          {/* Starred */}
+
+          <div className="space-y-1">
+            {visibleMenus.length > 0 ? visibleMenus.map((node) => renderMenuNode(node)) : (
+              <p className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">No modules available.</p>
+            )}
+          </div>
+
           <button
-            onClick={() => {
-              setCurrentPage('starred');
-              setMobileSidebarOpen(false);
-            }}
+            onClick={() => navigateTo('starred')}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'starred'
                 ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20'
@@ -965,13 +979,9 @@ function MobileSidebarOverlay() {
             <Star className="w-5 h-5" />
             <span className="font-medium">Starred</span>
           </button>
-          
-          {/* Recent */}
+
           <button
-            onClick={() => {
-              setCurrentPage('recent');
-              setMobileSidebarOpen(false);
-            }}
+            onClick={() => navigateTo('recent')}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'recent'
                 ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20'

@@ -19,6 +19,7 @@ import { GeneralLedgerSetup } from './pages/GeneralLedgerSetup';
 import { SalesReceivablesSetup } from './pages/SalesReceivablesSetup';
 import { PurchasesPayablesSetup } from './pages/PurchasesPayablesSetup';
 import { InventorySetup } from './pages/InventorySetup';
+import { ManufacturingSetup } from './pages/ManufacturingSetup';
 import { ConfigurationDashboard } from './pages/ConfigurationDashboard';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
@@ -250,6 +251,16 @@ function isInventorySetupMenuSlug(slug: string): boolean {
   );
 }
 
+function isManufacturingSetupMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'manufacturingsetup' ||
+    key.includes('mrpcalendar') ||
+    key.includes('mrpavailableproductiondays') ||
+    key.includes('mrpdemandtypes')
+  );
+}
+
 function resolveSalesReceivablesSetupTab(slug: string) {
   const key = normalizedSlugKey(slug);
   if (key.includes('customertypes')) return 'customer-types' as const;
@@ -282,6 +293,12 @@ function resolveInventorySetupTab(slug: string) {
   return 'stock-categories' as const;
 }
 
+function resolveManufacturingSetupTab(slug: string) {
+  const key = normalizedSlugKey(slug);
+  if (key.includes('mrpdemandtypes')) return 'mrp-demand-types' as const;
+  return 'mrp-calendar' as const;
+}
+
 function resolveGeneralLedgerSetupTab(slug: string) {
   const key = normalizedSlugKey(slug);
   if (key.includes('currencies')) return 'currencies' as const;
@@ -310,6 +327,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (pathKey.includes('configurationinventorysetup')) {
     return <InventorySetup initialTab={resolveInventorySetupTab(pathname)} />;
+  }
+
+  if (pathKey.includes('configurationmanufacturingsetup')) {
+    return <ManufacturingSetup initialTab={resolveManufacturingSetupTab(pathname)} />;
   }
 
   if (pathKey.includes('configurationuserswwwusers')) {
@@ -512,6 +533,8 @@ function AppContent() {
     const isPurchasesPayablesSetupPathContext = normalizedSlugKey(locationPathname).includes('configurationpurchasespayablessetup');
     const isInventorySetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'inventorysetup');
     const isInventorySetupPathContext = normalizedSlugKey(locationPathname).includes('configurationinventorysetup');
+    const isManufacturingSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'manufacturingsetup');
+    const isManufacturingSetupPathContext = normalizedSlugKey(locationPathname).includes('configurationmanufacturingsetup');
 
     if (menuSlug) {
       if (isCompanyPreferencesMenuSlug(menuSlug)) {
@@ -577,6 +600,13 @@ function AppContent() {
         isInventorySetupMenuSlug(menuSlug)
       ) {
         return <InventorySetup initialTab={resolveInventorySetupTab(menuSlug)} />;
+      }
+
+      if (
+        (isManufacturingSetupMenuContext || isManufacturingSetupPathContext || normalizedSlugKey(menuSlug) === 'manufacturingsetup') &&
+        isManufacturingSetupMenuSlug(menuSlug)
+      ) {
+        return <ManufacturingSetup initialTab={resolveManufacturingSetupTab(menuSlug)} />;
       }
 
       if ((primaryPathSegment === 'configuration' || isConfigurationMenuContext) && !isPurchasesPayablesSetupMenuContext && isSalesReceivablesSetupMenuSlug(menuSlug)) {
@@ -697,6 +727,15 @@ function AppContent() {
       case 'units-of-measure':
       case 'unitsofmeasure':
         return <InventorySetup initialTab={resolveInventorySetupTab(currentPage)} />;
+      case 'manufacturing-setup':
+      case 'manufacturingsetup':
+      case 'mrp-calendar':
+      case 'mrpcalendar':
+      case 'mrp-available-production-days':
+      case 'mrpavailableproductiondays':
+      case 'mrp-demand-types':
+      case 'mrpdemandtypes':
+        return <ManufacturingSetup initialTab={resolveManufacturingSetupTab(currentPage)} />;
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;

@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\GeneralLedgerSetupController;
 use App\Http\Controllers\Api\SalesReceivablesSetupController;
 use App\Http\Controllers\Api\PurchasesPayablesSetupController;
 use App\Http\Controllers\Api\InventorySetupController;
+use App\Http\Controllers\Api\ManufacturingSetupController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -82,6 +83,10 @@ Route::get('/configuration/inventory/setup', [InventorySetupController::class, '
 Route::post('/configuration/inventory/setup/{entity}', [InventorySetupController::class, 'store']);
 Route::put('/configuration/inventory/setup/{entity}/{id}', [InventorySetupController::class, 'update']);
 Route::delete('/configuration/inventory/setup/{entity}/{id}', [InventorySetupController::class, 'destroy']);
+Route::get('/configuration/manufacturing/setup', [ManufacturingSetupController::class, 'index']);
+Route::post('/configuration/manufacturing/setup/{entity}', [ManufacturingSetupController::class, 'store']);
+Route::put('/configuration/manufacturing/setup/{entity}/{id}', [ManufacturingSetupController::class, 'update']);
+Route::delete('/configuration/manufacturing/setup/{entity}/{id}', [ManufacturingSetupController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

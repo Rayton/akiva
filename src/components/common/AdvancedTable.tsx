@@ -16,6 +16,7 @@ export interface AdvancedTableColumn<T> {
   minWidth?: number;
   filterable?: boolean;
   sortable?: boolean;
+  align?: 'left' | 'center' | 'right';
 }
 
 interface AdvancedTableProps<T> {
@@ -215,6 +216,12 @@ export function AdvancedTable<T>({
   const rangeStart = sortedRows.length === 0 ? 0 : pageIndex * pageSize + 1;
   const rangeEnd = Math.min(sortedRows.length, (pageIndex + 1) * pageSize);
 
+  const alignClass = (align: AdvancedTableColumn<T>['align']) => {
+    if (align === 'right') return 'text-right';
+    if (align === 'center') return 'text-center';
+    return 'text-left';
+  };
+
   useEffect(() => {
     setPageIndex(0);
   }, [filters, sort]);
@@ -337,7 +344,7 @@ export function AdvancedTable<T>({
                     key={column.id}
                     style={{ width }}
                     aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    className="relative px-3 py-2 align-top"
+                    className={`relative px-3 py-2 align-top ${alignClass(column.align)}`}
                   >
                     {sortable ? (
                       <button
@@ -349,7 +356,9 @@ export function AdvancedTable<T>({
                               : { columnId: column.id, direction: 'asc' }
                           )
                         }
-                        className="inline-flex items-center gap-1.5 rounded-md text-left transition hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                        className={`inline-flex items-center gap-1.5 rounded-md transition hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent ${
+                          column.align === 'right' ? 'justify-end text-right' : column.align === 'center' ? 'justify-center text-center' : 'text-left'
+                        }`}
                       >
                         <span>{column.header}</span>
                         <SortIcon className={`h-3.5 w-3.5 ${active ? 'text-akiva-accent' : 'text-akiva-text-muted'}`} />
@@ -372,7 +381,7 @@ export function AdvancedTable<T>({
             </tr>
             <tr className="border-t border-akiva-border bg-akiva-surface-raised">
               {visibleColumns.map((column) => (
-                <th key={`${column.id}-filter`} className="px-3 py-2">
+                <th key={`${column.id}-filter`} className={`px-3 py-2 ${alignClass(column.align)}`}>
                   {column.filterable === false ? null : (
                     <input
                       value={filters[column.id] ?? ''}
@@ -412,7 +421,7 @@ export function AdvancedTable<T>({
                   {visibleColumns.map((column) => {
                     const value = column.accessor(row);
                     return (
-                      <td key={column.id} className="px-3 py-2 text-sm text-akiva-text">
+                      <td key={column.id} className={`px-3 py-2 text-sm text-akiva-text ${alignClass(column.align)}`}>
                         {column.cell ? column.cell(row) : asText(value)}
                       </td>
                     );

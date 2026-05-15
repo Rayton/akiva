@@ -17,6 +17,7 @@ import { AccessPermissions } from './pages/AccessPermissions';
 import { MenuAccess } from './pages/MenuAccess';
 import { GeneralLedgerSetup } from './pages/GeneralLedgerSetup';
 import { SalesReceivablesSetup } from './pages/SalesReceivablesSetup';
+import { PurchasesPayablesSetup } from './pages/PurchasesPayablesSetup';
 import { ConfigurationDashboard } from './pages/ConfigurationDashboard';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
@@ -214,6 +215,27 @@ function isSalesReceivablesSetupMenuSlug(slug: string): boolean {
   );
 }
 
+function isPurchasesPayablesSetupMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'purchasespayablessetup' ||
+    key === 'supplier-types' ||
+    key.includes('suppliertypes') ||
+    key === 'paymentterms' ||
+    key.includes('paymentterms') ||
+    key === 'poauthorisationlevels' ||
+    key.includes('poauthorisationlevels') ||
+    key === 'poauthorizationlevels' ||
+    key.includes('poauthorizationlevels') ||
+    key === 'paymentmethods' ||
+    key.includes('paymentmethods') ||
+    key === 'shippers' ||
+    key.includes('shippers') ||
+    key === 'freightcosts' ||
+    key.includes('freightcosts')
+  );
+}
+
 function resolveSalesReceivablesSetupTab(slug: string) {
   const key = normalizedSlugKey(slug);
   if (key.includes('customertypes')) return 'customer-types' as const;
@@ -226,6 +248,16 @@ function resolveSalesReceivablesSetupTab(slug: string) {
   if (key.includes('cogsglpostings') || key.includes('cogsglposting')) return 'cogs-gl-postings' as const;
   if (key.includes('discountmatrix')) return 'discount-matrix' as const;
   return 'sales-types' as const;
+}
+
+function resolvePurchasesPayablesSetupTab(slug: string) {
+  const key = normalizedSlugKey(slug);
+  if (key.includes('paymentterms')) return 'payment-terms' as const;
+  if (key.includes('poauthorisationlevels') || key.includes('poauthorizationlevels')) return 'po-authorisation-levels' as const;
+  if (key.includes('paymentmethods')) return 'payment-methods' as const;
+  if (key.includes('shippers')) return 'shippers' as const;
+  if (key.includes('freightcosts')) return 'freight-costs' as const;
+  return 'supplier-types' as const;
 }
 
 function resolveGeneralLedgerSetupTab(slug: string) {
@@ -248,6 +280,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (pathKey.includes('configurationsalesreceivablessetup')) {
     return <SalesReceivablesSetup initialTab={resolveSalesReceivablesSetupTab(pathname)} />;
+  }
+
+  if (pathKey.includes('configurationpurchasespayablessetup')) {
+    return <PurchasesPayablesSetup initialTab={resolvePurchasesPayablesSetupTab(pathname)} />;
   }
 
   if (pathKey.includes('configurationuserswwwusers')) {
@@ -446,6 +482,8 @@ function AppContent() {
     const currentMenuCaption = currentMenuNode?.caption ?? '';
     const isConfigurationMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'configuration');
     const isGeneralLedgerSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'generalledgersetup');
+    const isPurchasesPayablesSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'purchasespayablessetup');
+    const isPurchasesPayablesSetupPathContext = normalizedSlugKey(locationPathname).includes('configurationpurchasespayablessetup');
 
     if (menuSlug) {
       if (isCompanyPreferencesMenuSlug(menuSlug)) {
@@ -499,7 +537,14 @@ function AppContent() {
         return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(menuSlug)} />;
       }
 
-      if ((primaryPathSegment === 'configuration' || isConfigurationMenuContext) && isSalesReceivablesSetupMenuSlug(menuSlug)) {
+      if (
+        (isPurchasesPayablesSetupMenuContext || isPurchasesPayablesSetupPathContext || normalizedSlugKey(menuSlug) === 'purchasespayablessetup') &&
+        isPurchasesPayablesSetupMenuSlug(menuSlug)
+      ) {
+        return <PurchasesPayablesSetup initialTab={resolvePurchasesPayablesSetupTab(menuSlug)} />;
+      }
+
+      if ((primaryPathSegment === 'configuration' || isConfigurationMenuContext) && !isPurchasesPayablesSetupMenuContext && isSalesReceivablesSetupMenuSlug(menuSlug)) {
         return <SalesReceivablesSetup initialTab={resolveSalesReceivablesSetupTab(menuSlug)} />;
       }
 
@@ -526,6 +571,9 @@ function AppContent() {
         </div>
       );
     }
+
+    const routeView = knownSettingsViewFromPath(locationPathname);
+    if (routeView) return routeView;
 
     switch (currentPage) {
       case 'accounts':
@@ -591,6 +639,18 @@ function AppContent() {
       case 'discount-matrix':
       case 'discountmatrix':
         return <SalesReceivablesSetup initialTab={resolveSalesReceivablesSetupTab(currentPage)} />;
+      case 'purchases-payables-setup':
+      case 'purchasespayablessetup':
+      case 'supplier-types':
+      case 'suppliertypes':
+      case 'po-authorisation-levels':
+      case 'poauthorisationlevels':
+      case 'po-authorization-levels':
+      case 'poauthorizationlevels':
+      case 'shippers':
+      case 'freight-costs':
+      case 'freightcosts':
+        return <PurchasesPayablesSetup initialTab={resolvePurchasesPayablesSetupTab(currentPage)} />;
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;
@@ -690,9 +750,6 @@ function AppContent() {
       default:
         break;
     }
-
-    const routeView = knownSettingsViewFromPath(locationPathname);
-    if (routeView) return routeView;
 
     return <Dashboard />;
   };

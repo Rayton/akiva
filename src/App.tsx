@@ -18,6 +18,7 @@ import { MenuAccess } from './pages/MenuAccess';
 import { GeneralLedgerSetup } from './pages/GeneralLedgerSetup';
 import { SalesReceivablesSetup } from './pages/SalesReceivablesSetup';
 import { PurchasesPayablesSetup } from './pages/PurchasesPayablesSetup';
+import { InventorySetup } from './pages/InventorySetup';
 import { ConfigurationDashboard } from './pages/ConfigurationDashboard';
 import { CompanyPreferences } from './pages/CompanyPreferences';
 import { SystemParameters } from './pages/SystemParameters';
@@ -236,6 +237,19 @@ function isPurchasesPayablesSetupMenuSlug(slug: string): boolean {
   );
 }
 
+function isInventorySetupMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'inventorysetup' ||
+    key.includes('stockcategories') ||
+    key === 'locations' ||
+    key.includes('inventorylocations') ||
+    key.includes('discountcategories') ||
+    key.includes('unitsofmeasure') ||
+    key.includes('unitsofmeasurement')
+  );
+}
+
 function resolveSalesReceivablesSetupTab(slug: string) {
   const key = normalizedSlugKey(slug);
   if (key.includes('customertypes')) return 'customer-types' as const;
@@ -258,6 +272,14 @@ function resolvePurchasesPayablesSetupTab(slug: string) {
   if (key.includes('shippers')) return 'shippers' as const;
   if (key.includes('freightcosts')) return 'freight-costs' as const;
   return 'supplier-types' as const;
+}
+
+function resolveInventorySetupTab(slug: string) {
+  const key = normalizedSlugKey(slug);
+  if (key.includes('locations')) return 'locations' as const;
+  if (key.includes('discountcategories')) return 'discount-categories' as const;
+  if (key.includes('unitsofmeasure') || key.includes('unitsofmeasurement')) return 'units-of-measure' as const;
+  return 'stock-categories' as const;
 }
 
 function resolveGeneralLedgerSetupTab(slug: string) {
@@ -284,6 +306,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (pathKey.includes('configurationpurchasespayablessetup')) {
     return <PurchasesPayablesSetup initialTab={resolvePurchasesPayablesSetupTab(pathname)} />;
+  }
+
+  if (pathKey.includes('configurationinventorysetup')) {
+    return <InventorySetup initialTab={resolveInventorySetupTab(pathname)} />;
   }
 
   if (pathKey.includes('configurationuserswwwusers')) {
@@ -484,6 +510,8 @@ function AppContent() {
     const isGeneralLedgerSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'generalledgersetup');
     const isPurchasesPayablesSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'purchasespayablessetup');
     const isPurchasesPayablesSetupPathContext = normalizedSlugKey(locationPathname).includes('configurationpurchasespayablessetup');
+    const isInventorySetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'inventorysetup');
+    const isInventorySetupPathContext = normalizedSlugKey(locationPathname).includes('configurationinventorysetup');
 
     if (menuSlug) {
       if (isCompanyPreferencesMenuSlug(menuSlug)) {
@@ -542,6 +570,13 @@ function AppContent() {
         isPurchasesPayablesSetupMenuSlug(menuSlug)
       ) {
         return <PurchasesPayablesSetup initialTab={resolvePurchasesPayablesSetupTab(menuSlug)} />;
+      }
+
+      if (
+        (isInventorySetupMenuContext || isInventorySetupPathContext || normalizedSlugKey(menuSlug) === 'inventorysetup') &&
+        isInventorySetupMenuSlug(menuSlug)
+      ) {
+        return <InventorySetup initialTab={resolveInventorySetupTab(menuSlug)} />;
       }
 
       if ((primaryPathSegment === 'configuration' || isConfigurationMenuContext) && !isPurchasesPayablesSetupMenuContext && isSalesReceivablesSetupMenuSlug(menuSlug)) {
@@ -651,6 +686,17 @@ function AppContent() {
       case 'freight-costs':
       case 'freightcosts':
         return <PurchasesPayablesSetup initialTab={resolvePurchasesPayablesSetupTab(currentPage)} />;
+      case 'inventory-setup':
+      case 'inventorysetup':
+      case 'stock-categories':
+      case 'stockcategories':
+      case 'inventory-locations':
+      case 'inventorylocations':
+      case 'discount-categories':
+      case 'discountcategories':
+      case 'units-of-measure':
+      case 'unitsofmeasure':
+        return <InventorySetup initialTab={resolveInventorySetupTab(currentPage)} />;
       case 'companypreferences':
       case 'company-preferences':
         return <CompanyPreferences />;

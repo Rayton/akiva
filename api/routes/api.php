@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\MenuAccessController;
 use App\Http\Controllers\Api\GeneralLedgerSetupController;
 use App\Http\Controllers\Api\SalesReceivablesSetupController;
 use App\Http\Controllers\Api\PurchasesPayablesSetupController;
+use App\Http\Controllers\Api\InventorySetupController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -77,6 +78,10 @@ Route::get('/configuration/purchases-payables/setup', [PurchasesPayablesSetupCon
 Route::post('/configuration/purchases-payables/setup/{entity}', [PurchasesPayablesSetupController::class, 'store']);
 Route::put('/configuration/purchases-payables/setup/{entity}/{id}', [PurchasesPayablesSetupController::class, 'update']);
 Route::delete('/configuration/purchases-payables/setup/{entity}/{id}', [PurchasesPayablesSetupController::class, 'destroy']);
+Route::get('/configuration/inventory/setup', [InventorySetupController::class, 'index']);
+Route::post('/configuration/inventory/setup/{entity}', [InventorySetupController::class, 'store']);
+Route::put('/configuration/inventory/setup/{entity}/{id}', [InventorySetupController::class, 'update']);
+Route::delete('/configuration/inventory/setup/{entity}/{id}', [InventorySetupController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
     Route::get('/orders', [SalesController::class, 'orders']);

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
   Eye,
   History,
+  Loader2,
   MapPin,
   PackageCheck,
   PackageSearch,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
 import { Button } from '../components/common/Button';
+import { DateRangePicker, getDefaultDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
 import { apiFetch } from '../lib/network/apiClient';
@@ -53,6 +55,10 @@ interface StockStatusRow {
   inTransit: number;
   available: number;
   onOrder: number;
+  movementIn: number;
+  movementOut: number;
+  netMovement: number;
+  lastMovementDate: string;
   status: 'Available' | 'Reorder' | 'Short' | 'Out' | 'Non-stock';
   units: string;
   decimalPlaces: number;
@@ -65,6 +71,9 @@ interface Summary {
   inTransit: number;
   available: number;
   onOrder: number;
+  movementIn: number;
+  movementOut: number;
+  netMovement: number;
   attentionLocations: number;
 }
 
@@ -120,6 +129,7 @@ function initialItemFromUrl(): string {
 }
 
 export function StockStatus() {
+  const requestSequence = useRef(0);
   const [payload, setPayload] = useState<WorkbenchPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -130,6 +140,7 @@ export function StockStatus() {
   const [itemLookupOptions, setItemLookupOptions] = useState<Option[]>([]);
   const [itemFilter, setItemFilter] = useState(initialItemFromUrl);
   const [locationFilter, setLocationFilter] = useState('All');
+  const [dateRange, setDateRange] = useState<DateRangeValue>(getDefaultDateRange());
   const [detailRow, setDetailRow] = useState<StockStatusRow | null>(null);
 
   const selectedItem = payload?.selectedItem ?? null;
@@ -141,6 +152,9 @@ export function StockStatus() {
     inTransit: 0,
     available: 0,
     onOrder: 0,
+    movementIn: 0,
+    movementOut: 0,
+    netMovement: 0,
     attentionLocations: 0,
   };
   const locationOptions = useMemo(() => [{ value: 'All', label: 'All locations' }, ...(payload?.locations ?? [])], [payload?.locations]);
@@ -149,7 +163,9 @@ export function StockStatus() {
     [payload?.items, itemLookupOptions, selectedItem]
   );
 
-  const loadWorkbench = async () => {
+  const loadWorkbench = useCallback(async () => {
+    const requestId = requestSequence.current + 1;
+    requestSequence.current = requestId;
     setLoading(true);
     setError('');
 
@@ -157,6 +173,8 @@ export function StockStatus() {
       const params = new URLSearchParams();
       if (itemFilter !== 'All') params.set('item', itemFilter);
       if (locationFilter !== 'All') params.set('location', locationFilter);
+      params.set('dateFrom', dateRange.from);
+      params.set('dateTo', dateRange.to);
 
       const response = await apiFetch(buildApiUrl(`/api/inventory/stock-status/workbench?${params.toString()}`));
       const json = (await response.json()) as WorkbenchResponse;
@@ -164,16 +182,25 @@ export function StockStatus() {
         throw new Error(json.message || 'Stock status could not be loaded.');
       }
 
+      if (requestId !== requestSequence.current) {
+        return;
+      }
+
       setPayload(json.data);
       if (itemFilter === 'All' && json.data.selectedItem?.stockId) {
         setItemFilter(json.data.selectedItem.stockId);
       }
     } catch (caught) {
+      if (requestId !== requestSequence.current) {
+        return;
+      }
       setError(caught instanceof Error ? caught.message : 'Stock status could not be loaded.');
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [dateRange.from, dateRange.to, itemFilter, locationFilter]);
 
   const loadItemOptions = async (query = '') => {
     try {
@@ -194,7 +221,11 @@ export function StockStatus() {
 
   useEffect(() => {
     void loadWorkbench();
-  }, [itemFilter, locationFilter]);
+  }, [loadWorkbench]);
+
+  useEffect(() => {
+    setTableSearch('');
+  }, [itemFilter, locationFilter, dateRange.from, dateRange.to]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -214,6 +245,7 @@ export function StockStatus() {
 
   const clearFilters = () => {
     setLocationFilter('All');
+    setDateRange(getDefaultDateRange());
     setTableSearch('');
   };
 
@@ -300,6 +332,25 @@ export function StockStatus() {
         cell: (row) => formatNumber(row.onOrder, row.decimalPlaces || 2),
       },
       {
+        id: 'netMovement',
+        header: 'Net movement',
+        accessor: (row) => row.netMovement,
+        align: 'right',
+        width: 150,
+        cell: (row) => (
+          <span className={row.netMovement < 0 ? 'font-semibold text-rose-700 dark:text-rose-300' : row.netMovement > 0 ? 'font-semibold text-emerald-700 dark:text-emerald-300' : ''}>
+            {row.netMovement > 0 ? '+' : ''}{formatNumber(row.netMovement, row.decimalPlaces || 2)}
+          </span>
+        ),
+      },
+      {
+        id: 'lastMovementDate',
+        header: 'Last movement',
+        accessor: (row) => row.lastMovementDate || '',
+        width: 150,
+        cell: (row) => row.lastMovementDate || '-',
+      },
+      {
         id: 'status',
         header: 'Status',
         accessor: (row) => row.status,
@@ -364,14 +415,24 @@ export function StockStatus() {
           <div className="space-y-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-7">
             {filterOpen ? (
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
                   <div className="md:col-span-2">
                     <span className={labelClass}>Item</span>
-                    <SearchableSelect value={itemFilter} onChange={setItemFilter} onSearchChange={setItemSearch} options={itemOptions} inputClassName={inputClass} placeholder="Search item code or name" />
+                    <div className="relative">
+                      <SearchableSelect value={itemFilter} onChange={setItemFilter} onSearchChange={setItemSearch} options={itemOptions} inputClassName={`${inputClass} ${loading ? 'pr-10' : ''}`} placeholder="Search item code or name" disabled={loading} />
+                      {loading ? <Loader2 className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-akiva-accent-text" /> : null}
+                    </div>
                   </div>
                   <div>
                     <span className={labelClass}>Location</span>
-                    <SearchableSelect value={locationFilter} onChange={setLocationFilter} options={locationOptions} inputClassName={inputClass} placeholder="Location" />
+                    <div className="relative">
+                      <SearchableSelect value={locationFilter} onChange={setLocationFilter} options={locationOptions} inputClassName={`${inputClass} ${loading ? 'pr-10' : ''}`} placeholder="Location" disabled={loading} />
+                      {loading ? <Loader2 className="pointer-events-none absolute right-10 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-akiva-accent-text" /> : null}
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <span className={labelClass}>Movement dates</span>
+                    <DateRangePicker value={dateRange} onChange={setDateRange} label="Start and end date" triggerClassName="h-11 rounded-lg px-3" />
                   </div>
                   <div className="flex items-end">
                     <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={clearFilters}>
@@ -402,18 +463,19 @@ export function StockStatus() {
               </section>
             ) : null}
 
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Available" value={formatNumber(summary.available, selectedItem?.decimalPlaces || 2)} note="After demand and outgoing transfers" icon={PackageCheck} onClick={() => setTableSearch('Available')} />
-              <MetricCard label="On hand" value={formatNumber(summary.onHand, selectedItem?.decimalPlaces || 2)} note={`${formatNumber(summary.locations, 0)} locations with this item`} icon={MapPin} onClick={() => setTableSearch('')} />
-              <MetricCard label="Committed" value={formatNumber(summary.demand, selectedItem?.decimalPlaces || 2)} note="Open sales and production demand" icon={History} onClick={() => setTableSearch('')} />
-              <MetricCard label="Needs attention" value={formatNumber(summary.attentionLocations, 0)} note="Short, out, or at reorder level" icon={AlertTriangle} onClick={() => setTableSearch('Reorder')} />
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <MetricCard label="Available" value={formatNumber(summary.available, selectedItem?.decimalPlaces || 2)} note="After demand and outgoing transfers" icon={PackageCheck} loading={loading} onClick={() => setTableSearch('Available')} />
+              <MetricCard label="On hand" value={formatNumber(summary.onHand, selectedItem?.decimalPlaces || 2)} note={`${formatNumber(summary.locations, 0)} locations with this item`} icon={MapPin} loading={loading} onClick={() => setTableSearch('')} />
+              <MetricCard label="Committed" value={formatNumber(summary.demand, selectedItem?.decimalPlaces || 2)} note="Open sales and production demand" icon={History} loading={loading} onClick={() => setTableSearch('')} />
+              <MetricCard label="Period movement" value={formatNumber(summary.netMovement, selectedItem?.decimalPlaces || 2)} note="Net movement for selected dates" icon={History} loading={loading} onClick={() => setTableSearch('')} />
+              <MetricCard label="Needs attention" value={formatNumber(summary.attentionLocations, 0)} note="Short, out, or at reorder level" icon={AlertTriangle} loading={loading} onClick={() => setTableSearch('Reorder')} />
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
               <div className="flex flex-col gap-3 border-b border-akiva-border px-4 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-akiva-text">Availability by location</h2>
-                  <p className="mt-1 text-sm text-akiva-text-muted">Available = on hand minus demand, adjusted down for outgoing stock transfers.</p>
+                  <p className="mt-1 text-sm text-akiva-text-muted">Available = on hand minus demand, adjusted down for outgoing stock transfers. Movement columns use the selected date range.</p>
                 </div>
                 <div className="relative w-full md:max-w-sm">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
@@ -464,6 +526,10 @@ export function StockStatus() {
                 <InfoTile label="Available" value={formatNumber(detailRow.available, detailRow.decimalPlaces || 2)} />
                 <InfoTile label="On order" value={formatNumber(detailRow.onOrder, detailRow.decimalPlaces || 2)} />
                 <InfoTile label="Reorder level" value={formatNumber(detailRow.reorderLevel, detailRow.decimalPlaces || 2)} />
+                <InfoTile label="Moved in" value={formatNumber(detailRow.movementIn, detailRow.decimalPlaces || 2)} />
+                <InfoTile label="Moved out" value={formatNumber(detailRow.movementOut, detailRow.decimalPlaces || 2)} />
+                <InfoTile label="Net movement" value={formatNumber(detailRow.netMovement, detailRow.decimalPlaces || 2)} />
+                <InfoTile label="Last movement" value={detailRow.lastMovementDate || '-'} />
               </div>
             </section>
           </div>
@@ -476,13 +542,19 @@ export function StockStatus() {
   );
 }
 
-function MetricCard({ label, value, note, icon: Icon, onClick }: { label: string; value: string; note: string; icon: LucideIcon; onClick?: () => void }) {
+function MetricCard({ label, value, note, icon: Icon, loading = false, onClick }: { label: string; value: string; note: string; icon: LucideIcon; loading?: boolean; onClick?: () => void }) {
   return (
     <button type="button" onClick={onClick} className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted/70">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{label}</p>
-          <p className="mt-3 truncate text-2xl font-semibold text-akiva-text">{value}</p>
+          <div className="mt-3 flex min-h-[2rem] items-center">
+            {loading ? (
+              <Loader2 className="mx-auto h-6 w-6 animate-spin text-akiva-accent-text" />
+            ) : (
+              <p className="truncate text-2xl font-semibold text-akiva-text">{value}</p>
+            )}
+          </div>
           <p className="mt-3 text-sm leading-5 text-akiva-text-muted">{note}</p>
         </div>
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-akiva-accent-soft text-akiva-accent-text">

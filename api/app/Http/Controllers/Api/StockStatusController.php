@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -27,13 +28,14 @@ class StockStatusController extends Controller
         try {
             $stockId = strtoupper(trim((string) $request->query('item', '')));
             $location = strtoupper(trim((string) $request->query('location', '')));
+            $dateRange = $this->dateRange($request);
 
             if ($stockId === '' || strtolower($stockId) === 'all') {
                 $stockId = $this->defaultStockId();
             }
 
             $item = $stockId !== '' ? $this->item($stockId) : null;
-            $statusRows = $item ? $this->statusRows($stockId, $location, $item) : collect();
+            $statusRows = $item ? $this->statusRows($stockId, $location, $item, $dateRange) : collect();
 
             return response()->json([
                 'success' => true,
@@ -43,6 +45,10 @@ class StockStatusController extends Controller
                     'selectedItem' => $item,
                     'statusRows' => $statusRows->values(),
                     'summary' => $this->summary($statusRows),
+                    'filters' => [
+                        'dateFrom' => $dateRange['from'],
+                        'dateTo' => $dateRange['to'],
+                    ],
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -140,7 +146,32 @@ class StockStatusController extends Controller
         ];
     }
 
-    private function statusRows(string $stockId, string $location, array $item)
+    private function dateRange(Request $request): array
+    {
+        $from = $this->validDate((string) $request->query('dateFrom', ''), Carbon::today()->subMonths(2)->startOfMonth()->toDateString());
+        $to = $this->validDate((string) $request->query('dateTo', ''), Carbon::today()->toDateString());
+
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return ['from' => $from, 'to' => $to];
+    }
+
+    private function validDate(string $value, string $fallback): string
+    {
+        if ($value === '') {
+            return $fallback;
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return $fallback;
+        }
+    }
+
+    private function statusRows(string $stockId, string $location, array $item, array $dateRange)
     {
         $query = DB::table('locstock as ls')
             ->join('locations as loc', 'loc.loccode', '=', 'ls.loccode')
@@ -161,7 +192,7 @@ class StockStatusController extends Controller
         $rows = $query
             ->orderBy('loc.locationname')
             ->get()
-            ->map(function ($row) use ($stockId, $item) {
+            ->map(function ($row) use ($stockId, $item, $dateRange) {
                 $locCode = (string) $row->loccode;
                 $decimalPlaces = (int) $item['decimalPlaces'];
                 $onHand = (float) $row->quantity;
@@ -169,6 +200,7 @@ class StockStatusController extends Controller
                 $demand = $this->demand($stockId, $locCode);
                 $inTransit = $this->inTransit($stockId, $locCode);
                 $onOrder = $this->onOrder($stockId, $locCode);
+                $activity = $this->movementActivity($stockId, $locCode, $dateRange);
                 $available = (bool) $item['stockHeld']
                     ? $onHand - $demand + min(0, $inTransit)
                     : 0.0;
@@ -184,6 +216,10 @@ class StockStatusController extends Controller
                     'inTransit' => round($inTransit, $decimalPlaces),
                     'available' => round($available, $decimalPlaces),
                     'onOrder' => round($onOrder, $decimalPlaces),
+                    'movementIn' => round($activity['in'], $decimalPlaces),
+                    'movementOut' => round($activity['out'], $decimalPlaces),
+                    'netMovement' => round($activity['net'], $decimalPlaces),
+                    'lastMovementDate' => $activity['lastDate'],
                     'status' => $this->rowStatus($onHand, $available, $reorderLevel, (bool) $item['stockHeld']),
                     'units' => (string) $item['units'],
                     'decimalPlaces' => $decimalPlaces,
@@ -200,7 +236,8 @@ class StockStatusController extends Controller
                 (float) $row['reorderLevel'] !== 0.0 ||
                 (float) $row['demand'] !== 0.0 ||
                 (float) $row['inTransit'] !== 0.0 ||
-                (float) $row['onOrder'] !== 0.0
+                (float) $row['onOrder'] !== 0.0 ||
+                (float) $row['netMovement'] !== 0.0
             )
             ->values();
 
@@ -302,6 +339,41 @@ class StockStatusController extends Controller
         return max(0, $quantity);
     }
 
+    private function movementActivity(string $stockId, string $location, array $dateRange): array
+    {
+        if (!Schema::hasTable('stockmoves')) {
+            return ['in' => 0.0, 'out' => 0.0, 'net' => 0.0, 'lastDate' => ''];
+        }
+
+        $row = DB::table('stockmoves')
+            ->where('stockid', $stockId)
+            ->where('loccode', $location)
+            ->where('hidemovt', 0)
+            ->whereDate('trandate', '>=', $dateRange['from'])
+            ->whereDate('trandate', '<=', $dateRange['to'])
+            ->selectRaw('COALESCE(SUM(CASE WHEN qty > 0 THEN qty ELSE 0 END), 0) as movement_in')
+            ->selectRaw('COALESCE(SUM(CASE WHEN qty < 0 THEN ABS(qty) ELSE 0 END), 0) as movement_out')
+            ->selectRaw('COALESCE(SUM(qty), 0) as net_movement')
+            ->selectRaw('MAX(trandate) as last_movement_date')
+            ->first();
+
+        return [
+            'in' => (float) ($row->movement_in ?? 0),
+            'out' => (float) ($row->movement_out ?? 0),
+            'net' => (float) ($row->net_movement ?? 0),
+            'lastDate' => $row?->last_movement_date ? $this->dateOnly((string) $row->last_movement_date) : '',
+        ];
+    }
+
+    private function dateOnly(string $value): string
+    {
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable) {
+            return $value;
+        }
+    }
+
     private function rowStatus(float $onHand, float $available, float $reorderLevel, bool $stockHeld): string
     {
         if (!$stockHeld) return 'Non-stock';
@@ -322,6 +394,9 @@ class StockStatusController extends Controller
             $summary['inTransit'] += (float) $row['inTransit'];
             $summary['available'] += (float) $row['available'];
             $summary['onOrder'] += (float) $row['onOrder'];
+            $summary['movementIn'] += (float) $row['movementIn'];
+            $summary['movementOut'] += (float) $row['movementOut'];
+            $summary['netMovement'] += (float) $row['netMovement'];
             if (in_array($row['status'], ['Short', 'Out', 'Reorder'], true)) {
                 $summary['attentionLocations'] += 1;
             }
@@ -339,6 +414,9 @@ class StockStatusController extends Controller
             'inTransit' => 0.0,
             'available' => 0.0,
             'onOrder' => 0.0,
+            'movementIn' => 0.0,
+            'movementOut' => 0.0,
+            'netMovement' => 0.0,
             'attentionLocations' => 0,
         ];
     }

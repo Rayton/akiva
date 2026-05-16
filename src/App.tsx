@@ -289,9 +289,12 @@ function isInventoryTransferMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
     key === 'stockloctransfer' ||
+    key === 'stocktransfers' ||
     key.includes('stockloctransfer') ||
+    key.includes('stocktransfers') ||
     key.includes('bulkinventorytransfer') ||
     key.includes('inventorylocationtransfer') ||
+    key.includes('stocklocationtransfer') ||
     key.includes('locationtransfers')
   );
 }

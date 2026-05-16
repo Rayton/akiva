@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import {
   ArrowsLeftRight,
+  ArrowUpRight,
   Bank,
   Basket,
   Books,
@@ -291,8 +292,9 @@ interface MenuCategoryItemProps {
 
 /** Pick a distinct icon for secondary sidebar items by caption (report, inquiry, maintenance, etc.). */
 function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIcon {
-  if (hasChildren) return FolderOpen;
   const lower = caption.toLowerCase();
+  if (lower.includes('stock operations')) return Package;
+  if (hasChildren) return FolderOpen;
   if (lower.includes('bank accounts')) return Bank;
   if (lower.includes('currency maintenance') || lower.includes('currencies')) return CurrencyCircleDollar;
   if (lower.includes('tax authorities') || lower.includes('tax authority')) return Scales;
@@ -318,6 +320,15 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIc
   if (lower.includes('freight costs')) return ShippingContainer;
   if (lower.includes('inventory categories')) return Package;
   if (lower.includes('inventory locations')) return MapPinArea;
+  if (lower.includes('purchase order receiving')) return Receipt;
+  if (lower.includes('dispatch stock transfer')) return Truck;
+  if (lower.includes('receive stock transfer')) return ShippingContainer;
+  if (lower.includes('stock location transfer')) return ArrowsLeftRight;
+  if (lower.includes('stock adjustment')) return Wrench;
+  if (lower.includes('reverse goods receipt')) return Receipt;
+  if (lower.includes('stock counts')) return Checks;
+  if (lower.includes('stock issue')) return ArrowUpRight;
+  if (lower.includes('stock operations')) return Package;
   if (lower.includes('discount category')) return TagSimple;
   if (lower.includes('units of measure')) return Scales;
   if (lower.includes('mrp available production days')) return CalendarCheck;

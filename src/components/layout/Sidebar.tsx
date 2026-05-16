@@ -328,6 +328,7 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIc
   if (lower.includes('reverse goods receipt')) return Receipt;
   if (lower.includes('stock counts')) return Checks;
   if (lower.includes('stock issue')) return ArrowUpRight;
+  if (lower.includes('inventory item usage') || lower.includes('stock usage') || lower.includes('inventory usage')) return ChartLineUp;
   if (lower.includes('stock operations')) return Package;
   if (lower.includes('discount category')) return TagSimple;
   if (lower.includes('units of measure')) return Scales;

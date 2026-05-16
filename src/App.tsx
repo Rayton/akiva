@@ -20,6 +20,7 @@ import { StockSerialItemResearch } from './pages/StockSerialItemResearch';
 import { PrintPriceLabels } from './pages/PrintPriceLabels';
 import { StockMovements } from './pages/StockMovements';
 import { StockStatus } from './pages/StockStatus';
+import { StockUsage } from './pages/StockUsage';
 import { ReverseGoodsReceived } from './pages/ReverseGoodsReceived';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
@@ -366,6 +367,17 @@ function isStockStatusMenuSlug(slug: string): boolean {
     key === 'stockstatus' ||
     key === 'stock-status' ||
     key.includes('stockstatus')
+  );
+}
+
+function isStockUsageMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockusage' ||
+    key === 'stock-usage' ||
+    key === 'inventoryitemusage' ||
+    key.includes('stockusage') ||
+    key.includes('inventoryitemusage')
   );
 }
 
@@ -786,6 +798,10 @@ function AppContent() {
         return <StockStatus />;
       }
 
+      if (isStockUsageMenuSlug(menuSlug)) {
+        return <StockUsage />;
+      }
+
       if (isReverseGrnMenuSlug(menuSlug)) {
         return <ReverseGoodsReceived />;
       }
@@ -831,6 +847,10 @@ function AppContent() {
 
     if (isStockStatusMenuSlug(locationPathname)) {
       return <StockStatus />;
+    }
+
+    if (isStockUsageMenuSlug(locationPathname)) {
+      return <StockUsage />;
     }
 
     switch (currentPage) {
@@ -1052,6 +1072,11 @@ function AppContent() {
       // Inventory Reports
       case 'stock-status':
         return <StockStatus />;
+      case 'stock-usage':
+      case 'stockusage':
+      case 'inventory-item-usage':
+      case 'inventoryitemusage':
+        return <StockUsage />;
       case 'stock-valuation':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Valuation Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Calculate inventory valuation</p></div>;
       case 'reorder-level':

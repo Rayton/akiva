@@ -136,6 +136,24 @@ function mergeOptions(...optionGroups: Option[][]): Option[] {
   return Array.from(options.values());
 }
 
+function initialItemFromUrl(): string {
+  const params = new URLSearchParams(window.location.search);
+  return (params.get('item') || params.get('StockID') || params.get('stockid') || 'All').toUpperCase();
+}
+
+function initialLocationFromUrl(): string {
+  const params = new URLSearchParams(window.location.search);
+  return (params.get('location') || params.get('StockLocation') || params.get('stockLocation') || 'All').toUpperCase();
+}
+
+function initialDateRangeFromUrl(): DateRangeValue | null {
+  const params = new URLSearchParams(window.location.search);
+  const from = params.get('from') || params.get('dateFrom');
+  const to = params.get('to') || params.get('dateTo');
+  if (!from || !to) return getDefaultDateRange();
+  return { preset: 'custom', from, to };
+}
+
 export function StockMovements() {
   const [payload, setPayload] = useState<WorkbenchPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,11 +164,11 @@ export function StockMovements() {
   const [tableSearch, setTableSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [itemLookupOptions, setItemLookupOptions] = useState<Option[]>([]);
-  const [locationFilter, setLocationFilter] = useState('All');
-  const [itemFilter, setItemFilter] = useState('All');
+  const [locationFilter, setLocationFilter] = useState(initialLocationFromUrl);
+  const [itemFilter, setItemFilter] = useState(initialItemFromUrl);
   const [typeFilter, setTypeFilter] = useState('All');
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('All');
-  const [dateRange, setDateRange] = useState<DateRangeValue | null>(getDefaultDateRange());
+  const [dateRange, setDateRange] = useState<DateRangeValue | null>(initialDateRangeFromUrl);
   const [detailRow, setDetailRow] = useState<StockMovementRow | null>(null);
 
   const movements = payload?.movements ?? [];

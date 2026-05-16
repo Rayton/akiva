@@ -4,8 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -110,22 +108,7 @@ class StockMovementController extends Controller
                 ], 422);
             }
 
-            $options = new Options();
-            $options->set('defaultFont', 'DejaVu Sans');
-            $options->set('isRemoteEnabled', false);
-            $options->set('isHtml5ParserEnabled', true);
-
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($this->exportPdfHtml($movements, $context), 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-
-            $canvas = $dompdf->getCanvas();
-            $fontMetrics = $dompdf->getFontMetrics();
-            $font = $fontMetrics->getFont('DejaVu Sans', 'normal');
-            $canvas->page_text(745, 558, 'Page {PAGE_NUM} of {PAGE_COUNT}', $font, 8, [0.48, 0.38, 0.44]);
-
-            return response($dompdf->output(), 200, [
+            return response($this->nativePdf($movements, $context), 200, [
                 'Content-Type' => 'application/pdf',
                 'Content-Disposition' => 'inline; filename="' . $this->exportFilename($context, 'pdf') . '"',
                 'Cache-Control' => 'private, max-age=0, must-revalidate',
@@ -432,6 +415,110 @@ class StockMovementController extends Controller
   <div class="footer">Stock movements exported from Akiva</div>
 </body>
 </html>';
+    }
+
+    private function nativePdf($movements, array $context): string
+    {
+        $width = 841.89;
+        $height = 595.28;
+        $margin = 24.0;
+        $rowHeight = 15.0;
+        $rowsPerPage = 25;
+        $chunks = $movements->chunk($rowsPerPage)->values();
+        $pageCount = max(1, $chunks->count());
+        $pages = [];
+        $summary = $context['summary'];
+        $dateRange = $context['from'] || $context['to']
+            ? ($context['from'] ? $this->displayDate((string) $context['from']) : 'Start') . ' to ' . ($context['to'] ? $this->displayDate((string) $context['to']) : 'Today')
+            : 'All dates';
+
+        foreach ($chunks as $pageIndex => $chunk) {
+            $pageNumber = $pageIndex + 1;
+            $content = '';
+            $content .= $this->pdfRect($margin, 510, $width - ($margin * 2), 58, '0.999 0.973 0.984', '0.918 0.859 0.890');
+            $content .= $this->pdfText($context['company']['name'], 34, 548, 18, true, '0.129 0.063 0.098');
+            $addressY = 532;
+            foreach (array_slice($context['company']['address'], 0, 3) as $line) {
+                $content .= $this->pdfText($line, 34, $addressY, 9, false, '0.373 0.282 0.341');
+                $addressY -= 11;
+            }
+            $content .= $this->pdfText('Stock Movements', 610, 548, 20, true, '0.149 0.212 0.290');
+            $content .= $this->pdfText('Printed ' . Carbon::now()->format('d M Y, H:i'), 610, 532, 9, false, '0.373 0.282 0.341');
+            $content .= $this->pdfText('Page ' . $pageNumber . ' of ' . $pageCount, 610, 520, 9, false, '0.373 0.282 0.341');
+
+            $meta = [
+                ['Item', $context['item']],
+                ['Location', $context['location']],
+                ['Date range', $dateRange],
+                ['Direction', $context['direction']],
+                ['Lines', (string) $summary['movementLines']],
+                ['Cost value', $this->formatMoney((float) $summary['movementValue'], (string) $context['currency'])],
+            ];
+            $metaX = $margin;
+            $metaY = 468;
+            $metaWidth = ($width - ($margin * 2)) / count($meta);
+            foreach ($meta as [$label, $value]) {
+                $content .= $this->pdfRect($metaX, $metaY, $metaWidth, 34, '1 1 1', '0.918 0.859 0.890');
+                $content .= $this->pdfText($label, $metaX + 6, $metaY + 20, 8, true, '0.373 0.282 0.341');
+                $content .= $this->pdfText($this->fitText((string) $value, 23), $metaX + 6, $metaY + 8, 9.5, true, '0.129 0.063 0.098');
+                $metaX += $metaWidth;
+            }
+
+            $columns = [
+                ['Type', 88],
+                ['Number', 42],
+                ['Date', 58],
+                ['User ID', 52],
+                ['Customer', 54],
+                ['Branch', 48],
+                ['Quantity', 62],
+                ['Reference', 170],
+                ['Price', 56],
+                ['Discount', 48],
+                ['New Qty', 56],
+                ['Serial No.', 59],
+            ];
+            $x = $margin;
+            $y = 434;
+            foreach ($columns as [$heading, $columnWidth]) {
+                $content .= $this->pdfRect($x, $y, $columnWidth, 20, '0.973 0.929 0.953', '0.918 0.859 0.890');
+                $content .= $this->pdfText($heading, $x + 4, $y + 7, 8.2, true, '0.294 0.204 0.259');
+                $x += $columnWidth;
+            }
+
+            $y = 416;
+            foreach ($chunk as $index => $movement) {
+                $fill = $index % 2 === 0 ? '1 1 1' : '0.999 0.973 0.984';
+                $x = $margin;
+                $cells = [
+                    [$movement['typeName'], 88, 'left', 15],
+                    [(string) $movement['transactionNumber'], 42, 'left', 7],
+                    [$this->displayDate((string) $movement['date']), 58, 'left', 10],
+                    [$movement['postedBy'], 52, 'left', 9],
+                    [$movement['customer'], 54, 'left', 9],
+                    [$movement['branch'], 48, 'left', 8],
+                    [$this->formatQuantity((float) $movement['quantity'], (int) $movement['decimalPlaces']), 62, 'right', 10],
+                    [$movement['reference'] ?: $movement['narrative'], 170, 'left', 33],
+                    [number_format((float) $movement['price'], 2), 56, 'right', 10],
+                    [number_format((float) $movement['discountPercent'], 2) . '%', 48, 'right', 8],
+                    [$this->formatQuantity((float) $movement['newOnHand'], (int) $movement['decimalPlaces']), 56, 'right', 9],
+                    [$this->serialText($movement), 59, 'left', 10],
+                ];
+
+                foreach ($cells as [$value, $columnWidth, $align, $chars]) {
+                    $content .= $this->pdfRect($x, $y, $columnWidth, $rowHeight, $fill, '0.918 0.859 0.890');
+                    $text = $this->fitText((string) $value, $chars);
+                    $textX = $align === 'right' ? $x + $columnWidth - 5 - $this->pdfTextWidth($text, 8.6) : $x + 4;
+                    $content .= $this->pdfText($text, max($x + 4, $textX), $y + 4.5, 8.6, true, '0.129 0.063 0.098');
+                    $x += $columnWidth;
+                }
+                $y -= $rowHeight;
+            }
+
+            $pages[] = $content;
+        }
+
+        return $this->buildPdf($pages, $width, $height);
     }
 
     private function exportXlsx($movements, array $context): string
@@ -982,6 +1069,81 @@ class StockMovementController extends Controller
             (($time['hours'] & 0x1f) << 11) | (($time['minutes'] & 0x3f) << 5) | ((int) floor($time['seconds'] / 2) & 0x1f),
             (($time['year'] - 1980) << 9) | (($time['mon'] & 0x0f) << 5) | ($time['mday'] & 0x1f),
         ];
+    }
+
+    private function buildPdf(array $pages, float $width, float $height): string
+    {
+        $objects = [
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            '',
+            '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+            '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
+        ];
+        $pageObjectIds = [];
+
+        foreach ($pages as $content) {
+            $contentObjectId = count($objects) + 2;
+            $pageObjectIds[] = count($objects) + 1;
+            $objects[] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' . $width . ' ' . $height . '] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' . $contentObjectId . ' 0 R >>';
+            $objects[] = '<< /Length ' . strlen($content) . " >>\nstream\n" . $content . "\nendstream";
+        }
+
+        $objects[1] = '<< /Type /Pages /Kids [' . implode(' ', array_map(fn ($id) => $id . ' 0 R', $pageObjectIds)) . '] /Count ' . count($pageObjectIds) . ' >>';
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = [0];
+        foreach ($objects as $index => $object) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($index + 1) . " 0 obj\n" . $object . "\nendobj\n";
+        }
+
+        $xref = strlen($pdf);
+        $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
+        $pdf .= "0000000000 65535 f \n";
+        for ($i = 1; $i <= count($objects); $i++) {
+            $pdf .= sprintf('%010d 00000 n ', $offsets[$i]) . "\n";
+        }
+        $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\nstartxref\n" . $xref . "\n%%EOF";
+
+        return $pdf;
+    }
+
+    private function pdfRect(float $x, float $y, float $width, float $height, string $fillColor, string $strokeColor): string
+    {
+        return "q {$fillColor} rg {$strokeColor} RG {$x} {$y} {$width} {$height} re B Q\n";
+    }
+
+    private function pdfText(string $text, float $x, float $y, float $size, bool $bold = false, string $color = '0 0 0'): string
+    {
+        $font = $bold ? 'F2' : 'F1';
+        return "BT {$color} rg /{$font} {$size} Tf {$x} {$y} Td (" . $this->pdfEscape($text) . ") Tj ET\n";
+    }
+
+    private function pdfEscape(string $text): string
+    {
+        $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
+        $converted = iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $text);
+        $text = $converted === false ? $text : $converted;
+
+        return str_replace(['\\', '(', ')', "\r", "\n"], ['\\\\', '\\(', '\\)', ' ', ' '], (string) $text);
+    }
+
+    private function pdfTextWidth(string $text, float $size): float
+    {
+        $converted = iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $text);
+        $text = $converted === false ? $text : $converted;
+
+        return strlen((string) $text) * $size * 0.48;
+    }
+
+    private function fitText(string $text, int $chars): string
+    {
+        $text = trim(preg_replace('/\s+/', ' ', html_entity_decode($text, ENT_QUOTES, 'UTF-8')) ?? '');
+        if (mb_strlen($text) <= $chars) {
+            return $text;
+        }
+
+        return rtrim(mb_substr($text, 0, max(1, $chars - 3))) . '...';
     }
 
     private function html($value): string

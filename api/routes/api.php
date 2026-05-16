@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\PrintPriceLabelController;
 use App\Http\Controllers\Api\StockMovementController;
 use App\Http\Controllers\Api\StockStatusController;
 use App\Http\Controllers\Api\StockUsageController;
+use App\Http\Controllers\Api\InventoryQuantityController;
 use App\Http\Controllers\Api\ReverseGrnController;
 
 Route::get('/menu', [MenuController::class, 'index']);
@@ -160,6 +161,9 @@ Route::prefix('inventory')->group(function () {
     Route::get('/all-inventory-usage/workbench', [AllInventoryUsageController::class, 'workbench']);
     Route::get('/all-inventory-usage/export/pdf', [AllInventoryUsageController::class, 'exportPdf']);
     Route::get('/all-inventory-usage/export/excel', [AllInventoryUsageController::class, 'exportExcel']);
+    Route::get('/inventory-quantities/workbench', [InventoryQuantityController::class, 'workbench']);
+    Route::get('/inventory-quantities/export/pdf', [InventoryQuantityController::class, 'exportPdf']);
+    Route::get('/inventory-quantities/export/excel', [InventoryQuantityController::class, 'exportExcel']);
     Route::get('/reverse-grn/workbench', [ReverseGrnController::class, 'workbench']);
     Route::post('/reverse-grn/{grnNo}', [ReverseGrnController::class, 'reverse']);
     Route::get('/transfers/workbench', [InventoryTransferController::class, 'workbench']);

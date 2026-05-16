@@ -5,11 +5,11 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock3,
-  Download,
   FileCheck2,
   FileText,
   Filter,
   PackageCheck,
+  PanelRightOpen,
   Plus,
   Printer,
   RefreshCw,
@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Truck,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
@@ -94,7 +95,6 @@ interface PurchaseOrder {
   deliveryNote?: string;
   lines: PoLine[];
   events: StatusEvent[];
-  source?: 'database' | 'sample';
 }
 
 interface DraftLine extends PoLine {
@@ -543,10 +543,11 @@ export function PurchaseOrders() {
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [showDetails, setShowDetails] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRangeValue>(getDefaultDateRange());
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [loadedFromDatabase, setLoadedFromDatabase] = useState(false);
+  const [purchaseOrdersReady, setPurchaseOrdersReady] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [lookupSuppliers, setLookupSuppliers] = useState<SupplierLookup[]>(suppliers);
   const [lookupLocations, setLookupLocations] = useState<LookupOption[]>(locations);
@@ -560,7 +561,7 @@ export function PurchaseOrders() {
   const [draftLocation, setDraftLocation] = useState('ADMINISTRATION');
   const [draftDeliveryDate, setDraftDeliveryDate] = useState(new Date().toISOString().slice(0, 10));
   const [draftRequisition, setDraftRequisition] = useState('REQ-0521');
-  const [draftComments, setDraftComments] = useState('Created from Akiva purchase order workbench.');
+  const [draftComments, setDraftComments] = useState('Purchase order created in Akiva.');
   const [draftLines, setDraftLines] = useState<DraftLine[]>([
     {
       draftId: 'draft-1',
@@ -586,7 +587,7 @@ export function PurchaseOrders() {
       try {
         const response = await apiFetch(buildApiUrl('/api/purchases/orders?limit=500'));
         if (!response.ok) {
-          throw new Error(`Purchase order API returned ${response.status}`);
+          throw new Error('Purchase orders are temporarily unavailable.');
         }
 
         const payload = (await response.json()) as PurchaseOrdersApiResponse;
@@ -595,7 +596,7 @@ export function PurchaseOrders() {
         if (cancelled) return;
 
         setOrders(rows);
-        setLoadedFromDatabase(true);
+        setPurchaseOrdersReady(true);
         if (rows.length > 0) {
           setSelectedId(rows[0].id);
           const sortedDates = rows.map((order) => order.orderDate).filter(Boolean).sort();
@@ -622,8 +623,8 @@ export function PurchaseOrders() {
       } catch (error) {
         if (cancelled) return;
         setOrders([]);
-        setLoadedFromDatabase(false);
-        setLoadError(error instanceof Error ? error.message : 'Could not load purchase orders.');
+        setPurchaseOrdersReady(false);
+        setLoadError(error instanceof Error ? error.message : 'Purchase orders are temporarily unavailable.');
       } finally {
         if (!cancelled) setLoadingOrders(false);
       }
@@ -908,7 +909,7 @@ export function PurchaseOrders() {
     setDrawerMode('view');
   }
 
-  const openQueuedOrders = orders.filter((order) => ['Pending Review', 'Reviewed', 'Printed', 'Part Received', 'Received'].includes(order.status));
+  const nextActionOrders = orders.filter((order) => ['Pending Review', 'Reviewed', 'Printed', 'Part Received', 'Received'].includes(order.status));
 
   return (
     <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
@@ -921,8 +922,8 @@ export function PurchaseOrders() {
                   <Chip icon={PackageCheck}>Inventory transactions</Chip>
                   <Chip icon={FileText}>PO_SelectOSPurchOrder</Chip>
                   <Chip icon={ShieldCheck}>PO to GRN to AP match</Chip>
-                  <Chip icon={loadedFromDatabase ? CheckCircle2 : AlertTriangle}>
-                    {loadingOrders ? 'Loading live POs' : loadedFromDatabase ? `Live database · ${orders.length} POs` : 'Database not loaded'}
+                  <Chip icon={purchaseOrdersReady ? CheckCircle2 : AlertTriangle}>
+                    {loadingOrders ? 'Updating purchase orders' : purchaseOrdersReady ? `${orders.length} purchase orders` : 'Purchase orders unavailable'}
                   </Chip>
                 </div>
                 <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
@@ -934,7 +935,12 @@ export function PurchaseOrders() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <IconButton icon={RefreshCw} label="Refresh purchase orders" onClick={() => setReloadKey((value) => value + 1)} />
-                <IconButton icon={Download} label="Export purchase order queue" />
+                <IconButton
+                  icon={PanelRightOpen}
+                  label={sidePanelOpen ? 'Hide purchase order panel' : 'Show purchase order panel'}
+                  onClick={() => setSidePanelOpen((open) => !open)}
+                  active={sidePanelOpen}
+                />
                 <IconButton
                   icon={SlidersHorizontal}
                   label={filtersOpen ? 'Hide filters' : 'Show filters'}
@@ -997,11 +1003,10 @@ export function PurchaseOrders() {
           ) : null}
 
           <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
-            <main className="space-y-4 lg:col-span-8">
+            <main className="space-y-4 lg:col-span-12">
               <GuidedActionPanel
-                order={openQueuedOrders[0] ?? filteredOrders[0]}
+                order={nextActionOrders[0] ?? filteredOrders[0]}
                 loading={loadingOrders}
-                live={loadedFromDatabase}
                 error={loadError}
                 onAction={(order) => primaryAction(order)}
                 onRefresh={() => setReloadKey((value) => value + 1)}
@@ -1040,30 +1045,58 @@ export function PurchaseOrders() {
                 </div>
                 <div className="p-4">
                   <AdvancedTable
-                    tableId="purchase-order-workbench"
+                    tableId="purchase-orders"
                     columns={columns}
                     rows={filteredOrders}
                     rowKey={(order) => order.id}
                     loading={loadingOrders}
-                    loadingMessage="Loading purchase orders from webERP tables..."
-                    emptyMessage={loadError ? `Could not load live purchase orders: ${loadError}` : 'No purchase orders match these filters.'}
+                    loadingMessage="Preparing purchase orders..."
+                    emptyMessage={loadError ? `Purchase orders could not be loaded: ${loadError}` : 'No purchase orders match these filters.'}
                     initialPageSize={10}
                   />
                 </div>
               </section>
             </main>
 
-            <aside className="space-y-4 lg:col-span-4">
+          </div>
+        </section>
+      </div>
+
+      {sidePanelOpen ? (
+        <div className="fixed inset-0 z-40">
+          <button
+            type="button"
+            aria-label="Close purchase order panel"
+            className="absolute inset-0 bg-[#10090d]/25 backdrop-blur-[1px]"
+            onClick={() => setSidePanelOpen(false)}
+          />
+          <aside className="absolute inset-y-0 right-0 flex w-screen max-w-md flex-col border-l border-akiva-border bg-akiva-surface-raised text-akiva-text shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-akiva-border px-4 py-3">
+              <div>
+                <h2 className="text-base font-semibold">Purchase order panel</h2>
+                    <p className="mt-0.5 text-xs text-akiva-text-muted">Approvals, receiving, and selected order details.</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close purchase order panel"
+                onClick={() => setSidePanelOpen(false)}
+                className="rounded-lg p-2 text-akiva-text-muted transition hover:bg-akiva-accent-soft hover:text-akiva-accent-text"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-akiva-text">Next best actions</h2>
-                    <p className="mt-1 text-sm leading-5 text-akiva-text-muted">The queue is ordered by accounting risk and user action.</p>
+                    <h3 className="text-sm font-semibold text-akiva-text">Next best actions</h3>
+                    <p className="mt-1 text-sm leading-5 text-akiva-text-muted">Work that needs review, receiving, or supplier bill matching.</p>
                   </div>
                   <Clock3 className="h-5 w-5 text-akiva-accent" />
                 </div>
                 <div className="mt-4 space-y-2.5">
-                  {openQueuedOrders.slice(0, 5).map((order) => (
+                  {nextActionOrders.slice(0, 5).map((order) => (
                     <button
                       key={order.id}
                       type="button"
@@ -1083,8 +1116,8 @@ export function PurchaseOrders() {
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-akiva-text">Accounting controls</h2>
-                    <p className="mt-1 text-sm leading-5 text-akiva-text-muted">Controls required for clean PO, GRN and AP matching.</p>
+                    <h3 className="text-sm font-semibold text-akiva-text">Purchase safeguards</h3>
+                    <p className="mt-1 text-sm leading-5 text-akiva-text-muted">Checks that keep purchase orders, receipts, and supplier bills aligned.</p>
                   </div>
                   <ShieldCheck className="h-5 w-5 text-akiva-accent" />
                 </div>
@@ -1097,7 +1130,7 @@ export function PurchaseOrders() {
               </section>
 
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-                <h2 className="text-sm font-semibold text-akiva-text">Selected PO</h2>
+                <h3 className="text-sm font-semibold text-akiva-text">Selected PO</h3>
                 <div className="mt-4 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-3 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1118,10 +1151,10 @@ export function PurchaseOrders() {
                   </div>
                 </div>
               </section>
-            </aside>
-          </div>
-        </section>
-      </div>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
       <RightDrawer
         isOpen={drawerMode !== null}
@@ -1640,14 +1673,12 @@ function PurchaseOrderLines({ order }: { order: PurchaseOrder }) {
 function GuidedActionPanel({
   order,
   loading,
-  live,
   error,
   onAction,
   onRefresh,
 }: {
   order?: PurchaseOrder;
   loading: boolean;
-  live: boolean;
   error: string;
   onAction: (order: PurchaseOrder) => void;
   onRefresh: () => void;
@@ -1658,8 +1689,8 @@ function GuidedActionPanel({
         <div className="flex items-center gap-3">
           <RefreshCw className="h-5 w-5 animate-spin text-akiva-accent" />
           <div>
-            <h2 className="text-sm font-semibold text-akiva-text">Loading live purchase orders</h2>
-            <p className="mt-1 text-sm text-akiva-text-muted">Reading webERP purchase order, supplier, location and line tables.</p>
+            <h2 className="text-sm font-semibold text-akiva-text">Updating purchase orders</h2>
+            <p className="mt-1 text-sm text-akiva-text-muted">Preparing purchase orders and items that need attention.</p>
           </div>
         </div>
       </section>
@@ -1673,9 +1704,9 @@ function GuidedActionPanel({
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" />
             <div>
-              <h2 className="text-sm font-semibold">{error ? 'Live purchase orders did not load' : 'No purchase orders found'}</h2>
+              <h2 className="text-sm font-semibold">{error ? 'Purchase orders did not load' : 'No purchase orders found'}</h2>
               <p className="mt-1 text-sm leading-5 opacity-80">
-                {error || 'The database endpoint is working, but no purchase orders matched the current company data.'}
+                {error || 'There are no purchase orders to show for the current company.'}
               </p>
             </div>
           </div>
@@ -1696,7 +1727,7 @@ function GuidedActionPanel({
             <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-akiva-accent-text shadow-sm dark:bg-slate-900/70">
               Start here
             </span>
-            <span className="text-xs font-semibold text-akiva-text-muted">{live ? 'Live database' : 'Local changes'}</span>
+            <span className="text-xs font-semibold text-akiva-text-muted">Needs attention</span>
           </div>
           <h2 className="mt-3 text-lg font-semibold text-akiva-text">
             {actionForStatus(order.status)} purchase order {order.orderNumber}

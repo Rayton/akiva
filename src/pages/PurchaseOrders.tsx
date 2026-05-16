@@ -542,6 +542,7 @@ export function PurchaseOrders() {
   const [locationFilter, setLocationFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [showDetails, setShowDetails] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRangeValue>(getDefaultDateRange());
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -934,7 +935,12 @@ export function PurchaseOrders() {
               <div className="flex flex-wrap items-center gap-2">
                 <IconButton icon={RefreshCw} label="Refresh purchase orders" onClick={() => setReloadKey((value) => value + 1)} />
                 <IconButton icon={Download} label="Export purchase order queue" />
-                <IconButton icon={SlidersHorizontal} label="Filter results" />
+                <IconButton
+                  icon={SlidersHorizontal}
+                  label={filtersOpen ? 'Hide filters' : 'Show filters'}
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  active={filtersOpen}
+                />
                 <Button onClick={() => setDrawerMode('create')}>
                   <Plus className="mr-2 h-4 w-4" />
                   New PO
@@ -942,6 +948,53 @@ export function PurchaseOrders() {
               </div>
             </div>
           </header>
+
+          {filtersOpen ? (
+            <div className="border-b border-akiva-border bg-akiva-surface/70 px-4 py-3 sm:px-6 lg:px-8">
+              <div className="grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 md:grid-cols-4 2xl:grid-cols-[minmax(240px,1.2fr)_180px_180px_minmax(220px,1fr)_190px_150px]">
+                <div className="relative min-[520px]:col-span-2 md:col-span-2 2xl:col-span-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    className={`${inputClass} pl-10`}
+                    placeholder="Search PO, supplier, requisition, item"
+                  />
+                </div>
+                <SearchableSelect
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={statusOptions}
+                  inputClassName={inputClass}
+                  placeholder="Order status"
+                />
+                <SearchableSelect
+                  value={locationFilter}
+                  onChange={setLocationFilter}
+                  options={[{ value: 'All', label: 'All locations' }, ...lookupLocations]}
+                  inputClassName={inputClass}
+                  placeholder="Stock location"
+                />
+                <DateRangePicker value={dateRange} onChange={setDateRange} className="min-[520px]:col-span-2 md:col-span-2 2xl:col-span-1" />
+                <SearchableSelect
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                  options={[{ value: 'All', label: 'All categories' }, ...lookupCategories]}
+                  inputClassName={inputClass}
+                  placeholder="Stock category"
+                />
+                <label className="flex h-11 items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm shadow-sm">
+                  <span className="text-akiva-text-muted">Details</span>
+                  <input
+                    type="checkbox"
+                    checked={showDetails}
+                    onChange={(event) => setShowDetails(event.target.checked)}
+                    className="h-4 w-4 rounded border-akiva-border text-akiva-accent focus:ring-akiva-accent"
+                  />
+                </label>
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
             <main className="space-y-4 lg:col-span-8">
@@ -960,54 +1013,6 @@ export function PurchaseOrders() {
                 <MetricCard label="Ready to receive" value={String(metrics.readyToReceive)} detail="Printed POs that can post GRNs." icon={Truck} />
                 <MetricCard label="GRN accrual" value={money(metrics.grnAccrual, 'TZS')} detail="Received goods awaiting supplier invoice." icon={FileCheck2} />
               </div>
-
-              <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-                <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_190px_190px]">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-                    <input
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      className={`${inputClass} pl-10`}
-                      placeholder="Search PO, supplier, requisition, item code, description"
-                    />
-                  </div>
-                  <SearchableSelect
-                    value={statusFilter}
-                    onChange={setStatusFilter}
-                    options={statusOptions}
-                    inputClassName={inputClass}
-                    placeholder="Order status"
-                  />
-                  <SearchableSelect
-                    value={locationFilter}
-                    onChange={setLocationFilter}
-                    options={[{ value: 'All', label: 'All locations' }, ...lookupLocations]}
-                    inputClassName={inputClass}
-                    placeholder="Stock location"
-                  />
-                </div>
-
-                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_220px_auto]">
-                  <DateRangePicker value={dateRange} onChange={setDateRange} className="w-full" />
-                  <SearchableSelect
-                    value={categoryFilter}
-                    onChange={setCategoryFilter}
-                    options={[{ value: 'All', label: 'All categories' }, ...lookupCategories]}
-                    inputClassName={inputClass}
-                    placeholder="Stock category"
-                  />
-                  <label className="flex h-11 items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm shadow-sm">
-                    <span className="text-akiva-text-muted">Show PO details</span>
-                    <input
-                      type="checkbox"
-                      checked={showDetails}
-                      onChange={(event) => setShowDetails(event.target.checked)}
-                      className="h-4 w-4 rounded border-akiva-border text-akiva-accent focus:ring-akiva-accent"
-                    />
-                  </label>
-                </div>
-              </section>
 
               <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
                 <div className="border-b border-akiva-border px-4 py-3">
@@ -1760,14 +1765,29 @@ function Chip({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode 
   );
 }
 
-function IconButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick?: () => void }) {
+function IconButton({
+  icon: Icon,
+  label,
+  onClick,
+  active = false,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick?: () => void;
+  active?: boolean;
+}) {
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="flex h-10 w-10 items-center justify-center rounded-full border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text"
+      aria-pressed={active}
+      className={`flex h-10 w-10 items-center justify-center rounded-full border shadow-sm transition ${
+        active
+          ? 'border-akiva-accent bg-akiva-accent text-white'
+          : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+      }`}
     >
       <Icon className="h-4 w-4" />
     </button>

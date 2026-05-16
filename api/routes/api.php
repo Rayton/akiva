@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\SalesReceivablesSetupController;
 use App\Http\Controllers\Api\PurchasesPayablesSetupController;
 use App\Http\Controllers\Api\InventorySetupController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
+use App\Http\Controllers\Api\PurchaseOrderController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -112,6 +113,10 @@ Route::prefix('sales')->group(function () {
     Route::get('/reports/top-items', [SalesController::class, 'reportTopItems']);
     Route::get('/reports/low-gross', [SalesController::class, 'reportLowGross']);
     Route::get('/settings', [SalesController::class, 'settings']);
+});
+
+Route::prefix('purchases')->group(function () {
+    Route::get('/orders', [PurchaseOrderController::class, 'index']);
 });
 
 Route::prefix('gl')->group(function () {

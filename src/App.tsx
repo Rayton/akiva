@@ -238,6 +238,23 @@ function isPurchasesPayablesSetupMenuSlug(slug: string): boolean {
   );
 }
 
+function isPurchaseOrderMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'poselectospurchorder' ||
+    key.includes('poselectospurchorder') ||
+    key === 'poheader' ||
+    key === 'poitems' ||
+    key === 'purchaseorders' ||
+    key.includes('purchorder') ||
+    key.includes('goodsreceived') ||
+    key.includes('reversegrn') ||
+    key.includes('reprintgrn') ||
+    key.includes('outstandinggrns') ||
+    key.includes('suppinvgrns')
+  );
+}
+
 function isInventorySetupMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
@@ -619,6 +636,10 @@ function AppContent() {
           return <ChartOfAccounts sourceSlug={menuSlug} />;
         }
         return <GeneralLedger sourceSlug={menuSlug} sourceHref={currentMenuHref} sourceCaption={currentMenuCaption} />;
+      }
+
+      if (isPurchaseOrderMenuSlug(menuSlug)) {
+        return <PurchaseOrders />;
       }
 
       if (primaryPathSegment === 'sales' || isSalesMenuSlug(menuSlug)) {

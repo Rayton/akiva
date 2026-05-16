@@ -86,6 +86,22 @@ button {
   opacity: 0.64;
 }
 
+.akiva-input {
+  min-height: 44px;
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--akiva-border);
+  background: var(--akiva-surface-raised);
+  padding: 0.5rem 0.75rem;
+  color: var(--akiva-text);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.akiva-input::placeholder {
+  color: var(--akiva-text-muted);
+}
+
 html.dark :where(button, input, textarea, select):disabled,
 html.dark :where(button, input, textarea, select)[aria-disabled="true"] {
   opacity: 0.72;

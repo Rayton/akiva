@@ -26,7 +26,7 @@ import { Button } from '../components/common/Button';
 import { DatePicker } from '../components/common/DatePicker';
 import { DateRangePicker, getDefaultDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
 import { SearchableSelect } from '../components/common/SearchableSelect';
-import { RightDrawer } from '../components/ui/RightDrawer';
+import { Modal } from '../components/ui/Modal';
 import { apiFetch } from '../lib/network/apiClient';
 import { buildApiUrl } from '../lib/network/apiBase';
 
@@ -124,7 +124,7 @@ interface PurchaseOrdersApiResponse {
 }
 
 const inputClass =
-  'h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent';
+  'h-11 min-w-0 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent';
 
 const suppliers = [
   {
@@ -541,7 +541,7 @@ export function PurchaseOrders() {
   const [statusFilter, setStatusFilter] = useState('outstanding');
   const [locationFilter, setLocationFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
-  const [showDetails, setShowDetails] = useState(true);
+  const [showLineDetails, setShowLineDetails] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRangeValue>(getDefaultDateRange());
@@ -678,8 +678,8 @@ export function PurchaseOrders() {
     };
   }, [orders]);
 
-  const columns = useMemo<AdvancedTableColumn<PurchaseOrder>[]>(
-    () => [
+  const columns = useMemo<AdvancedTableColumn<PurchaseOrder>[]>(() => {
+    const baseColumns: AdvancedTableColumn<PurchaseOrder>[] = [
       {
         id: 'order',
         header: 'Order #',
@@ -737,6 +737,31 @@ export function PurchaseOrders() {
         accessor: (order) => order.location,
         width: 150,
       },
+      ...(showLineDetails
+        ? [
+            {
+              id: 'items',
+              header: 'Items',
+              accessor: (order) => order.lines.map((line) => `${line.itemCode} ${line.description}`).join(' '),
+              cell: (order) => (
+                <div className="min-w-0 space-y-1">
+                  {order.lines.slice(0, 2).map((line) => (
+                    <p key={line.id} className="truncate text-xs text-akiva-text-muted">
+                      <span className="font-mono font-semibold text-akiva-text">{line.itemCode}</span>
+                      <span className="mx-1 text-akiva-text-muted">·</span>
+                      {line.description}
+                    </p>
+                  ))}
+                  {order.lines.length > 2 ? (
+                    <p className="text-xs font-semibold text-akiva-accent">+{order.lines.length - 2} more item{order.lines.length - 2 === 1 ? '' : 's'}</p>
+                  ) : null}
+                </div>
+              ),
+              exportValue: (order) => order.lines.map((line) => `${line.itemCode} - ${line.description}`).join('; '),
+              width: 260,
+            } satisfies AdvancedTableColumn<PurchaseOrder>,
+          ]
+        : []),
       {
         id: 'status',
         header: 'Status',
@@ -769,17 +794,23 @@ export function PurchaseOrders() {
         sortable: false,
         cell: (order) => (
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant={canReceive(order) ? 'success' : 'secondary'} onClick={() => primaryAction(order)}>
+            <Button
+              size="sm"
+              variant={canReceive(order) ? 'success' : 'secondary'}
+              onClick={() => primaryAction(order)}
+              className="min-h-8 whitespace-nowrap rounded-md px-2.5 py-1 text-xs"
+            >
               {actionForStatus(order.status)}
             </Button>
           </div>
         ),
         align: 'right',
-        width: 170,
+        width: 140,
       },
-    ],
-    [orders]
-  );
+    ];
+
+    return baseColumns;
+  }, [showLineDetails]);
 
   function openDrawer(order: PurchaseOrder, mode: Exclude<DrawerMode, null>) {
     setSelectedId(order.id);
@@ -910,6 +941,61 @@ export function PurchaseOrders() {
   }
 
   const nextActionOrders = orders.filter((order) => ['Pending Review', 'Reviewed', 'Printed', 'Part Received', 'Received'].includes(order.status));
+  const closePoDialog = () => setDrawerMode(null);
+  const poDialogSize = drawerMode === 'create' ? 'lg' : '2xl';
+  const poDialogFooter = (
+    <>
+      <Button variant="secondary" onClick={closePoDialog}>Cancel</Button>
+      {drawerMode === 'create' ? (
+        <>
+          <Button variant="secondary" onClick={() => saveDraftOrder('Draft')}>Save draft</Button>
+          <Button onClick={() => saveDraftOrder('Pending Review')}>
+            <Send className="mr-2 h-4 w-4" />
+            Submit for review
+          </Button>
+        </>
+      ) : null}
+      {drawerMode === 'receive' ? (
+        <Button variant="success" onClick={postReceipt}>
+          <PackageCheck className="mr-2 h-4 w-4" />
+          Process goods received
+        </Button>
+      ) : null}
+      {drawerMode === 'review' ? (
+        <>
+          <Button
+            variant={selectedOrder.status === 'Pending Review' ? 'secondary' : 'danger'}
+            onClick={selectedOrder.status === 'Pending Review' ? () => transitionOrder(selectedOrder.id, 'Reviewed', 'Reviewed by John Doe') : () => transitionOrder(selectedOrder.id, 'Rejected', 'Rejected by John Doe')}
+          >
+            {selectedOrder.status === 'Pending Review' ? (
+              <>
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                Mark reviewed
+              </>
+            ) : (
+              'Reject'
+            )}
+          </Button>
+          <Button
+            onClick={() => transitionOrder(selectedOrder.id, 'Authorised', 'Authorised by John Doe')}
+            disabled={selectedOrder.status === 'Pending Review'}
+          >
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Authorise
+          </Button>
+        </>
+      ) : null}
+      {drawerMode === 'view' ? (
+        <>
+          <Button variant="secondary" disabled={!canPrint(selectedOrder)}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print / PDF
+          </Button>
+          <Button onClick={() => primaryAction(selectedOrder)}>{actionForStatus(selectedOrder.status)}</Button>
+        </>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
@@ -919,9 +1005,9 @@ export function PurchaseOrders() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
-                  <Chip icon={PackageCheck}>Inventory transactions</Chip>
-                  <Chip icon={FileText}>PO_SelectOSPurchOrder</Chip>
-                  <Chip icon={ShieldCheck}>PO to GRN to AP match</Chip>
+                  <Chip icon={PackageCheck}>Purchasing</Chip>
+                  <Chip icon={FileText}>Purchase orders</Chip>
+                  <Chip icon={ShieldCheck}>Receiving and bill matching</Chip>
                   <Chip icon={purchaseOrdersReady ? CheckCircle2 : AlertTriangle}>
                     {loadingOrders ? 'Updating purchase orders' : purchaseOrdersReady ? `${orders.length} purchase orders` : 'Purchase orders unavailable'}
                   </Chip>
@@ -957,16 +1043,7 @@ export function PurchaseOrders() {
 
           {filtersOpen ? (
             <div className="border-b border-akiva-border bg-akiva-surface/70 px-4 py-3 sm:px-6 lg:px-8">
-              <div className="grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 md:grid-cols-4 2xl:grid-cols-[minmax(240px,1.2fr)_180px_180px_minmax(220px,1fr)_190px_150px]">
-                <div className="relative min-[520px]:col-span-2 md:col-span-2 2xl:col-span-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    className={`${inputClass} pl-10`}
-                    placeholder="Search PO, supplier, requisition, item"
-                  />
-                </div>
+              <div className="grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 md:grid-cols-4 2xl:grid-cols-[180px_180px_minmax(220px,1fr)_190px_minmax(210px,0.8fr)]">
                 <SearchableSelect
                   value={statusFilter}
                   onChange={setStatusFilter}
@@ -989,14 +1066,21 @@ export function PurchaseOrders() {
                   inputClassName={inputClass}
                   placeholder="Stock category"
                 />
-                <label className="flex h-11 items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm shadow-sm">
-                  <span className="text-akiva-text-muted">Details</span>
+                <label className="group flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-akiva-text">Item lines</span>
+                    <span className="block truncate text-xs text-akiva-text-muted">Codes and descriptions</span>
+                  </span>
                   <input
                     type="checkbox"
-                    checked={showDetails}
-                    onChange={(event) => setShowDetails(event.target.checked)}
-                    className="h-4 w-4 rounded border-akiva-border text-akiva-accent focus:ring-akiva-accent"
+                    aria-label="Show item line details in the purchase order table"
+                    checked={showLineDetails}
+                    onChange={(event) => setShowLineDetails(event.target.checked)}
+                    className="peer sr-only"
                   />
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-akiva-border bg-akiva-surface-raised text-transparent shadow-sm transition peer-checked:border-akiva-accent peer-checked:bg-akiva-accent peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-akiva-accent">
+                    <Check className="h-4 w-4 stroke-[3]" />
+                  </span>
                 </label>
               </div>
             </div>
@@ -1004,14 +1088,6 @@ export function PurchaseOrders() {
 
           <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
             <main className="space-y-4 lg:col-span-12">
-              <GuidedActionPanel
-                order={nextActionOrders[0] ?? filteredOrders[0]}
-                loading={loadingOrders}
-                error={loadError}
-                onAction={(order) => primaryAction(order)}
-                onRefresh={() => setReloadKey((value) => value + 1)}
-              />
-
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Open commitments" value={money(metrics.openCommitment, 'TZS')} detail="Unclosed POs still reserving budget." icon={FileText} />
                 <MetricCard label="Waiting approval" value={String(metrics.waitingApproval)} detail="Review or authorise before print." icon={ShieldCheck} />
@@ -1021,31 +1097,42 @@ export function PurchaseOrders() {
 
               <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
                 <div className="border-b border-akiva-border px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
-                    {tabs.map((tab) => {
-                      const Icon = tab.icon;
-                      const active = activeTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setActiveTab(tab.id)}
-                          className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
-                            active
-                              ? 'border-akiva-accent bg-akiva-accent text-white shadow-sm'
-                              : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
-                          }`}
-                        >
-                          <Icon className="h-4 w-4" />
-                          {tab.label}
-                        </button>
-                      );
-                    })}
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex flex-wrap gap-2">
+                      {tabs.map((tab) => {
+                        const Icon = tab.icon;
+                        const active = activeTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
+                              active
+                                ? 'border-akiva-accent bg-akiva-accent text-white shadow-sm'
+                                : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="relative w-full xl:max-w-md">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                      <input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        className={`${inputClass} pl-10`}
+                        placeholder="Search PO, supplier, requisition, item"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="p-4">
                   <AdvancedTable
-                    tableId="purchase-orders"
+                    tableId={showLineDetails ? 'purchase-orders-with-items' : 'purchase-orders'}
                     columns={columns}
                     rows={filteredOrders}
                     rowKey={(order) => order.id}
@@ -1156,11 +1243,12 @@ export function PurchaseOrders() {
         </div>
       ) : null}
 
-      <RightDrawer
+      <Modal
         isOpen={drawerMode !== null}
-        onClose={() => setDrawerMode(null)}
+        onClose={closePoDialog}
         title={drawerTitle(drawerMode, selectedOrder)}
-        subtitle={drawerSubtitle(drawerMode, selectedOrder)}
+        size={poDialogSize}
+        footer={poDialogFooter}
       >
         {drawerMode === 'create' ? (
           <CreatePurchaseOrderPanel
@@ -1181,8 +1269,6 @@ export function PurchaseOrders() {
               setDraftLines((current) => current.map((line) => (line.draftId === draftId ? { ...line, ...patch } : line)))
             }
             onAddLine={addDraftLine}
-            onSaveDraft={() => saveDraftOrder('Draft')}
-            onSubmit={() => saveDraftOrder('Pending Review')}
           />
         ) : null}
 
@@ -1199,21 +1285,17 @@ export function PurchaseOrders() {
             onDeliveryNoteChange={setDeliveryNote}
             onQtyChange={(lineId, qty) => setReceiptQty((current) => ({ ...current, [lineId]: qty }))}
             onCompleteChange={(lineId, checked) => setCompletedLines((current) => ({ ...current, [lineId]: checked }))}
-            onPost={postReceipt}
           />
         ) : null}
 
         {drawerMode === 'review' ? (
           <ReviewPurchaseOrderPanel
             order={selectedOrder}
-            onReview={() => transitionOrder(selectedOrder.id, 'Reviewed', 'Reviewed by John Doe')}
-            onAuthorise={() => transitionOrder(selectedOrder.id, 'Authorised', 'Authorised by John Doe')}
-            onReject={() => transitionOrder(selectedOrder.id, 'Rejected', 'Rejected by John Doe')}
           />
         ) : null}
 
-        {drawerMode === 'view' ? <PurchaseOrderDetailPanel order={selectedOrder} onAction={() => primaryAction(selectedOrder)} /> : null}
-      </RightDrawer>
+        {drawerMode === 'view' ? <PurchaseOrderDetailPanel order={selectedOrder} /> : null}
+      </Modal>
     </div>
   );
 }
@@ -1224,14 +1306,6 @@ function drawerTitle(mode: DrawerMode, order: PurchaseOrder) {
   if (mode === 'review') return `Review PO ${order.orderNumber}`;
   if (mode === 'view') return `Purchase Order ${order.orderNumber}`;
   return 'Purchase Order';
-}
-
-function drawerSubtitle(mode: DrawerMode, order: PurchaseOrder) {
-  if (mode === 'create') return 'Supplier, delivery, stock items and approval route';
-  if (mode === 'receive') return `${order.supplierName} into ${order.location}`;
-  if (mode === 'review') return `${money(orderTotal(order), order.currency)} requested by ${order.initiatedBy}`;
-  if (mode === 'view') return `${order.supplierName} · ${order.requisitionNo}`;
-  return undefined;
 }
 
 function CreatePurchaseOrderPanel({
@@ -1250,8 +1324,6 @@ function CreatePurchaseOrderPanel({
   onCommentsChange,
   onLineChange,
   onAddLine,
-  onSaveDraft,
-  onSubmit,
 }: {
   supplier: string;
   location: string;
@@ -1268,8 +1340,6 @@ function CreatePurchaseOrderPanel({
   onCommentsChange: (value: string) => void;
   onLineChange: (draftId: string, patch: Partial<DraftLine>) => void;
   onAddLine: () => void;
-  onSaveDraft: () => void;
-  onSubmit: () => void;
 }) {
   const selectedSupplier = supplierOptions.find((item) => item.value === supplier) ?? supplierOptions[0] ?? suppliers[0];
   const previewOrder: PurchaseOrder = {
@@ -1299,7 +1369,7 @@ function CreatePurchaseOrderPanel({
   return (
     <div className="space-y-4">
       <PanelSection title="Supplier and delivery">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-3">
           <Field label="Supplier name or code">
             <SearchableSelect value={supplier} onChange={onSupplierChange} options={supplierOptions} inputClassName={inputClass} />
           </Field>
@@ -1325,9 +1395,13 @@ function CreatePurchaseOrderPanel({
 
       <PanelSection title="Order items">
         <div className="space-y-3">
-          {lines.map((line) => (
-            <DraftLineEditor key={line.draftId} line={line} currency={selectedSupplier.currency} onChange={(patch) => onLineChange(line.draftId, patch)} />
-          ))}
+          <div className="overflow-x-auto pb-2">
+            <div className="min-w-[760px] space-y-2">
+              {lines.map((line) => (
+                <DraftLineEditor key={line.draftId} line={line} currency={selectedSupplier.currency ?? 'TZS'} onChange={(patch) => onLineChange(line.draftId, patch)} />
+              ))}
+            </div>
+          </div>
           <Button variant="secondary" onClick={onAddLine}>
             <Plus className="mr-2 h-4 w-4" />
             Add item
@@ -1341,13 +1415,6 @@ function CreatePurchaseOrderPanel({
           Submitting starts the review path. Authorised orders can be printed, then goods can be received against a GRN.
         </div>
       </PanelSection>
-      <DrawerActionBar
-        secondaryLabel="Save draft"
-        onSecondary={onSaveDraft}
-        primaryLabel="Submit for review"
-        primaryIcon={Send}
-        onPrimary={onSubmit}
-      />
     </div>
   );
 }
@@ -1355,7 +1422,7 @@ function CreatePurchaseOrderPanel({
 function DraftLineEditor({ line, currency, onChange }: { line: DraftLine; currency: PurchaseOrder['currency']; onChange: (patch: Partial<DraftLine>) => void }) {
   return (
     <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-3 shadow-sm">
-      <div className="grid gap-3 lg:grid-cols-[minmax(180px,1fr)_110px_130px_120px]">
+      <div className="grid grid-cols-[minmax(260px,1fr)_90px_130px_120px_120px] items-end gap-3">
         <Field label="Item">
           <SearchableSelect
             value={line.itemCode}
@@ -1388,12 +1455,13 @@ function DraftLineEditor({ line, currency, onChange }: { line: DraftLine; curren
         <Field label="GL code">
           <input className={inputClass} value={line.glCode} onChange={(event) => onChange({ glCode: event.target.value })} />
         </Field>
+        <div className="min-w-0 pb-2 text-right">
+          <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Value</p>
+          <p className="mt-1 truncate text-sm font-semibold text-akiva-text">{money(lineTotal(line), currency)}</p>
+        </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="text-akiva-text-muted">
-          {line.description} · supplier unit {line.supplierUnits} · receiving unit {line.receivingUnits}
-        </span>
-        <span className="font-semibold">{money(lineTotal(line), currency)}</span>
+      <div className="mt-2 truncate text-xs text-akiva-text-muted">
+        {line.description} · supplier unit {line.supplierUnits} · receiving unit {line.receivingUnits}
       </div>
     </div>
   );
@@ -1411,7 +1479,6 @@ function ReceivePurchaseOrderPanel({
   onDeliveryNoteChange,
   onQtyChange,
   onCompleteChange,
-  onPost,
 }: {
   order: PurchaseOrder;
   receiveDate: string;
@@ -1424,7 +1491,6 @@ function ReceivePurchaseOrderPanel({
   onDeliveryNoteChange: (value: string) => void;
   onQtyChange: (lineId: string, qty: number) => void;
   onCompleteChange: (lineId: string, checked: boolean) => void;
-  onPost: () => void;
 }) {
   const receiptValue = order.lines.reduce((sum, line) => sum + Math.max(0, Number(receiptQty[line.id] ?? 0)) * line.unitPrice, 0);
   return (
@@ -1512,27 +1578,11 @@ function ReceivePurchaseOrderPanel({
           <p className="text-xl font-semibold">{money(receiptValue, order.currency)}</p>
         </div>
       </PanelSection>
-      <DrawerActionBar
-        primaryLabel="Process goods received"
-        primaryIcon={PackageCheck}
-        onPrimary={onPost}
-        primaryVariant="success"
-      />
     </div>
   );
 }
 
-function ReviewPurchaseOrderPanel({
-  order,
-  onReview,
-  onAuthorise,
-  onReject,
-}: {
-  order: PurchaseOrder;
-  onReview: () => void;
-  onAuthorise: () => void;
-  onReject: () => void;
-}) {
+function ReviewPurchaseOrderPanel({ order }: { order: PurchaseOrder }) {
   return (
     <div className="space-y-4">
       <PanelSection title="Approval summary">
@@ -1549,21 +1599,11 @@ function ReviewPurchaseOrderPanel({
           Reviewing confirms supplier, budget, GL coding and quantities. Authorising permits print/send. Changes after authorisation should return the PO to review.
         </div>
       </PanelSection>
-      <DrawerActionBar
-        secondaryLabel={order.status === 'Pending Review' ? 'Mark reviewed' : 'Reject'}
-        secondaryIcon={order.status === 'Pending Review' ? ClipboardCheck : undefined}
-        secondaryVariant={order.status === 'Pending Review' ? 'secondary' : 'danger'}
-        onSecondary={order.status === 'Pending Review' ? onReview : onReject}
-        primaryLabel="Authorise"
-        primaryIcon={ShieldCheck}
-        onPrimary={onAuthorise}
-        primaryDisabled={order.status === 'Pending Review'}
-      />
     </div>
   );
 }
 
-function PurchaseOrderDetailPanel({ order, onAction }: { order: PurchaseOrder; onAction: () => void }) {
+function PurchaseOrderDetailPanel({ order }: { order: PurchaseOrder }) {
   return (
     <div className="space-y-4">
       <PanelSection>
@@ -1583,17 +1623,6 @@ function PurchaseOrderDetailPanel({ order, onAction }: { order: PurchaseOrder; o
           <InfoTile label="Delivery" value={formatDate(order.deliveryDate)} />
           <InfoTile label="Terms" value={order.paymentTerms} />
           <InfoTile label="Requisition" value={order.requisitionNo} />
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={onAction}>{actionForStatus(order.status)}</Button>
-          <Button variant="secondary" disabled={!canPrint(order)}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print / PDF
-          </Button>
-          <Button variant="secondary" disabled={order.status !== 'Received'}>
-            <FileCheck2 className="mr-2 h-4 w-4" />
-            Match supplier bill
-          </Button>
         </div>
       </PanelSection>
       <PurchaseOrderLines order={order} />
@@ -1617,14 +1646,6 @@ function PurchaseOrderDetailPanel({ order, onAction }: { order: PurchaseOrder; o
           ))}
         </div>
       </PanelSection>
-      <DrawerActionBar
-        secondaryLabel="Print / PDF"
-        secondaryIcon={Printer}
-        secondaryDisabled={!canPrint(order)}
-        onSecondary={() => undefined}
-        primaryLabel={actionForStatus(order.status)}
-        onPrimary={onAction}
-      />
     </div>
   );
 }
@@ -1667,123 +1688,6 @@ function PurchaseOrderLines({ order }: { order: PurchaseOrder }) {
         <Totals order={order} />
       </div>
     </PanelSection>
-  );
-}
-
-function GuidedActionPanel({
-  order,
-  loading,
-  error,
-  onAction,
-  onRefresh,
-}: {
-  order?: PurchaseOrder;
-  loading: boolean;
-  error: string;
-  onAction: (order: PurchaseOrder) => void;
-  onRefresh: () => void;
-}) {
-  if (loading) {
-    return (
-      <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <RefreshCw className="h-5 w-5 animate-spin text-akiva-accent" />
-          <div>
-            <h2 className="text-sm font-semibold text-akiva-text">Updating purchase orders</h2>
-            <p className="mt-1 text-sm text-akiva-text-muted">Preparing purchase orders and items that need attention.</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (error || !order) {
-    return (
-      <section className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-amber-950 shadow-sm dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" />
-            <div>
-              <h2 className="text-sm font-semibold">{error ? 'Purchase orders did not load' : 'No purchase orders found'}</h2>
-              <p className="mt-1 text-sm leading-5 opacity-80">
-                {error || 'There are no purchase orders to show for the current company.'}
-              </p>
-            </div>
-          </div>
-          <Button variant="secondary" onClick={onRefresh}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Retry
-          </Button>
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="rounded-2xl border border-akiva-accent/30 bg-akiva-accent-soft/60 p-4 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-akiva-accent-text shadow-sm dark:bg-slate-900/70">
-              Start here
-            </span>
-            <span className="text-xs font-semibold text-akiva-text-muted">Needs attention</span>
-          </div>
-          <h2 className="mt-3 text-lg font-semibold text-akiva-text">
-            {actionForStatus(order.status)} purchase order {order.orderNumber}
-          </h2>
-          <p className="mt-1 truncate text-sm text-akiva-text-muted">
-            {order.supplierName} · {money(orderTotal(order), order.currency)} · {receivedPercent(order)}% received
-          </p>
-        </div>
-        <Button onClick={() => onAction(order)} className="shrink-0">
-          {actionForStatus(order.status)}
-        </Button>
-      </div>
-    </section>
-  );
-}
-
-function DrawerActionBar({
-  primaryLabel,
-  onPrimary,
-  primaryIcon: PrimaryIcon,
-  primaryVariant = 'primary',
-  primaryDisabled = false,
-  secondaryLabel,
-  onSecondary,
-  secondaryIcon: SecondaryIcon,
-  secondaryVariant = 'secondary',
-  secondaryDisabled = false,
-}: {
-  primaryLabel: string;
-  onPrimary: () => void;
-  primaryIcon?: LucideIcon;
-  primaryVariant?: 'primary' | 'secondary' | 'danger' | 'success';
-  primaryDisabled?: boolean;
-  secondaryLabel?: string;
-  onSecondary?: () => void;
-  secondaryIcon?: LucideIcon;
-  secondaryVariant?: 'primary' | 'secondary' | 'danger' | 'success';
-  secondaryDisabled?: boolean;
-}) {
-  return (
-    <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 border-t border-akiva-border bg-akiva-surface-raised/95 px-4 py-3 shadow-[0_-12px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-5 sm:px-5">
-      <div className="grid gap-2 sm:grid-cols-2">
-        {secondaryLabel && onSecondary ? (
-          <Button variant={secondaryVariant} onClick={onSecondary} disabled={secondaryDisabled}>
-            {SecondaryIcon ? <SecondaryIcon className="mr-2 h-4 w-4" /> : null}
-            {secondaryLabel}
-          </Button>
-        ) : (
-          <span />
-        )}
-        <Button variant={primaryVariant} onClick={onPrimary} disabled={primaryDisabled}>
-          {PrimaryIcon ? <PrimaryIcon className="mr-2 h-4 w-4" /> : null}
-          {primaryLabel}
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -1863,7 +1767,7 @@ function ChecklistRow({ checked, title, description }: { checked: boolean; title
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block space-y-1.5">
+    <label className="block min-w-0 space-y-1.5">
       <span className="block text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{label}</span>
       {children}
     </label>
@@ -1872,7 +1776,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function PanelSection({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+    <section className="max-w-full overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-3 shadow-sm sm:p-4">
       {title ? <h3 className="mb-3 text-sm font-semibold text-akiva-text">{title}</h3> : null}
       {children}
     </section>

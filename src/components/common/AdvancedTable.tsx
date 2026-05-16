@@ -17,6 +17,7 @@ export interface AdvancedTableColumn<T> {
   filterable?: boolean;
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
+  sticky?: 'right';
 }
 
 interface AdvancedTableProps<T> {
@@ -29,6 +30,7 @@ interface AdvancedTableProps<T> {
   loadingMessage?: string;
   initialPageSize?: number;
   pageSizeOptions?: number[];
+  initialScroll?: 'left' | 'right';
 }
 
 type WidthMap = Record<string, number>;
@@ -83,6 +85,7 @@ export function AdvancedTable<T>({
   loadingMessage = 'Loading...',
   initialPageSize = 25,
   pageSizeOptions = DEFAULT_PAGE_SIZES,
+  initialScroll = 'left',
 }: AdvancedTableProps<T>) {
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [pageIndex, setPageIndex] = useState(0);
@@ -93,6 +96,7 @@ export function AdvancedTable<T>({
   const [columnWidths, setColumnWidths] = useState<WidthMap>({});
 
   const resizerRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const previousTableIdRef = useRef(tableId);
 
   useEffect(() => {
@@ -174,6 +178,23 @@ export function AdvancedTable<T>({
     [columns, visibleColumnIds]
   );
 
+  const tableMinWidth = useMemo(
+    () => Math.max(640, visibleColumns.reduce((sum, column) => sum + (columnWidths[column.id] ?? column.width ?? 180), 0)),
+    [columnWidths, visibleColumns]
+  );
+
+  useEffect(() => {
+    if (initialScroll !== 'right') return;
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      scrollContainer.scrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialScroll, tableId, tableMinWidth]);
+
   const filteredRows = useMemo(() => {
     if (rows.length === 0) return rows;
 
@@ -221,6 +242,24 @@ export function AdvancedTable<T>({
     if (align === 'center') return 'text-center';
     return 'text-left';
   };
+
+  const isStickyRightColumn = (column: AdvancedTableColumn<T>) =>
+    column.sticky === 'right' || column.id.toLowerCase() === 'action' || column.header.trim().toLowerCase() === 'action';
+
+  const stickyHeaderClass = (column: AdvancedTableColumn<T>) =>
+    isStickyRightColumn(column)
+      ? 'sticky right-0 z-30 border-l border-akiva-border bg-akiva-table-header shadow-[-10px_0_18px_rgba(15,23,42,0.08)]'
+      : '';
+
+  const stickyFilterClass = (column: AdvancedTableColumn<T>) =>
+    isStickyRightColumn(column)
+      ? 'sticky right-0 z-20 border-l border-akiva-border bg-akiva-surface-raised shadow-[-10px_0_18px_rgba(15,23,42,0.08)]'
+      : '';
+
+  const stickyCellClass = (column: AdvancedTableColumn<T>) =>
+    isStickyRightColumn(column)
+      ? 'sticky right-0 z-10 border-l border-akiva-border bg-akiva-surface-raised shadow-[-10px_0_18px_rgba(15,23,42,0.08)] group-hover:bg-akiva-table-row-hover'
+      : '';
 
   useEffect(() => {
     setPageIndex(0);
@@ -330,8 +369,8 @@ export function AdvancedTable<T>({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-lg border border-akiva-border">
-        <table className="w-full min-w-[640px] table-fixed">
+      <div ref={scrollContainerRef} className="overflow-x-auto rounded-lg border border-akiva-border">
+        <table className="w-full table-fixed" style={{ minWidth: tableMinWidth }}>
           <thead>
             <tr className="bg-akiva-table-header text-left text-xs uppercase tracking-wide text-akiva-text-muted">
               {visibleColumns.map((column) => {
@@ -344,7 +383,7 @@ export function AdvancedTable<T>({
                     key={column.id}
                     style={{ width }}
                     aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    className={`relative px-3 py-2 align-top ${alignClass(column.align)}`}
+                    className={`relative px-3 py-2 align-top ${alignClass(column.align)} ${stickyHeaderClass(column)}`}
                   >
                     {sortable ? (
                       <button
@@ -381,7 +420,7 @@ export function AdvancedTable<T>({
             </tr>
             <tr className="border-t border-akiva-border bg-akiva-surface-raised">
               {visibleColumns.map((column) => (
-                <th key={`${column.id}-filter`} className={`px-3 py-2 ${alignClass(column.align)}`}>
+                <th key={`${column.id}-filter`} className={`px-3 py-2 ${alignClass(column.align)} ${stickyFilterClass(column)}`}>
                   {column.filterable === false ? null : (
                     <input
                       value={filters[column.id] ?? ''}
@@ -416,12 +455,12 @@ export function AdvancedTable<T>({
               pagedRows.map((row, index) => (
                 <tr
                   key={rowKey ? rowKey(row, index) : `${tableId}-${pageIndex}-${index}`}
-                  className="border-t border-akiva-border hover:bg-akiva-table-row-hover"
+                  className="group border-t border-akiva-border hover:bg-akiva-table-row-hover"
                 >
                   {visibleColumns.map((column) => {
                     const value = column.accessor(row);
                     return (
-                      <td key={column.id} className={`px-3 py-2 text-sm text-akiva-text ${alignClass(column.align)}`}>
+                      <td key={column.id} className={`px-3 py-2 text-sm text-akiva-text ${alignClass(column.align)} ${stickyCellClass(column)}`}>
                         {column.cell ? column.cell(row) : asText(value)}
                       </td>
                     );

@@ -12,7 +12,7 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }: ModalProps) {
-  const MOBILE_BREAKPOINT = 768;
+  const MOBILE_BREAKPOINT = 900;
   const HEADER_HEIGHT = 56;
   const MIN_WIDTH = 320;
   const MIN_HEIGHT = 220;
@@ -27,11 +27,11 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
 
   const desktopWidthRatio = useMemo(() => {
     const ratios: Record<NonNullable<ModalProps['size']>, number> = {
-      sm: 0.7,
-      md: 0.7,
-      lg: 0.7,
-      xl: 0.7,
-      '2xl': 0.7,
+      sm: 0.42,
+      md: 0.52,
+      lg: 0.64,
+      xl: 0.78,
+      '2xl': 0.9,
     };
     return ratios[size];
   }, [size]);
@@ -308,7 +308,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                       <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">{children}</div>
                       {footer ? (
                         <div className="border-t border-akiva-border bg-akiva-surface-muted px-4 py-3 sm:px-6 sm:py-4">
-                          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&_button]:w-full sm:[&_button]:w-auto">{footer}</div>
+                          <div className="flex flex-col-reverse gap-2 md:flex-row md:justify-end [&_button]:w-full md:[&_button]:w-auto">{footer}</div>
                         </div>
                       ) : null}
                     </>

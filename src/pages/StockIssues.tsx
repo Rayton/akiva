@@ -449,7 +449,9 @@ export function StockIssues() {
                     Issue stock
                   </span>
                 </div>
-                <h1 className="text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl">Stock Issues</h1>
+                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
+                  Stock Issues
+                </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
                   Issue items from a location with quantities, reason, value impact and on-hand balance kept together.
                 </p>

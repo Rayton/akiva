@@ -317,7 +317,9 @@ export function StockSerialItemResearch() {
                     Serial trace
                   </span>
                 </div>
-                <h1 className="text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl">Serial Item Research</h1>
+                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
+                  Serial Item Research
+                </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
                   Trace serial and batch balances through receipts, sales, transfers, adjustments and other inventory movements.
                 </p>

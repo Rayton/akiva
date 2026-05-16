@@ -454,7 +454,9 @@ export function StockMovements() {
                     Stock audit trail
                   </span>
                 </div>
-                <h1 className="text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl">Stock Movements</h1>
+                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
+                  Stock Movements
+                </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
                   Review when items moved, which document created the movement, who posted it, and the balance left after posting.
                 </p>

@@ -446,11 +446,7 @@ export function StockAdjustments() {
           <div className="space-y-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-7">
             {filterOpen ? (
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-                    <input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void loadWorkbench(); }} className={`${inputClass} pl-10`} placeholder="Search item, reason or number" />
-                  </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <SearchableSelect value={locationFilter} onChange={setLocationFilter} options={locationOptions} inputClassName={inputClass} placeholder="Location" />
                   <SearchableSelect value={directionFilter} onChange={(value) => setDirectionFilter(value as DirectionFilter)} options={[
                     { value: 'All', label: 'All adjustments' },
@@ -474,12 +470,10 @@ export function StockAdjustments() {
                   <h2 className="text-sm font-semibold text-akiva-text">Recent adjustments</h2>
                   <p className="mt-1 text-sm text-akiva-text-muted">Every posted correction keeps the quantity, reason and value impact visible.</p>
                 </div>
-                {!filterOpen ? (
-                  <div className="relative w-full md:max-w-sm">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-                    <input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void loadWorkbench(); }} className={`${inputClass} pl-10`} placeholder="Search adjustments" />
-                  </div>
-                ) : null}
+                <div className="relative w-full md:max-w-sm">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                  <input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void loadWorkbench(); }} className={`${inputClass} pl-10`} placeholder="Search item, reason or number" />
+                </div>
               </div>
               <div className="p-4">
                 <AdvancedTable

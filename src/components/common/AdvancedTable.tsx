@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, FileSpreadsheet, FileText } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, FileSpreadsheet, FileText, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -31,6 +31,11 @@ interface AdvancedTableProps<T> {
   initialPageSize?: number;
   pageSizeOptions?: number[];
   initialScroll?: 'left' | 'right';
+  showSearch?: boolean;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
+  serverSearch?: boolean;
 }
 
 type WidthMap = Record<string, number>;
@@ -86,11 +91,17 @@ export function AdvancedTable<T>({
   initialPageSize = 25,
   pageSizeOptions = DEFAULT_PAGE_SIZES,
   initialScroll = 'left',
+  showSearch = false,
+  searchValue,
+  onSearchChange,
+  searchPlaceholder = 'Search table',
+  serverSearch = false,
 }: AdvancedTableProps<T>) {
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [pageIndex, setPageIndex] = useState(0);
   const [filters, setFilters] = useState<FilterMap>({});
   const [sort, setSort] = useState<SortState | null>(null);
+  const [internalSearch, setInternalSearch] = useState('');
   const [showColumnsPanel, setShowColumnsPanel] = useState(false);
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => columns.map((column) => column.id));
   const [columnWidths, setColumnWidths] = useState<WidthMap>({});
@@ -98,6 +109,12 @@ export function AdvancedTable<T>({
   const resizerRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const previousTableIdRef = useRef(tableId);
+  const activeSearch = searchValue ?? internalSearch;
+
+  const updateSearch = (value: string) => {
+    onSearchChange?.(value);
+    if (searchValue === undefined) setInternalSearch(value);
+  };
 
   useEffect(() => {
     const storageKey = `table-col-widths:${tableId}`;
@@ -197,8 +214,19 @@ export function AdvancedTable<T>({
 
   const filteredRows = useMemo(() => {
     if (rows.length === 0) return rows;
+    const globalNeedle = serverSearch ? '' : activeSearch.trim().toLowerCase();
 
     return rows.filter((row) => {
+      if (globalNeedle) {
+        const haystack = columns
+          .filter((column) => column.filterable !== false)
+          .map((column) => asText(column.accessor(row)))
+          .join(' ')
+          .toLowerCase();
+
+        if (!haystack.includes(globalNeedle)) return false;
+      }
+
       for (const column of columns) {
         const needle = (filters[column.id] ?? '').trim().toLowerCase();
         if (!needle) continue;
@@ -207,7 +235,7 @@ export function AdvancedTable<T>({
       }
       return true;
     });
-  }, [columns, filters, rows]);
+  }, [activeSearch, columns, filters, rows, serverSearch]);
 
   const sortedRows = useMemo(() => {
     if (!sort) return filteredRows;
@@ -263,7 +291,7 @@ export function AdvancedTable<T>({
 
   useEffect(() => {
     setPageIndex(0);
-  }, [filters, sort]);
+  }, [activeSearch, filters, sort]);
 
   const onExportExcel = () => {
     const exportRows = sortedRows.map((row) => {
@@ -304,7 +332,7 @@ export function AdvancedTable<T>({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setShowColumnsPanel((previous) => !previous)}
@@ -331,12 +359,26 @@ export function AdvancedTable<T>({
           </button>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-akiva-text-muted">
-          <span>
-            Showing {rangeStart} to {rangeEnd} of {sortedRows.length} items
-          </span>
-          <span className="text-akiva-border-strong">|</span>
-          <span>{rows.length} total rows</span>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          {showSearch ? (
+            <div className="relative w-full sm:w-72">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+              <input
+                value={activeSearch}
+                onChange={(event) => updateSearch(event.target.value)}
+                placeholder={searchPlaceholder}
+                className="h-9 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised pl-9 pr-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+              />
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-2 whitespace-nowrap text-xs text-akiva-text-muted">
+            <span>
+              Showing {rangeStart} to {rangeEnd} of {sortedRows.length} items
+            </span>
+            <span className="text-akiva-border-strong">|</span>
+            <span>{rows.length} total rows</span>
+          </div>
         </div>
       </div>
 

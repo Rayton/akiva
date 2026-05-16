@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\InventoryTransferController;
 use App\Http\Controllers\Api\StockAdjustmentController;
+use App\Http\Controllers\Api\ReverseGrnController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -125,6 +126,8 @@ Route::prefix('inventory')->group(function () {
     Route::get('/adjustments/workbench', [StockAdjustmentController::class, 'workbench']);
     Route::get('/adjustment-items', [StockAdjustmentController::class, 'items']);
     Route::post('/adjustments', [StockAdjustmentController::class, 'store']);
+    Route::get('/reverse-grn/workbench', [ReverseGrnController::class, 'workbench']);
+    Route::post('/reverse-grn/{grnNo}', [ReverseGrnController::class, 'reverse']);
     Route::get('/transfers/workbench', [InventoryTransferController::class, 'workbench']);
     Route::get('/transfers/receiving/workbench', [InventoryTransferController::class, 'receivingWorkbench']);
     Route::get('/transfer-items', [InventoryTransferController::class, 'transferItems']);

@@ -14,6 +14,7 @@ import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
 import { InventoryTransferReceive } from './pages/InventoryTransferReceive';
 import { StockAdjustments } from './pages/StockAdjustments';
+import { ReverseGoodsReceived } from './pages/ReverseGoodsReceived';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
@@ -251,10 +252,19 @@ function isPurchaseOrderMenuSlug(slug: string): boolean {
     key === 'purchaseorders' ||
     key.includes('purchorder') ||
     key.includes('goodsreceived') ||
-    key.includes('reversegrn') ||
     key.includes('reprintgrn') ||
     key.includes('outstandinggrns') ||
     key.includes('suppinvgrns')
+  );
+}
+
+function isReverseGrnMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'reversegrn' ||
+    key === 'reversegoodsreceived' ||
+    key.includes('reversegrn') ||
+    key.includes('reversegoodsreceived')
   );
 }
 
@@ -671,12 +681,16 @@ function AppContent() {
         return <GeneralLedger sourceSlug={menuSlug} sourceHref={currentMenuHref} sourceCaption={currentMenuCaption} />;
       }
 
-      if (isPurchaseOrderMenuSlug(menuSlug)) {
-        return <PurchaseOrders />;
-      }
-
       if (isStockAdjustmentMenuSlug(menuSlug)) {
         return <StockAdjustments />;
+      }
+
+      if (isReverseGrnMenuSlug(menuSlug)) {
+        return <ReverseGoodsReceived />;
+      }
+
+      if (isPurchaseOrderMenuSlug(menuSlug)) {
+        return <PurchaseOrders />;
       }
 
       if (isInventoryTransferReceiveMenuSlug(menuSlug)) {
@@ -844,6 +858,11 @@ function AppContent() {
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Supplier Payments</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage payments to suppliers</p></div>;
       case 'grn':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Goods Received Notes</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Record goods received from suppliers</p></div>;
+      case 'reversegrn':
+      case 'reverse-grn':
+      case 'reverse-goods-received':
+      case 'reversegoodsreceived':
+        return <ReverseGoodsReceived />;
       
       // General Ledger
       case 'bank-accounts':

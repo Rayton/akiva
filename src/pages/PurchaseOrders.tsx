@@ -924,8 +924,8 @@ export function PurchaseOrders() {
                     {loadingOrders ? 'Loading live POs' : loadedFromDatabase ? `Live database · ${orders.length} POs` : 'Database not loaded'}
                   </Chip>
                 </div>
-                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-700 dark:text-slate-100 sm:text-3xl lg:text-4xl">
-                  Purchase Order Workbench
+                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
+                  Purchase Orders
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
                   Create purchase commitments, route them through review and authorisation, print or send authorised orders, receive goods into stock, and hold GRNs for supplier bill matching.

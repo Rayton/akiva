@@ -129,11 +129,30 @@ function normalizePath(pathname: string): string {
   return normalized === '' ? '/' : normalized;
 }
 
+function routeSlugFromPath(pathname: string): string {
+  const segments = pathname.split('/').filter(Boolean);
+  const routeSegment = segments[segments.length - 1] ?? '';
+  return routeSegment.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
+function normalizedSlugKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function pageIdSlugKey(pageId: string): string {
+  if (pageId.startsWith('menu-route-')) return normalizedSlugKey(pageId.slice('menu-route-'.length));
+  if (!pageId.startsWith('menu-')) return normalizedSlugKey(pageId);
+
+  const firstDash = pageId.indexOf('-', 5);
+  return firstDash > -1 ? normalizedSlugKey(pageId.slice(firstDash + 1)) : normalizedSlugKey(pageId);
+}
+
 interface MenuRouteIndex {
   pathToPageId: Map<string, string>;
   pageIdToPath: Map<string, string>;
   pageIdToMainId: Map<string, number>;
   pageIdToExpandIds: Map<string, string[]>;
+  slugToPageId: Map<string, string>;
 }
 
 const STATIC_SETUP_ROUTES: Array<[string, string]> = [
@@ -184,6 +203,7 @@ function buildMenuRouteIndex(mainMenus: MenuCategory[]): MenuRouteIndex {
   const pageIdToPath = new Map<string, string>();
   const pageIdToMainId = new Map<string, number>();
   const pageIdToExpandIds = new Map<string, string[]>();
+  const slugToPageId = new Map<string, string>();
 
   const visitNode = (
     node: MenuCategory,
@@ -202,6 +222,12 @@ function buildMenuRouteIndex(mainMenus: MenuCategory[]): MenuRouteIndex {
     pageIdToPath.set(pageId, path);
     pageIdToMainId.set(pageId, mainId);
     pageIdToExpandIds.set(pageId, expandTrail);
+    if (slug) {
+      const slugKey = normalizedSlugKey(slug);
+      if (!slugToPageId.has(slugKey)) {
+        slugToPageId.set(slugKey, pageId);
+      }
+    }
 
     if (!node.children || node.children.length === 0) return;
 
@@ -230,8 +256,16 @@ function buildMenuRouteIndex(mainMenus: MenuCategory[]): MenuRouteIndex {
 
   const configurationMainId = mainMenus.find((menu) => isConfigurationMenu(menu.caption))?.id;
   STATIC_SETUP_ROUTES.forEach(([path, pageId]) => {
-    pathToPageId.set(path, pageId);
-    pageIdToPath.set(pageId, path);
+    const canonicalPageId = slugToPageId.get(normalizedSlugKey(pageId)) ?? pageId;
+    if (!pathToPageId.has(path)) {
+      pathToPageId.set(path, canonicalPageId);
+    }
+    if (!pageIdToPath.has(canonicalPageId)) {
+      pageIdToPath.set(canonicalPageId, path);
+    }
+    if (!pageIdToPath.has(pageId)) {
+      pageIdToPath.set(pageId, path);
+    }
     if (configurationMainId !== undefined) {
       pageIdToMainId.set(pageId, configurationMainId);
     }
@@ -243,6 +277,7 @@ function buildMenuRouteIndex(mainMenus: MenuCategory[]): MenuRouteIndex {
     pageIdToPath,
     pageIdToMainId,
     pageIdToExpandIds,
+    slugToPageId,
   };
 }
 
@@ -305,10 +340,21 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIc
 }
 
 function nodeContainsPage(node: MenuCategory, currentPage: string): boolean {
-  const nodePageId = menuPageId(node.id, node.caption, node.href);
-  if (nodePageId === currentPage) return true;
+  if (nodeMatchesPage(node, currentPage)) return true;
   if (!node.children || node.children.length === 0) return false;
   return node.children.some((child) => nodeContainsPage(child as MenuCategory, currentPage));
+}
+
+function nodeMatchesPage(node: MenuCategory | MenuItem, currentPage: string): boolean {
+  const nodePageId = menuPageId(node.id, node.caption, node.href);
+  if (nodePageId === currentPage) return true;
+  if (currentPage === 'dashboard' || currentPage.startsWith('main-')) return false;
+
+  const currentKey = pageIdSlugKey(currentPage);
+  const nodeKey = normalizedSlugKey(menuSlug(node.caption, node.href));
+  if (!currentKey || !nodeKey) return false;
+
+  return currentKey === nodeKey || (currentKey.endsWith('setup') && currentKey.slice(0, -5) === nodeKey);
 }
 
 function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubItems, toggleSubExpanded }: MenuCategoryItemProps) {
@@ -316,7 +362,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
   const hasChildren = category.children && category.children.length > 0;
   const pageId = menuPageId(category.id, category.caption, category.href);
   const ItemIcon = getSecondaryMenuIcon(category.caption, Boolean(hasChildren));
-  const isCurrentBranchActive = hasChildren ? nodeContainsPage(category, currentPage) : currentPage === pageId;
+  const isCurrentBranchActive = hasChildren ? nodeContainsPage(category, currentPage) : nodeMatchesPage(category, currentPage);
 
   if (hasChildren) {
     return (
@@ -365,7 +411,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                               key={grandChild.id}
                               onClick={() => setCurrentPage(grandChildPageId)}
                               className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-all duration-200 rounded text-left ${
-                                currentPage === grandChildPageId
+                                nodeMatchesPage(grandChild, currentPage)
                                   ? 'bg-rose-50 text-rose-700 font-medium dark:bg-rose-950/40 dark:text-rose-300'
                                   : 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white'
                               }`}
@@ -388,7 +434,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                   key={child.id}
                   onClick={() => setCurrentPage(childPageId)}
                   className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-all duration-200 rounded text-left ${
-                    currentPage === childPageId
+                    nodeMatchesPage(child, currentPage)
                       ? 'bg-rose-50 text-rose-700 font-medium dark:bg-rose-950/40 dark:text-rose-300'
                       : 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white'
                   }`}
@@ -410,7 +456,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
     <button
       onClick={() => setCurrentPage(pageId)}
       className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-all duration-200 rounded text-left ${
-        currentPage === pageId
+        nodeMatchesPage(category, currentPage)
           ? 'bg-white text-slate-950 font-medium shadow-sm shadow-slate-200/60 dark:bg-slate-800 dark:text-white dark:shadow-black/20'
           : 'text-slate-600 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white'
       }`}
@@ -452,6 +498,7 @@ function Sidebar() {
   const mainSidebarRef = useRef<HTMLDivElement>(null);
   const iconCollapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const routeBootstrapDoneRef = useRef(false);
+  const browserNavigationRef = useRef(false);
   const menuFetchAttemptedRef = useRef(false);
   const mainResizeRef = useRef<{ left: number } | null>(null);
   const latestMainSidebarWidthRef = useRef(mainSidebarWidth);
@@ -506,16 +553,23 @@ function Sidebar() {
       const segments = normalized.split('/').filter(Boolean);
       if (segments.length === 0) return null;
 
-      for (let i = segments.length - 1; i >= 1; i -= 1) {
+      for (let i = segments.length - 1; i >= 2; i -= 1) {
         const candidate = '/' + segments.slice(0, i).join('/');
         const match = routeIndex.pathToPageId.get(candidate);
         if (match) return match;
       }
 
+      const routeSlug = routeSlugFromPath(pathname);
+      const slugMatch = routeIndex.slugToPageId.get(normalizedSlugKey(routeSlug));
+      if (slugMatch) return slugMatch;
+
       const mainOnly = '/' + segments[0];
-      return routeIndex.pathToPageId.get(mainOnly) ?? null;
+      const mainMatch = routeIndex.pathToPageId.get(mainOnly);
+      if (mainMatch) return mainMatch;
+
+      return routeSlug ? `menu-route-${routeSlug}` : null;
     },
-    [routeIndex.pathToPageId]
+    [routeIndex.pathToPageId, routeIndex.slugToPageId]
   );
 
   // Initialize current page from URL once menus are available.
@@ -536,6 +590,12 @@ function Sidebar() {
   // Keep URL synchronized with selected page for deep links and refresh persistence.
   useEffect(() => {
     if (mainMenus.length === 0) return;
+
+    if (browserNavigationRef.current) {
+      browserNavigationRef.current = false;
+      return;
+    }
+
     const targetPath = currentPage === 'dashboard' ? '/dashboard' : routeIndex.pageIdToPath.get(currentPage);
     if (!targetPath) return;
 
@@ -553,13 +613,14 @@ function Sidebar() {
     const onPopState = () => {
       const routePageId = resolvePageIdFromPath(window.location.pathname);
       if (routePageId) {
+        browserNavigationRef.current = routePageId !== currentPage;
         setCurrentPage(routePageId);
       }
     };
 
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [mainMenus.length, resolvePageIdFromPath, setCurrentPage]);
+  }, [currentPage, mainMenus.length, resolvePageIdFromPath, setCurrentPage]);
 
   useEffect(() => {
     return () => {

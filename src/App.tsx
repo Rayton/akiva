@@ -21,6 +21,7 @@ import { PrintPriceLabels } from './pages/PrintPriceLabels';
 import { StockMovements } from './pages/StockMovements';
 import { StockStatus } from './pages/StockStatus';
 import { StockUsage } from './pages/StockUsage';
+import { AllInventoryUsage } from './pages/AllInventoryUsage';
 import { ReverseGoodsReceived } from './pages/ReverseGoodsReceived';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
@@ -378,6 +379,16 @@ function isStockUsageMenuSlug(slug: string): boolean {
     key === 'inventoryitemusage' ||
     key.includes('stockusage') ||
     key.includes('inventoryitemusage')
+  );
+}
+
+function isAllInventoryUsageMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'allinventoryusage' ||
+    key === 'allstockusage' ||
+    key.includes('allinventoryusage') ||
+    key.includes('allstockusage')
   );
 }
 
@@ -798,6 +809,10 @@ function AppContent() {
         return <StockStatus />;
       }
 
+      if (isAllInventoryUsageMenuSlug(menuSlug)) {
+        return <AllInventoryUsage />;
+      }
+
       if (isStockUsageMenuSlug(menuSlug)) {
         return <StockUsage />;
       }
@@ -847,6 +862,10 @@ function AppContent() {
 
     if (isStockStatusMenuSlug(locationPathname)) {
       return <StockStatus />;
+    }
+
+    if (isAllInventoryUsageMenuSlug(locationPathname)) {
+      return <AllInventoryUsage />;
     }
 
     if (isStockUsageMenuSlug(locationPathname)) {
@@ -1072,6 +1091,11 @@ function AppContent() {
       // Inventory Reports
       case 'stock-status':
         return <StockStatus />;
+      case 'all-inventory-usage':
+      case 'allinventoryusage':
+      case 'all-stock-usage':
+      case 'allstockusage':
+        return <AllInventoryUsage />;
       case 'stock-usage':
       case 'stockusage':
       case 'inventory-item-usage':

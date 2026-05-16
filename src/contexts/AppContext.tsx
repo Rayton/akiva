@@ -35,7 +35,7 @@ interface AppProviderProps {
   children: ReactNode;
 }
 
-const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v2';
+const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v3';
 
 function normalizedPathKey(pathname: string): string {
   return pathname.toLowerCase().replace(/[^a-z0-9]/g, '');

@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\SalesReceivablesSetupController;
 use App\Http\Controllers\Api\PurchasesPayablesSetupController;
 use App\Http\Controllers\Api\InventorySetupController;
 use App\Http\Controllers\Api\InventoryDashboardController;
+use App\Http\Controllers\Api\AllInventoryUsageController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\InventoryTransferController;
@@ -156,6 +157,9 @@ Route::prefix('inventory')->group(function () {
     Route::get('/stock-status-items', [StockStatusController::class, 'items']);
     Route::get('/stock-usage/workbench', [StockUsageController::class, 'workbench']);
     Route::get('/stock-usage-items', [StockUsageController::class, 'items']);
+    Route::get('/all-inventory-usage/workbench', [AllInventoryUsageController::class, 'workbench']);
+    Route::get('/all-inventory-usage/export/pdf', [AllInventoryUsageController::class, 'exportPdf']);
+    Route::get('/all-inventory-usage/export/excel', [AllInventoryUsageController::class, 'exportExcel']);
     Route::get('/reverse-grn/workbench', [ReverseGrnController::class, 'workbench']);
     Route::post('/reverse-grn/{grnNo}', [ReverseGrnController::class, 'reverse']);
     Route::get('/transfers/workbench', [InventoryTransferController::class, 'workbench']);

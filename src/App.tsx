@@ -13,6 +13,7 @@ import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
 import { InventoryTransferReceive } from './pages/InventoryTransferReceive';
+import { StockAdjustments } from './pages/StockAdjustments';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
@@ -274,6 +275,16 @@ function isInventoryTransferReceiveMenuSlug(slug: string): boolean {
     key === 'stockloctransferreceive' ||
     key.includes('stockloctransferreceive') ||
     key.includes('bulkinventorytransferreceive')
+  );
+}
+
+function isStockAdjustmentMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockadjustments' ||
+    key === 'inventoryadjustments' ||
+    key.includes('stockadjustments') ||
+    key.includes('inventoryadjustments')
   );
 }
 
@@ -664,6 +675,10 @@ function AppContent() {
         return <PurchaseOrders />;
       }
 
+      if (isStockAdjustmentMenuSlug(menuSlug)) {
+        return <StockAdjustments />;
+      }
+
       if (isInventoryTransferReceiveMenuSlug(menuSlug)) {
         return <InventoryTransferReceive />;
       }
@@ -842,7 +857,10 @@ function AppContent() {
       case 'stock-movements':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Movements</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Track inventory movements and transactions</p></div>;
       case 'stock-adjustments':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Adjustments</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Adjust inventory levels and quantities</p></div>;
+      case 'stockadjustments':
+      case 'inventory-adjustments':
+      case 'inventoryadjustments':
+        return <StockAdjustments />;
       case 'stock-transfers':
       case 'stockloctransfer':
       case 'inventory-location-transfers':

@@ -36,6 +36,7 @@ interface AdvancedTableProps<T> {
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
   serverSearch?: boolean;
+  showExports?: boolean;
 }
 
 type WidthMap = Record<string, number>;
@@ -96,6 +97,7 @@ export function AdvancedTable<T>({
   onSearchChange,
   searchPlaceholder = 'Search table',
   serverSearch = false,
+  showExports = true,
 }: AdvancedTableProps<T>) {
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [pageIndex, setPageIndex] = useState(0);
@@ -341,22 +343,26 @@ export function AdvancedTable<T>({
             <Columns3 className="h-3.5 w-3.5" />
             Columns
           </button>
-          <button
-            type="button"
-            onClick={onExportExcel}
-            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            Excel
-          </button>
-          <button
-            type="button"
-            onClick={onExportPdf}
-            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            PDF
-          </button>
+          {showExports ? (
+            <>
+              <button
+                type="button"
+                onClick={onExportExcel}
+                className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Excel
+              </button>
+              <button
+                type="button"
+                onClick={onExportPdf}
+                className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                PDF
+              </button>
+            </>
+          ) : null}
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">

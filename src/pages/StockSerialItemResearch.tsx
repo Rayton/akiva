@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  CalendarDays,
   CheckCircle2,
   Eye,
   History,
@@ -125,7 +126,7 @@ export function StockSerialItemResearch() {
   const [serialSearch, setSerialSearch] = useState('');
   const [itemFilter, setItemFilter] = useState('All');
   const [locationFilter, setLocationFilter] = useState('All');
-  const [dateRange, setDateRange] = useState<DateRangeValue>(() => getDefaultDateRange());
+  const [dateRange, setDateRange] = useState<DateRangeValue | null>(null);
   const [detailMovement, setDetailMovement] = useState<SerialMovement | null>(null);
 
   const locations = useMemo(() => [{ value: 'All', label: 'All locations' }, ...(payload?.locations ?? [])], [payload?.locations]);
@@ -150,8 +151,10 @@ export function StockSerialItemResearch() {
       if (serialSearch.trim()) params.set('serial', serialSearch.trim());
       if (itemFilter !== 'All') params.set('item', itemFilter);
       if (locationFilter !== 'All') params.set('location', locationFilter);
-      params.set('from', dateRange.from);
-      params.set('to', dateRange.to);
+      if (dateRange) {
+        params.set('from', dateRange.from);
+        params.set('to', dateRange.to);
+      }
 
       const response = await apiFetch(buildApiUrl(`/api/inventory/serial-item-research/workbench?${params.toString()}`));
       const json = (await response.json()) as WorkbenchResponse;
@@ -172,7 +175,7 @@ export function StockSerialItemResearch() {
       void loadWorkbench();
     }, 280);
     return () => window.clearTimeout(timer);
-  }, [serialSearch, itemFilter, locationFilter, dateRange.from, dateRange.to]);
+  }, [serialSearch, itemFilter, locationFilter, dateRange?.from, dateRange?.to]);
 
   useEffect(() => {
     if (!message && !error) return;
@@ -187,7 +190,7 @@ export function StockSerialItemResearch() {
     setSerialSearch('');
     setItemFilter('All');
     setLocationFilter('All');
-    setDateRange(getDefaultDateRange());
+    setDateRange(null);
   };
 
   const balancePreview = currentSerials.slice(0, 4);
@@ -351,7 +354,18 @@ export function StockSerialItemResearch() {
                   </label>
                   <div>
                     <span className={labelClass}>Date range</span>
-                    <DateRangePicker value={dateRange} onChange={setDateRange} label="Movement dates" triggerClassName="h-11 rounded-lg px-3" />
+                    {dateRange ? (
+                      <DateRangePicker value={dateRange} onChange={setDateRange} label="Movement dates" triggerClassName="h-11 rounded-lg px-3" />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDateRange(getDefaultDateRange())}
+                        className="inline-flex h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-left text-sm text-akiva-text shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                      >
+                        <CalendarDays className="h-4 w-4 shrink-0 text-akiva-text-muted" />
+                        <span className="min-w-0 truncate font-medium text-akiva-text">All dates</span>
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-end">
                     <Button type="button" variant="secondary" className="w-full" onClick={clearFilters}>
@@ -393,7 +407,7 @@ export function StockSerialItemResearch() {
               <div className="flex flex-col gap-3 border-b border-akiva-border px-4 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-akiva-text">Movement history</h2>
-                  <p className="mt-1 text-sm text-akiva-text-muted">Search by serial or batch number, then follow each movement in date order.</p>
+                  <p className="mt-1 text-sm text-akiva-text-muted">Showing the first 50 serial or batch movements. Search to narrow the trace.</p>
                 </div>
                 <div className="relative w-full md:max-w-sm">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />

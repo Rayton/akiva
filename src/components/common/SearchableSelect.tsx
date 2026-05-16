@@ -26,6 +26,7 @@ interface SearchableSelectProps {
   className?: string;
   inputClassName?: string;
   panelClassName?: string;
+  onSearchChange?: (query: string) => void;
   disabled?: boolean;
   required?: boolean;
   id?: string;
@@ -91,6 +92,7 @@ export function SearchableSelect({
   className = '',
   inputClassName = '',
   panelClassName = '',
+  onSearchChange,
   disabled = false,
   required = false,
   id,
@@ -172,8 +174,12 @@ export function SearchableSelect({
           onFocus={() => {
             setIsSearching(true);
             setQuery('');
+            onSearchChange?.('');
           }}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            onSearchChange?.(event.target.value);
+          }}
           onBlur={() => {
             setQuery('');
             setIsSearching(false);

@@ -26,6 +26,8 @@ use App\Http\Controllers\Api\StockAdjustmentController;
 use App\Http\Controllers\Api\StockCountController;
 use App\Http\Controllers\Api\StockIssueController;
 use App\Http\Controllers\Api\StockSerialItemResearchController;
+use App\Http\Controllers\Api\PrintPriceLabelController;
+use App\Http\Controllers\Api\StockMovementController;
 use App\Http\Controllers\Api\ReverseGrnController;
 
 Route::get('/menu', [MenuController::class, 'index']);
@@ -139,6 +141,13 @@ Route::prefix('inventory')->group(function () {
     Route::get('/stock-issue-items', [StockIssueController::class, 'items']);
     Route::post('/stock-issues', [StockIssueController::class, 'store']);
     Route::get('/serial-item-research/workbench', [StockSerialItemResearchController::class, 'workbench']);
+    Route::get('/price-labels/workbench', [PrintPriceLabelController::class, 'workbench']);
+    Route::get('/price-label-items', [PrintPriceLabelController::class, 'items']);
+    Route::post('/price-labels/print', [PrintPriceLabelController::class, 'print']);
+    Route::get('/stock-movements/workbench', [StockMovementController::class, 'workbench']);
+    Route::get('/stock-movement-items', [StockMovementController::class, 'items']);
+    Route::get('/stock-movements/export/pdf', [StockMovementController::class, 'exportPdf']);
+    Route::get('/stock-movements/export/excel', [StockMovementController::class, 'exportExcel']);
     Route::get('/reverse-grn/workbench', [ReverseGrnController::class, 'workbench']);
     Route::post('/reverse-grn/{grnNo}', [ReverseGrnController::class, 'reverse']);
     Route::get('/transfers/workbench', [InventoryTransferController::class, 'workbench']);

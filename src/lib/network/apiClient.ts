@@ -33,7 +33,7 @@ function shouldRetryApiResponse(response: Response, method: string): boolean {
   if (method !== 'GET') return false;
 
   const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
-  if (response.status >= 200 && response.status < 300 && contentType !== '' && !contentType.includes('application/json')) {
+  if (response.status >= 200 && response.status < 300 && contentType.includes('text/html')) {
     return true;
   }
 

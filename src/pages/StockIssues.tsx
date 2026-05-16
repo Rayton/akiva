@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  CalendarDays,
   CheckCircle2,
   ClipboardMinus,
   Eye,
@@ -145,7 +146,7 @@ export function StockIssues() {
   const [message, setMessage] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [locationFilter, setLocationFilter] = useState('All');
-  const [dateRangeFilter, setDateRangeFilter] = useState<DateRangeValue>(() => getDefaultDateRange());
+  const [dateRangeFilter, setDateRangeFilter] = useState<DateRangeValue | null>(null);
   const [tableSearch, setTableSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<StockIssueRow | null>(null);
@@ -174,8 +175,10 @@ export function StockIssues() {
     try {
       const params = new URLSearchParams();
       if (locationFilter !== 'All') params.set('location', locationFilter);
-      params.set('from', dateRangeFilter.from);
-      params.set('to', dateRangeFilter.to);
+      if (dateRangeFilter) {
+        params.set('from', dateRangeFilter.from);
+        params.set('to', dateRangeFilter.to);
+      }
       if (tableSearch.trim()) params.set('q', tableSearch.trim());
       const query = params.toString() ? `?${params.toString()}` : '';
       const response = await apiFetch(buildApiUrl(`/api/inventory/stock-issues/workbench${query}`));
@@ -218,7 +221,7 @@ export function StockIssues() {
 
   useEffect(() => {
     void loadWorkbench();
-  }, [locationFilter, dateRangeFilter.from, dateRangeFilter.to]);
+  }, [locationFilter, dateRangeFilter?.from, dateRangeFilter?.to]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -476,12 +479,23 @@ export function StockIssues() {
                   </div>
                   <div className="md:col-span-2">
                     <span className={labelClass}>Date range</span>
-                    <DateRangePicker
-                      value={dateRangeFilter}
-                      onChange={setDateRangeFilter}
-                      label="Start and end date"
-                      triggerClassName="h-11 rounded-lg px-3"
-                    />
+                    {dateRangeFilter ? (
+                      <DateRangePicker
+                        value={dateRangeFilter}
+                        onChange={setDateRangeFilter}
+                        label="Start and end date"
+                        triggerClassName="h-11 rounded-lg px-3"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDateRangeFilter(getDefaultDateRange())}
+                        className="inline-flex h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-left text-sm text-akiva-text shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                      >
+                        <CalendarDays className="h-4 w-4 shrink-0 text-akiva-text-muted" />
+                        <span className="min-w-0 truncate font-medium text-akiva-text">All dates</span>
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-end">
                     <Button
@@ -490,7 +504,7 @@ export function StockIssues() {
                       className="w-full"
                       onClick={() => {
                         setLocationFilter('All');
-                        setDateRangeFilter(getDefaultDateRange());
+                        setDateRangeFilter(null);
                       }}
                     >
                       Clear filters

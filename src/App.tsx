@@ -17,6 +17,8 @@ import { StockAdjustments } from './pages/StockAdjustments';
 import { StockCounts } from './pages/StockCounts';
 import { StockIssues } from './pages/StockIssues';
 import { StockSerialItemResearch } from './pages/StockSerialItemResearch';
+import { PrintPriceLabels } from './pages/PrintPriceLabels';
+import { StockMovements } from './pages/StockMovements';
 import { ReverseGoodsReceived } from './pages/ReverseGoodsReceived';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
@@ -153,6 +155,17 @@ function isFormDesignerMenuSlug(slug: string): boolean {
 function isLabelsMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return key === 'labels' || key.includes('labeltemplates') || key.includes('pricelabels');
+}
+
+function isPrintPriceLabelsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'pdfprintlabel' ||
+    key === 'printpricelabels' ||
+    key === 'printlabels' ||
+    key.includes('pdfprintlabel') ||
+    key.includes('printpricelabel')
+  );
 }
 
 function isSmtpServerMenuSlug(slug: string): boolean {
@@ -330,6 +343,16 @@ function isStockSerialItemResearchMenuSlug(slug: string): boolean {
     key === 'serialitemresearch' ||
     key.includes('stockserialitemresearch') ||
     key.includes('serialitemresearch')
+  );
+}
+
+function isStockMovementsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockmovements' ||
+    key === 'stockmovement' ||
+    key.includes('stockmovements') ||
+    key.includes('stockmovement')
   );
 }
 
@@ -656,6 +679,10 @@ function AppContent() {
         return <FormDesigner />;
       }
 
+      if (isPrintPriceLabelsMenuSlug(menuSlug)) {
+        return <PrintPriceLabels />;
+      }
+
       if (isLabelsMenuSlug(menuSlug)) {
         return <Labels />;
       }
@@ -732,6 +759,10 @@ function AppContent() {
         return <StockSerialItemResearch />;
       }
 
+      if (isStockMovementsMenuSlug(menuSlug)) {
+        return <StockMovements />;
+      }
+
       if (isReverseGrnMenuSlug(menuSlug)) {
         return <ReverseGoodsReceived />;
       }
@@ -766,6 +797,14 @@ function AppContent() {
 
     const routeView = knownSettingsViewFromPath(locationPathname);
     if (routeView) return routeView;
+
+    if (isPrintPriceLabelsMenuSlug(locationPathname)) {
+      return <PrintPriceLabels />;
+    }
+
+    if (isStockMovementsMenuSlug(locationPathname)) {
+      return <StockMovements />;
+    }
 
     switch (currentPage) {
       case 'accounts':
@@ -886,6 +925,11 @@ function AppContent() {
       case 'label-templates':
       case 'price-labels':
         return <Labels />;
+      case 'pdfprintlabel':
+      case 'pdf-print-label':
+      case 'print-labels':
+      case 'print-price-labels':
+        return <PrintPriceLabels />;
       case 'smtpserver':
       case 'smtp-server':
       case 'mail-server':
@@ -921,7 +965,8 @@ function AppContent() {
       
       // Inventory Management
       case 'stock-movements':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Movements</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Track inventory movements and transactions</p></div>;
+      case 'stockmovements':
+        return <StockMovements />;
       case 'stock-adjustments':
       case 'stockadjustments':
       case 'inventory-adjustments':

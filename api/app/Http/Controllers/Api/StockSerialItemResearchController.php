@@ -93,7 +93,7 @@ class StockSerialItemResearchController extends Controller
         return $query
             ->orderByDesc('ssi.quantity')
             ->orderBy('ssi.serialno')
-            ->limit(120)
+            ->limit(50)
             ->get()
             ->map(function ($row) {
                 $expiration = $this->nullableDate((string) $row->expirationdate);
@@ -167,7 +167,7 @@ class StockSerialItemResearchController extends Controller
 
         return $query
             ->orderByDesc('ssm.stockmoveno')
-            ->limit(160)
+            ->limit(50)
             ->get()
             ->map(function ($row) {
                 $moveQty = (float) $row->moveqty;

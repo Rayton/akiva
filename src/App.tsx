@@ -14,6 +14,9 @@ import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
 import { InventoryTransferReceive } from './pages/InventoryTransferReceive';
 import { StockAdjustments } from './pages/StockAdjustments';
+import { StockCounts } from './pages/StockCounts';
+import { StockIssues } from './pages/StockIssues';
+import { StockSerialItemResearch } from './pages/StockSerialItemResearch';
 import { ReverseGoodsReceived } from './pages/ReverseGoodsReceived';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
@@ -295,6 +298,38 @@ function isStockAdjustmentMenuSlug(slug: string): boolean {
     key === 'inventoryadjustments' ||
     key.includes('stockadjustments') ||
     key.includes('inventoryadjustments')
+  );
+}
+
+function isStockCountsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockcounts' ||
+    key === 'enterstockcounts' ||
+    key.includes('stockcounts') ||
+    key.includes('enterstockcounts') ||
+    key.includes('stockcheck')
+  );
+}
+
+function isStockIssueMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockissue' ||
+    key === 'stockissues' ||
+    key === 'enterstockissue' ||
+    key.includes('stockissue') ||
+    key.includes('enterstockissue')
+  );
+}
+
+function isStockSerialItemResearchMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockserialitemresearch' ||
+    key === 'serialitemresearch' ||
+    key.includes('stockserialitemresearch') ||
+    key.includes('serialitemresearch')
   );
 }
 
@@ -685,6 +720,18 @@ function AppContent() {
         return <StockAdjustments />;
       }
 
+      if (isStockCountsMenuSlug(menuSlug)) {
+        return <StockCounts />;
+      }
+
+      if (isStockIssueMenuSlug(menuSlug)) {
+        return <StockIssues />;
+      }
+
+      if (isStockSerialItemResearchMenuSlug(menuSlug)) {
+        return <StockSerialItemResearch />;
+      }
+
       if (isReverseGrnMenuSlug(menuSlug)) {
         return <ReverseGoodsReceived />;
       }
@@ -880,6 +927,23 @@ function AppContent() {
       case 'inventory-adjustments':
       case 'inventoryadjustments':
         return <StockAdjustments />;
+      case 'stock-counts':
+      case 'stockcounts':
+      case 'enter-stock-counts':
+      case 'enterstockcounts':
+        return <StockCounts />;
+      case 'stock-issue':
+      case 'stockissue':
+      case 'stock-issues':
+      case 'stockissues':
+      case 'enter-stock-issue':
+      case 'enterstockissue':
+        return <StockIssues />;
+      case 'stockserialitemresearch':
+      case 'stock-serial-item-research':
+      case 'serial-item-research':
+      case 'serialitemresearch':
+        return <StockSerialItemResearch />;
       case 'stock-transfers':
       case 'stockloctransfer':
       case 'inventory-location-transfers':

@@ -23,6 +23,9 @@ use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\InventoryTransferController;
 use App\Http\Controllers\Api\StockAdjustmentController;
+use App\Http\Controllers\Api\StockCountController;
+use App\Http\Controllers\Api\StockIssueController;
+use App\Http\Controllers\Api\StockSerialItemResearchController;
 use App\Http\Controllers\Api\ReverseGrnController;
 
 Route::get('/menu', [MenuController::class, 'index']);
@@ -126,6 +129,16 @@ Route::prefix('inventory')->group(function () {
     Route::get('/adjustments/workbench', [StockAdjustmentController::class, 'workbench']);
     Route::get('/adjustment-items', [StockAdjustmentController::class, 'items']);
     Route::post('/adjustments', [StockAdjustmentController::class, 'store']);
+    Route::get('/stock-counts/workbench', [StockCountController::class, 'workbench']);
+    Route::get('/stock-count-items', [StockCountController::class, 'items']);
+    Route::post('/stock-counts/prepare', [StockCountController::class, 'prepare']);
+    Route::post('/stock-counts/line', [StockCountController::class, 'saveLine']);
+    Route::post('/stock-counts', [StockCountController::class, 'store']);
+    Route::delete('/stock-counts/{id}', [StockCountController::class, 'destroy']);
+    Route::get('/stock-issues/workbench', [StockIssueController::class, 'workbench']);
+    Route::get('/stock-issue-items', [StockIssueController::class, 'items']);
+    Route::post('/stock-issues', [StockIssueController::class, 'store']);
+    Route::get('/serial-item-research/workbench', [StockSerialItemResearchController::class, 'workbench']);
     Route::get('/reverse-grn/workbench', [ReverseGrnController::class, 'workbench']);
     Route::post('/reverse-grn/{grnNo}', [ReverseGrnController::class, 'reverse']);
     Route::get('/transfers/workbench', [InventoryTransferController::class, 'workbench']);

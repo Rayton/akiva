@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\PurchasesPayablesSetupController;
 use App\Http\Controllers\Api\InventorySetupController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
+use App\Http\Controllers\Api\InventoryTransferController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -117,6 +118,15 @@ Route::prefix('sales')->group(function () {
 
 Route::prefix('purchases')->group(function () {
     Route::get('/orders', [PurchaseOrderController::class, 'index']);
+});
+
+Route::prefix('inventory')->group(function () {
+    Route::get('/transfers/workbench', [InventoryTransferController::class, 'workbench']);
+    Route::get('/transfer-items', [InventoryTransferController::class, 'transferItems']);
+    Route::get('/transfers/{reference}/print', [InventoryTransferController::class, 'transferPrint']);
+    Route::get('/transfers/{reference}', [InventoryTransferController::class, 'show']);
+    Route::post('/transfers', [InventoryTransferController::class, 'store']);
+    Route::put('/transfers/{reference}', [InventoryTransferController::class, 'update']);
 });
 
 Route::prefix('gl')->group(function () {

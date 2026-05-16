@@ -11,6 +11,7 @@ import { AccountsPayable } from './pages/AccountsPayable';
 import { Inventory } from './pages/Inventory';
 import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
+import { InventoryTransfer } from './pages/InventoryTransfer';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
@@ -252,6 +253,17 @@ function isPurchaseOrderMenuSlug(slug: string): boolean {
     key.includes('reprintgrn') ||
     key.includes('outstandinggrns') ||
     key.includes('suppinvgrns')
+  );
+}
+
+function isInventoryTransferMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockloctransfer' ||
+    key.includes('stockloctransfer') ||
+    key.includes('bulkinventorytransfer') ||
+    key.includes('inventorylocationtransfer') ||
+    key.includes('locationtransfers')
   );
 }
 
@@ -642,6 +654,10 @@ function AppContent() {
         return <PurchaseOrders />;
       }
 
+      if (isInventoryTransferMenuSlug(menuSlug)) {
+        return <InventoryTransfer />;
+      }
+
       if (primaryPathSegment === 'sales' || isSalesMenuSlug(menuSlug)) {
         return <SalesOrders mode={resolveSalesMode(menuSlug)} sourceSlug={menuSlug} />;
       }
@@ -814,7 +830,10 @@ function AppContent() {
       case 'stock-adjustments':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Adjustments</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Adjust inventory levels and quantities</p></div>;
       case 'stock-transfers':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Transfers</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Transfer stock between locations</p></div>;
+      case 'stockloctransfer':
+      case 'inventory-location-transfers':
+      case 'bulk-inventory-transfer':
+        return <InventoryTransfer />;
       
       // Financial Reports
       case 'profit-loss':

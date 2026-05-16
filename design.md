@@ -225,6 +225,38 @@ Designer conventions:
 - Keep the editor compact: template list, metadata controls, block list, selected-block controls, and live preview in a dashboard-style grid.
 - Save template records through auditable models with soft deletes.
 
+## Notifications
+
+Use bottom-right toast notifications for transient success and error feedback after user actions such as saving, posting, importing, sending, or deleting. Do not place these messages inside the main page flow unless the message is a persistent blocker the user must resolve before continuing.
+
+Toast conventions:
+
+- Position: `fixed bottom-4 right-4`
+- Width: `max-w-[calc(100vw-2rem)] sm:max-w-md`
+- Layer: high enough to sit above dialogs and side panels, usually `z-50` or higher
+- Shape: `rounded-lg border px-4 py-3 text-sm shadow-xl`
+- Layout: icon, message text, dismiss button
+- Success: emerald tones with `CheckCircle2`
+- Error: rose tones with `AlertTriangle`
+- Accessibility: `role="status"` for success and `role="alert"` for errors
+- Behavior: allow manual dismissal and auto-dismiss after about 7 seconds
+- Copy: short user-facing outcome, such as `Transfer 949951 is ready for receiving.`
+
+Recommended toast:
+
+```tsx
+<div
+  role={type === 'success' ? 'status' : 'alert'}
+  className={`fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-xl sm:max-w-md ${tone}`}
+>
+  <Icon className="mt-0.5 h-4 w-4 flex-none" />
+  <p className="min-w-0 flex-1 leading-5">{message}</p>
+  <button type="button" aria-label="Dismiss notification" className="-mr-1 rounded-full p-1 opacity-70 transition hover:bg-white/50 hover:opacity-100">
+    <X className="h-4 w-4" />
+  </button>
+</div>
+```
+
 ## Cards And KPIs
 
 Metric cards should include:

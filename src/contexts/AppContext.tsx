@@ -41,7 +41,16 @@ function normalizedPathKey(pathname: string): string {
   return pathname.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function routeSlugFromPath(pathname: string): string {
+  const segments = pathname.split('/').filter(Boolean);
+  const routeSegment = segments[segments.length - 1] ?? '';
+  return routeSegment.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
 function initialPageFromPath(pathname: string): string {
+  const normalizedPath = pathname.toLowerCase().replace(/\/+/g, '/').replace(/\/$/, '') || '/';
+  if (normalizedPath === '/' || normalizedPath === '/dashboard') return 'dashboard';
+
   const key = normalizedPathKey(pathname);
 
   if (key.includes('configurationuserswwwusers')) return 'users';
@@ -68,7 +77,8 @@ function initialPageFromPath(pathname: string): string {
     return 'general-ledger-setup';
   }
 
-  return 'dashboard';
+  const routeSlug = routeSlugFromPath(pathname);
+  return routeSlug ? `menu-route-${routeSlug}` : 'dashboard';
 }
 
 export function AppProvider({ children }: AppProviderProps) {

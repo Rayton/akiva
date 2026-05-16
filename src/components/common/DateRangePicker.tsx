@@ -210,18 +210,18 @@ export function DateRangePicker({
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
         className={[
-          'inline-flex min-h-10 w-full min-w-0 items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1.5 text-left shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent disabled:cursor-not-allowed disabled:opacity-60',
+          'inline-flex min-h-10 w-full min-w-0 items-center gap-3 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1.5 text-left shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent disabled:cursor-not-allowed disabled:opacity-60',
           triggerClassName,
         ]
           .filter(Boolean)
           .join(' ')}
       >
-        <span className="flex min-w-0 shrink-0 items-center gap-2">
+        <span className="flex min-w-0 shrink items-center gap-2">
           <CalendarDays className="h-4 w-4 shrink-0 text-akiva-text-muted" />
-          <span className="truncate text-sm font-semibold text-akiva-text">{label}</span>
+          <span className="hidden truncate text-sm font-semibold text-akiva-text sm:inline">{label}</span>
         </span>
-        <span className="flex min-w-0 flex-1 items-center justify-end gap-2 rounded-full bg-akiva-surface px-2.5 py-1 shadow-sm">
-          <span className="truncate text-sm font-medium text-akiva-text">{display}</span>
+        <span className="flex min-w-0 shrink items-center gap-2">
+          <span className="truncate text-sm font-medium text-akiva-text sm:whitespace-nowrap">{display}</span>
           <ChevronDown className="h-4 w-4 shrink-0 text-akiva-text-muted" />
         </span>
       </button>

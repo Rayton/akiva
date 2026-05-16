@@ -505,7 +505,7 @@ export function InventoryTransfer() {
   };
 
   const openReceive = (reference: number) => {
-    window.location.href = legacyUrl(`/weberp_updated/StockLocTransferReceive.php?Trf_ID=${encodeURIComponent(String(reference))}`);
+    window.location.href = `/inventory/transactions/stockloctransferreceive?reference=${encodeURIComponent(String(reference))}`;
   };
 
   const pendingColumns = useMemo<AdvancedTableColumn<PendingTransfer>[]>(

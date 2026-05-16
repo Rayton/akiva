@@ -122,10 +122,12 @@ Route::prefix('purchases')->group(function () {
 
 Route::prefix('inventory')->group(function () {
     Route::get('/transfers/workbench', [InventoryTransferController::class, 'workbench']);
+    Route::get('/transfers/receiving/workbench', [InventoryTransferController::class, 'receivingWorkbench']);
     Route::get('/transfer-items', [InventoryTransferController::class, 'transferItems']);
     Route::get('/transfers/{reference}/print', [InventoryTransferController::class, 'transferPrint']);
     Route::get('/transfers/{reference}', [InventoryTransferController::class, 'show']);
     Route::post('/transfers', [InventoryTransferController::class, 'store']);
+    Route::post('/transfers/{reference}/receive', [InventoryTransferController::class, 'receive']);
     Route::put('/transfers/{reference}', [InventoryTransferController::class, 'update']);
 });
 

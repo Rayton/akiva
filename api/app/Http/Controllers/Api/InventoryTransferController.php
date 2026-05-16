@@ -110,6 +110,38 @@ class InventoryTransferController extends Controller
         }
     }
 
+    public function receivingWorkbench(Request $request)
+    {
+        if (!$this->hasCoreTables()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'locations' => [],
+                    'pendingTransfers' => [],
+                ],
+            ]);
+        }
+
+        $receivingLocation = strtoupper(trim((string) $request->query('receivingLocation', '')));
+
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'locations' => $this->locations(),
+                    'pendingTransfers' => $this->pendingTransfers($receivingLocation !== '' ? $receivingLocation : null),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Inventory transfers could not be loaded.',
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         if (!$this->hasCoreTables()) {
@@ -299,6 +331,206 @@ class InventoryTransferController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Transfer could not be printed.',
+            ], 500);
+        }
+    }
+
+    public function receive(Request $request, $reference)
+    {
+        if (!$this->hasCoreTables()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Inventory transfers are not available.',
+            ], 503);
+        }
+
+        $reference = (int) $reference;
+        $rawLines = $request->input('lines', []);
+        $receivedAt = $this->dateOnly((string) $request->input('receivedAt', Carbon::today()->toDateString()));
+
+        if (!is_array($rawLines) || count($rawLines) === 0) {
+            return $this->validationError('Choose at least one item quantity to receive.');
+        }
+
+        $transfer = $this->transferDetail($reference);
+        if ($transfer === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer shipment was not found.',
+            ], 404);
+        }
+
+        $existingRows = $this->transferRowsForPosting($reference);
+        if ($existingRows->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer shipment was not found.',
+            ], 404);
+        }
+
+        $requestLines = [];
+        foreach ($rawLines as $line) {
+            if (!is_array($line)) {
+                continue;
+            }
+
+            $stockId = strtoupper(trim((string) ($line['stockId'] ?? '')));
+            if ($stockId === '') {
+                continue;
+            }
+
+            $requestLines[$stockId] = [
+                'quantity' => $this->numberValue($line['quantity'] ?? 0),
+                'cancelBalance' => (bool) ($line['cancelBalance'] ?? false),
+            ];
+        }
+
+        if (count($requestLines) === 0) {
+            return $this->validationError('Choose at least one item quantity to receive.');
+        }
+
+        $totalQuantity = 0.0;
+        foreach ($existingRows as $row) {
+            $stockId = (string) $row->stockid;
+            if (!isset($requestLines[$stockId])) {
+                continue;
+            }
+
+            $quantity = round((float) $requestLines[$stockId]['quantity'], (int) ($row->decimalplaces ?? 0));
+            $outstanding = max(0.0, (float) $row->shipqty - (float) $row->recqty);
+
+            if ($quantity < 0) {
+                return $this->validationError("{$stockId} cannot be received with a negative quantity.");
+            }
+
+            if ($quantity > $outstanding) {
+                return $this->validationError("{$stockId} has only " . $this->formatQuantity($outstanding) . ' left to receive.');
+            }
+
+            if ($quantity > 0 && (bool) $row->controlled) {
+                return $this->validationError("{$stockId} requires batch or serial receiving before it can be posted.");
+            }
+
+            $requestLines[$stockId]['quantity'] = $quantity;
+            $totalQuantity += $quantity;
+        }
+
+        $hasCancellation = collect($requestLines)->contains(function ($line) {
+            return (bool) ($line['cancelBalance'] ?? false);
+        });
+
+        if ($totalQuantity <= 0 && !$hasCancellation) {
+            return $this->validationError('Enter a quantity to receive, or cancel an outstanding balance.');
+        }
+
+        try {
+            $posted = DB::transaction(function () use ($reference, $existingRows, $requestLines, $receivedAt, $request) {
+                $periodNo = $this->periodForDate($receivedAt);
+                $receivedDateTime = Carbon::parse($receivedAt)->format('Y-m-d H:i:s');
+                $userId = $this->postingUser($request);
+                $postedLines = [];
+
+                foreach ($existingRows as $row) {
+                    $stockId = (string) $row->stockid;
+                    if (!isset($requestLines[$stockId])) {
+                        continue;
+                    }
+
+                    $quantity = (float) $requestLines[$stockId]['quantity'];
+                    $cancelBalance = (bool) $requestLines[$stockId]['cancelBalance'];
+                    $outstandingBefore = max(0.0, (float) $row->shipqty - (float) $row->recqty);
+                    $cancelQuantity = $cancelBalance ? max(0.0, $outstandingBefore - $quantity) : 0.0;
+
+                    if ($quantity > 0) {
+                        $decimalPlaces = (int) ($row->decimalplaces ?? 0);
+                        $fromQtyBefore = $this->locationStockQuantity((string) $row->shiploc, $stockId);
+                        $toQtyBefore = $this->locationStockQuantity((string) $row->recloc, $stockId);
+                        $standardCost = $this->postingCost($row);
+
+                        $this->insertStockMove([
+                            'stockid' => $stockId,
+                            'type' => 16,
+                            'transno' => $reference,
+                            'loccode' => (string) $row->shiploc,
+                            'trandate' => $receivedAt,
+                            'userid' => $userId,
+                            'prd' => $periodNo,
+                            'reference' => 'To ' . (string) $row->to_name,
+                            'qty' => round(-$quantity, $decimalPlaces),
+                            'newqoh' => round($fromQtyBefore - $quantity, $decimalPlaces),
+                            'standardcost' => $standardCost,
+                        ]);
+
+                        $this->insertStockMove([
+                            'stockid' => $stockId,
+                            'type' => 16,
+                            'transno' => $reference,
+                            'loccode' => (string) $row->recloc,
+                            'trandate' => $receivedAt,
+                            'userid' => $userId,
+                            'prd' => $periodNo,
+                            'reference' => 'From ' . (string) $row->from_name,
+                            'qty' => round($quantity, $decimalPlaces),
+                            'newqoh' => round($toQtyBefore + $quantity, $decimalPlaces),
+                            'standardcost' => $standardCost,
+                        ]);
+
+                        $this->adjustLocationStock((string) $row->shiploc, $stockId, -$quantity, $decimalPlaces);
+                        $this->adjustLocationStock((string) $row->recloc, $stockId, $quantity, $decimalPlaces);
+                        $this->postTransferGl($row, $quantity, $standardCost, $periodNo, $receivedAt, $reference);
+                    }
+
+                    DB::table('loctransfers')
+                        ->where('reference', $reference)
+                        ->where('stockid', $stockId)
+                        ->update([
+                            'recqty' => DB::raw('recqty + ' . $quantity),
+                            'recdate' => $receivedDateTime,
+                        ]);
+
+                    if ($cancelBalance) {
+                        $this->recordTransferCancellation($reference, $stockId, $cancelQuantity, $userId);
+                        DB::table('loctransfers')
+                            ->where('reference', $reference)
+                            ->where('stockid', $stockId)
+                            ->update([
+                                'shipqty' => DB::raw('recqty'),
+                                'recdate' => $receivedDateTime,
+                            ]);
+                    }
+
+                    if ($quantity > 0 || $cancelQuantity > 0) {
+                        $postedLines[] = [
+                            'stockId' => $stockId,
+                            'receivedQuantity' => $quantity,
+                            'cancelledQuantity' => $cancelQuantity,
+                        ];
+                    }
+                }
+
+                return [
+                    'reference' => $reference,
+                    'receivedAt' => $receivedAt,
+                    'lineCount' => count($postedLines),
+                    'totalQuantity' => array_sum(array_column($postedLines, 'receivedQuantity')),
+                    'lines' => $postedLines,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Transfer received.',
+                'transfer' => $posted,
+                'data' => [
+                    'pendingTransfers' => $this->pendingTransfers(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer could not be received.',
             ], 500);
         }
     }
@@ -724,6 +956,165 @@ class InventoryTransferController extends Controller
         return $costs;
     }
 
+    private function postingCost(object $row): float
+    {
+        $standardCost = (float) ($row->materialcost ?? 0) + (float) ($row->labourcost ?? 0) + (float) ($row->overheadcost ?? 0);
+        if ($standardCost > 0) {
+            return $standardCost;
+        }
+
+        $fallback = $this->latestItemCosts([(string) $row->stockid]);
+        return (float) ($fallback[(string) $row->stockid] ?? (float) ($row->actualcost ?: $row->lastcost ?: 0));
+    }
+
+    private function locationStockQuantity(string $location, string $stockId): float
+    {
+        return (float) (DB::table('locstock')
+            ->where('loccode', $location)
+            ->where('stockid', $stockId)
+            ->value('quantity') ?? 0);
+    }
+
+    private function insertStockMove(array $values): void
+    {
+        if (!Schema::hasTable('stockmoves')) {
+            return;
+        }
+
+        $columns = Schema::getColumnListing('stockmoves');
+        $insert = [];
+        foreach ($values as $column => $value) {
+            if (in_array($column, $columns, true)) {
+                $insert[$column] = $value;
+            }
+        }
+
+        DB::table('stockmoves')->insert($insert);
+    }
+
+    private function adjustLocationStock(string $location, string $stockId, float $quantity, int $decimalPlaces): void
+    {
+        $affected = DB::table('locstock')
+            ->where('loccode', $location)
+            ->where('stockid', $stockId)
+            ->update([
+                'quantity' => DB::raw('quantity + ' . round($quantity, $decimalPlaces)),
+            ]);
+
+        if ($affected === 0) {
+            DB::table('locstock')->insert([
+                'loccode' => $location,
+                'stockid' => $stockId,
+                'quantity' => round($quantity, $decimalPlaces),
+            ]);
+        }
+    }
+
+    private function postTransferGl(object $row, float $quantity, float $standardCost, int $periodNo, string $receivedAt, int $reference): void
+    {
+        if (!Schema::hasTable('gltrans') || $quantity <= 0 || $standardCost <= 0) {
+            return;
+        }
+
+        $fromAccount = trim((string) ($row->from_gl_account ?? ''));
+        $toAccount = trim((string) ($row->to_gl_account ?? ''));
+        if ($fromAccount === '' && $toAccount === '') {
+            return;
+        }
+
+        $stockAccount = $this->stockAccount((string) $row->stockid);
+        $this->insertGlTrans([
+            'periodno' => $periodNo,
+            'trandate' => $receivedAt,
+            'type' => 16,
+            'typeno' => $reference,
+            'account' => $fromAccount !== '' ? $fromAccount : $stockAccount,
+            'narrative' => (string) $row->shiploc . ' - ' . (string) $row->stockid . ' x ' . $this->formatQuantity($quantity) . ' @ ' . $this->formatQuantity($standardCost),
+            'amount' => -$quantity * $standardCost,
+        ]);
+
+        $this->insertGlTrans([
+            'periodno' => $periodNo,
+            'trandate' => $receivedAt,
+            'type' => 16,
+            'typeno' => $reference,
+            'account' => $toAccount !== '' ? $toAccount : $stockAccount,
+            'narrative' => (string) $row->recloc . ' - ' . (string) $row->stockid . ' x ' . $this->formatQuantity($quantity) . ' @ ' . $this->formatQuantity($standardCost),
+            'amount' => $quantity * $standardCost,
+        ]);
+    }
+
+    private function insertGlTrans(array $values): void
+    {
+        $columns = Schema::getColumnListing('gltrans');
+        $insert = [];
+        foreach ($values as $column => $value) {
+            if (in_array($column, $columns, true)) {
+                $insert[$column] = $value;
+            }
+        }
+
+        DB::table('gltrans')->insert($insert);
+    }
+
+    private function stockAccount(string $stockId): string
+    {
+        if (!Schema::hasTable('stockcategory')) {
+            return '';
+        }
+
+        return (string) (DB::table('stockmaster as sm')
+            ->leftJoin('stockcategory as sc', 'sc.categoryid', '=', 'sm.categoryid')
+            ->where('sm.stockid', $stockId)
+            ->value('sc.stockact') ?? '');
+    }
+
+    private function recordTransferCancellation(int $reference, string $stockId, float $cancelQuantity, string $userId): void
+    {
+        if ($cancelQuantity <= 0 || !Schema::hasTable('loctransfercancellations')) {
+            return;
+        }
+
+        DB::table('loctransfercancellations')->insert([
+            'reference' => $reference,
+            'stockid' => $stockId,
+            'cancelqty' => $cancelQuantity,
+            'canceldate' => Carbon::now()->format('Y-m-d H:i:s'),
+            'canceluserid' => $userId,
+        ]);
+    }
+
+    private function periodForDate(string $date): int
+    {
+        if (!Schema::hasTable('periods')) {
+            return 0;
+        }
+
+        $period = DB::table('periods')
+            ->where('lastdate_in_period', '>=', $date)
+            ->orderBy('lastdate_in_period')
+            ->value('periodno');
+
+        if ($period !== null) {
+            return (int) $period;
+        }
+
+        return (int) (DB::table('periods')->max('periodno') ?? 0);
+    }
+
+    private function postingUser(Request $request): string
+    {
+        $user = $request->user();
+        if ($user && isset($user->userid)) {
+            return (string) $user->userid;
+        }
+        if ($user && isset($user->name)) {
+            return (string) $user->name;
+        }
+
+        return 'akiva';
+    }
+
     private function emptyBalance(): array
     {
         return [
@@ -735,9 +1126,9 @@ class InventoryTransferController extends Controller
         ];
     }
 
-    private function pendingTransfers()
+    private function pendingTransfers(?string $receivingLocation = null)
     {
-        return DB::table('loctransfers as lt')
+        $query = DB::table('loctransfers as lt')
             ->leftJoin('locations as fromloc', 'fromloc.loccode', '=', 'lt.shiploc')
             ->leftJoin('locations as toloc', 'toloc.loccode', '=', 'lt.recloc')
             ->whereColumn('lt.shipqty', '>', 'lt.recqty')
@@ -755,8 +1146,13 @@ class InventoryTransferController extends Controller
             )
             ->groupBy('lt.reference', 'lt.shiploc', 'lt.recloc', 'fromloc.locationname', 'toloc.locationname')
             ->orderByDesc('lt.reference')
-            ->limit(100)
-            ->get()
+            ->limit(100);
+
+        if ($receivingLocation !== null && $receivingLocation !== '') {
+            $query->where('lt.recloc', $receivingLocation);
+        }
+
+        return $query->get()
             ->map(function ($row) {
                 return [
                     'reference' => (int) $row->reference,
@@ -854,6 +1250,41 @@ class InventoryTransferController extends Controller
                 return $item;
             })->values(),
         ];
+    }
+
+    private function transferRowsForPosting(int $reference)
+    {
+        $query = DB::table('loctransfers as lt')
+            ->join('stockmaster as sm', 'sm.stockid', '=', 'lt.stockid')
+            ->leftJoin('locations as fromloc', 'fromloc.loccode', '=', 'lt.shiploc')
+            ->leftJoin('locations as toloc', 'toloc.loccode', '=', 'lt.recloc')
+            ->where('lt.reference', $reference)
+            ->whereColumn('lt.shipqty', '>', 'lt.recqty')
+            ->select(
+                'lt.reference',
+                'lt.stockid',
+                'lt.shipqty',
+                'lt.recqty',
+                'lt.shiploc',
+                'lt.recloc',
+                DB::raw('COALESCE(NULLIF(fromloc.locationname, ""), lt.shiploc) as from_name'),
+                DB::raw('COALESCE(NULLIF(toloc.locationname, ""), lt.recloc) as to_name'),
+                'fromloc.glaccountcode as from_gl_account',
+                'toloc.glaccountcode as to_gl_account',
+                'sm.description',
+                'sm.units',
+                'sm.decimalplaces',
+                'sm.controlled',
+                'sm.serialised',
+                'sm.materialcost',
+                'sm.labourcost',
+                'sm.overheadcost',
+                'sm.actualcost',
+                'sm.lastcost'
+            )
+            ->orderBy('lt.stockid');
+
+        return $query->get();
     }
 
     private function companyProfile(): array

@@ -12,6 +12,7 @@ import { Inventory } from './pages/Inventory';
 import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
+import { InventoryTransferReceive } from './pages/InventoryTransferReceive';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
@@ -264,6 +265,15 @@ function isInventoryTransferMenuSlug(slug: string): boolean {
     key.includes('bulkinventorytransfer') ||
     key.includes('inventorylocationtransfer') ||
     key.includes('locationtransfers')
+  );
+}
+
+function isInventoryTransferReceiveMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockloctransferreceive' ||
+    key.includes('stockloctransferreceive') ||
+    key.includes('bulkinventorytransferreceive')
   );
 }
 
@@ -654,6 +664,10 @@ function AppContent() {
         return <PurchaseOrders />;
       }
 
+      if (isInventoryTransferReceiveMenuSlug(menuSlug)) {
+        return <InventoryTransferReceive />;
+      }
+
       if (isInventoryTransferMenuSlug(menuSlug)) {
         return <InventoryTransfer />;
       }
@@ -834,6 +848,9 @@ function AppContent() {
       case 'inventory-location-transfers':
       case 'bulk-inventory-transfer':
         return <InventoryTransfer />;
+      case 'stockloctransferreceive':
+      case 'bulk-inventory-transfer-receive':
+        return <InventoryTransferReceive />;
       
       // Financial Reports
       case 'profit-loss':

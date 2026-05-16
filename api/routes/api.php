@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\GeneralLedgerSetupController;
 use App\Http\Controllers\Api\SalesReceivablesSetupController;
 use App\Http\Controllers\Api\PurchasesPayablesSetupController;
 use App\Http\Controllers\Api\InventorySetupController;
+use App\Http\Controllers\Api\InventoryDashboardController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\InventoryTransferController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\Api\StockIssueController;
 use App\Http\Controllers\Api\StockSerialItemResearchController;
 use App\Http\Controllers\Api\PrintPriceLabelController;
 use App\Http\Controllers\Api\StockMovementController;
+use App\Http\Controllers\Api\StockStatusController;
 use App\Http\Controllers\Api\ReverseGrnController;
 
 Route::get('/menu', [MenuController::class, 'index']);
@@ -128,6 +130,7 @@ Route::prefix('purchases')->group(function () {
 });
 
 Route::prefix('inventory')->group(function () {
+    Route::get('/dashboard', [InventoryDashboardController::class, 'show']);
     Route::get('/adjustments/workbench', [StockAdjustmentController::class, 'workbench']);
     Route::get('/adjustment-items', [StockAdjustmentController::class, 'items']);
     Route::post('/adjustments', [StockAdjustmentController::class, 'store']);
@@ -148,6 +151,8 @@ Route::prefix('inventory')->group(function () {
     Route::get('/stock-movement-items', [StockMovementController::class, 'items']);
     Route::get('/stock-movements/export/pdf', [StockMovementController::class, 'exportPdf']);
     Route::get('/stock-movements/export/excel', [StockMovementController::class, 'exportExcel']);
+    Route::get('/stock-status/workbench', [StockStatusController::class, 'workbench']);
+    Route::get('/stock-status-items', [StockStatusController::class, 'items']);
     Route::get('/reverse-grn/workbench', [ReverseGrnController::class, 'workbench']);
     Route::post('/reverse-grn/{grnNo}', [ReverseGrnController::class, 'reverse']);
     Route::get('/transfers/workbench', [InventoryTransferController::class, 'workbench']);

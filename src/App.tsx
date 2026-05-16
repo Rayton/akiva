@@ -19,6 +19,7 @@ import { StockIssues } from './pages/StockIssues';
 import { StockSerialItemResearch } from './pages/StockSerialItemResearch';
 import { PrintPriceLabels } from './pages/PrintPriceLabels';
 import { StockMovements } from './pages/StockMovements';
+import { StockStatus } from './pages/StockStatus';
 import { ReverseGoodsReceived } from './pages/ReverseGoodsReceived';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
@@ -356,6 +357,15 @@ function isStockMovementsMenuSlug(slug: string): boolean {
   );
 }
 
+function isStockStatusMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockstatus' ||
+    key === 'stock-status' ||
+    key.includes('stockstatus')
+  );
+}
+
 function isInventorySetupMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
@@ -618,6 +628,12 @@ function AppContent() {
   }, []);
 
   const renderCurrentPage = () => {
+    const normalizedPath = locationPathname.replace(/\/+$/, '').toLowerCase();
+
+    if (normalizedPath === '/inventory') {
+      return <Inventory />;
+    }
+
     if (currentPage.startsWith('main-')) {
       const mainId = parseInt(currentPage.replace('main-', ''), 10);
       const mainModule = appMenu.find((item) => item.id === mainId);
@@ -763,6 +779,10 @@ function AppContent() {
         return <StockMovements />;
       }
 
+      if (isStockStatusMenuSlug(menuSlug)) {
+        return <StockStatus />;
+      }
+
       if (isReverseGrnMenuSlug(menuSlug)) {
         return <ReverseGoodsReceived />;
       }
@@ -804,6 +824,10 @@ function AppContent() {
 
     if (isStockMovementsMenuSlug(locationPathname)) {
       return <StockMovements />;
+    }
+
+    if (isStockStatusMenuSlug(locationPathname)) {
+      return <StockStatus />;
     }
 
     switch (currentPage) {
@@ -1024,7 +1048,7 @@ function AppContent() {
       
       // Inventory Reports
       case 'stock-status':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Status Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">View current stock levels and status</p></div>;
+        return <StockStatus />;
       case 'stock-valuation':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Valuation Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Calculate inventory valuation</p></div>;
       case 'reorder-level':

@@ -44,6 +44,7 @@ type PoStatus =
 
 type WorkbenchTab = 'outstanding' | 'approvals' | 'receiving' | 'billMatch' | 'all';
 type DrawerMode = 'view' | 'create' | 'receive' | 'review' | null;
+type OfferDecision = 'accept' | 'reject' | 'defer';
 
 interface PoLine {
   id: string;
@@ -121,6 +122,21 @@ interface PurchaseOrdersApiResponse {
     locations?: LookupOption[];
     categories?: LookupOption[];
   };
+}
+
+interface SupplierOffer {
+  id: string;
+  tenderId: string;
+  supplierCode: string;
+  supplierName: string;
+  currency: PurchaseOrder['currency'];
+  itemCode: string;
+  description: string;
+  quantity: number;
+  units: string;
+  price: number;
+  expiryDate: string;
+  category: string;
 }
 
 const inputClass =
@@ -427,6 +443,65 @@ const initialOrders: PurchaseOrder[] = [
   },
 ];
 
+const initialOffers: SupplierOffer[] = [
+  {
+    id: 'OFF-1012',
+    tenderId: 'TEN-2407',
+    supplierCode: 'AFRI D10',
+    supplierName: 'AFRI DENTAL PRODUCTS',
+    currency: 'TZS',
+    itemCode: 'ACCESORY016',
+    description: 'GREASE',
+    quantity: 12,
+    units: 'kgs',
+    price: 8800,
+    expiryDate: '2026-05-24',
+    category: 'Equipment Spares',
+  },
+  {
+    id: 'OFF-1013',
+    tenderId: 'TEN-2407',
+    supplierCode: 'AFRI D10',
+    supplierName: 'AFRI DENTAL PRODUCTS',
+    currency: 'TZS',
+    itemCode: 'ACCESORY018',
+    description: 'ELECTRODE CABLE',
+    quantity: 8,
+    units: 'each',
+    price: 17500,
+    expiryDate: '2026-05-24',
+    category: 'Medical Consumables',
+  },
+  {
+    id: 'OFF-1018',
+    tenderId: 'TEN-2411',
+    supplierCode: 'SUPPLIER',
+    supplierName: 'PRIMECARE MEDICAL EQUIPMENT SUPPLY',
+    currency: 'TZS',
+    itemCode: 'PHARM-221',
+    description: 'Ceftriaxone injection 1g',
+    quantity: 320,
+    units: 'vial',
+    price: 2150,
+    expiryDate: '2026-05-21',
+    category: 'Pharmacy',
+  },
+  {
+    id: 'OFF-1021',
+    tenderId: 'TEN-2415',
+    supplierCode: 'SUPPLIER 2',
+    supplierName: 'MSD MEDICAL STORE DEPARTMENT',
+    currency: 'TZS',
+    itemCode: 'OFFICE-041',
+    description: 'A4 printing paper ream',
+    quantity: 40,
+    units: 'ream',
+    price: 11800,
+    expiryDate: '2026-05-28',
+    category: 'Administration',
+  },
+];
+
 function makeLine(
   id: string,
   template: Omit<PoLine, 'id' | 'quantityOrdered' | 'quantityReceived' | 'quantityInvoiced' | 'deliveryDate' | 'completed'>,
@@ -486,6 +561,10 @@ function orderTotal(order: PurchaseOrder) {
   return subtotal(order) + taxTotal(order);
 }
 
+function offerTotal(offer: SupplierOffer) {
+  return offer.quantity * offer.price;
+}
+
 function orderBalance(order: PurchaseOrder) {
   return order.lines.reduce((sum, line) => sum + Math.max(line.quantityOrdered - line.quantityReceived, 0), 0);
 }
@@ -538,6 +617,7 @@ function currentPurchaseRoute() {
 }
 
 function initialTabForRoute(pathname: string): WorkbenchTab {
+  if (pathname.includes('offersreceived')) return 'outstanding';
   if (pathname.includes('authorise') || pathname.includes('review')) return 'approvals';
   if (pathname.includes('outstanding-grns') || pathname.includes('suppinvgrns')) return 'billMatch';
   if (pathname.includes('goods-received') || pathname.includes('receive')) return 'receiving';
@@ -545,6 +625,7 @@ function initialTabForRoute(pathname: string): WorkbenchTab {
 }
 
 function titleForRoute(pathname: string) {
+  if (pathname.includes('offersreceived')) return 'Supplier Tenders and Offers';
   if (pathname.includes('po-header')) return 'New Purchase Order';
   if (pathname.includes('po-selectospurchorder')) return 'Select Purchase Order';
   if (pathname.includes('po-authorisemyorders')) return 'Purchase Order Approvals';
@@ -553,6 +634,9 @@ function titleForRoute(pathname: string) {
 }
 
 function descriptionForRoute(pathname: string) {
+  if (pathname.includes('offersreceived')) {
+    return 'Review outstanding supplier offer lines, accept the best values into a purchase order, reject unsuitable lines, or defer offers for later.';
+  }
   if (pathname.includes('po-header')) {
     return 'Start a supplier purchase order with delivery details, stock location, item lines, GL coding, and review-ready totals on one page.';
   }
@@ -570,6 +654,12 @@ function descriptionForRoute(pathname: string) {
 
 function receiptBalance(line: PoLine) {
   return Math.max(line.quantityOrdered - line.quantityReceived, 0);
+}
+
+function daysUntil(value: string) {
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  const date = new Date(`${value}T00:00:00`);
+  return Math.ceil((date.getTime() - today.getTime()) / 86400000);
 }
 
 function toPurchaseLine(line: DraftLine): PoLine {
@@ -614,6 +704,10 @@ export function PurchaseOrders() {
   const [lookupSuppliers, setLookupSuppliers] = useState<SupplierLookup[]>(suppliers);
   const [lookupLocations, setLookupLocations] = useState<LookupOption[]>(locations);
   const [lookupCategories, setLookupCategories] = useState<LookupOption[]>(categoryOptions.filter((option) => option.value !== 'All'));
+  const [offers, setOffers] = useState<SupplierOffer[]>(initialOffers);
+  const [offerSupplier, setOfferSupplier] = useState(initialOffers[0]?.supplierCode ?? '');
+  const [offerDecisions, setOfferDecisions] = useState<Record<string, OfferDecision>>({});
+  const [offerMessage, setOfferMessage] = useState('');
   const [receiveDate, setReceiveDate] = useState(new Date().toISOString().slice(0, 10));
   const [supplierReference, setSupplierReference] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
@@ -642,6 +736,15 @@ export function PurchaseOrders() {
   const pageTitle = titleForRoute(routePath);
   const pageDescription = descriptionForRoute(routePath);
   const isCreatePoRoute = routePath.includes('po-header');
+  const isOffersRoute = routePath.includes('offersreceived');
+
+  const offerSupplierOptions = useMemo(() => {
+    const bySupplier = new Map<string, LookupOption>();
+    offers.forEach((offer) => {
+      bySupplier.set(offer.supplierCode, { value: offer.supplierCode, label: offer.supplierName });
+    });
+    return [...bySupplier.values()];
+  }, [offers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -700,6 +803,16 @@ export function PurchaseOrders() {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  useEffect(() => {
+    if (offerSupplierOptions.length === 0) {
+      setOfferSupplier('');
+      return;
+    }
+    if (!offerSupplierOptions.some((option) => option.value === offerSupplier)) {
+      setOfferSupplier(offerSupplierOptions[0].value);
+    }
+  }, [offerSupplier, offerSupplierOptions]);
 
   const filteredOrders = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -772,6 +885,20 @@ export function PurchaseOrders() {
     const hasOverQuantity = quantities.some((line) => line.qty > line.balance);
     return { hasQuantity, hasOverQuantity, canPost: hasQuantity && !hasOverQuantity };
   }, [drawerMode, receiptQty, selectedOrder]);
+
+  const selectedSupplierOffers = useMemo(() => offers.filter((offer) => offer.supplierCode === offerSupplier), [offerSupplier, offers]);
+
+  const offerSummary = useMemo(() => {
+    const expiringSoon = selectedSupplierOffers.filter((offer) => daysUntil(offer.expiryDate) <= 7).length;
+    return {
+      lineCount: selectedSupplierOffers.length,
+      totalValue: selectedSupplierOffers.reduce((sum, offer) => sum + offerTotal(offer), 0),
+      acceptedCount: selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'accept').length,
+      rejectedCount: selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'reject').length,
+      expiringSoon,
+      currency: selectedSupplierOffers[0]?.currency ?? 'TZS',
+    };
+  }, [offerDecisions, selectedSupplierOffers]);
 
   const columns: AdvancedTableColumn<PurchaseOrder>[] = [
       {
@@ -996,6 +1123,76 @@ export function PurchaseOrders() {
     setDrawerMode('view');
   }
 
+  function processSupplierOffers() {
+    const accepted = selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'accept');
+    const rejected = selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'reject');
+    const deferred = selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'defer');
+
+    if (accepted.length === 0 && rejected.length === 0) {
+      setOfferMessage('Choose at least one offer to accept or reject. Deferred lines remain outstanding.');
+      return;
+    }
+
+    if (accepted.length > 0) {
+      const supplier = lookupSuppliers.find((item) => item.value === offerSupplier);
+      const order: PurchaseOrder = {
+        id: `po-offer-${Date.now()}`,
+        orderNumber: String(621 + orders.length),
+        realOrderNumber: `PO-2026-${String(621 + orders.length).padStart(5, '0')}`,
+        supplierCode: offerSupplier,
+        supplierName: supplier?.label ?? accepted[0].supplierName,
+        supplierAddress: supplier?.address ?? '',
+        currency: accepted[0].currency,
+        exchangeRate: 1,
+        orderDate: new Date().toISOString().slice(0, 10),
+        deliveryDate: new Date().toISOString().slice(0, 10),
+        initiatedBy: 'John Doe',
+        reviewer: 'Procurement Lead',
+        location: draftLocation,
+        requisitionNo: accepted[0].tenderId,
+        paymentTerms: '30 days',
+        deliveryBy: 'Supplier',
+        comments: 'Automatically generated from accepted supplier offers.',
+        status: 'Pending Review',
+        allowPrint: false,
+        lines: accepted.map((offer) => ({
+          id: offer.id,
+          itemCode: offer.itemCode,
+          supplierItem: offer.itemCode,
+          description: offer.description,
+          category: offer.category,
+          supplierUnits: offer.units,
+          receivingUnits: offer.units,
+          conversionFactor: 1,
+          quantityOrdered: offer.quantity,
+          quantityReceived: 0,
+          quantityInvoiced: 0,
+          deliveryDate: new Date().toISOString().slice(0, 10),
+          unitPrice: offer.price,
+          taxRate: 0,
+          glCode: '5500',
+          completed: false,
+        })),
+        events: [{ label: 'Created from accepted supplier offers', by: 'John Doe', at: 'Today' }],
+      };
+      setOrders((current) => [order, ...current]);
+      setSelectedId(order.id);
+    }
+
+    const processedIds = new Set([...accepted, ...rejected].map((offer) => offer.id));
+    setOffers((current) => current.filter((offer) => !processedIds.has(offer.id)));
+    setOfferDecisions((current) => {
+      const next = { ...current };
+      processedIds.forEach((id) => delete next[id]);
+      return next;
+    });
+    setOfferMessage(
+      `${accepted.length} accepted, ${rejected.length} rejected, ${deferred.length} deferred. ${
+        accepted.length > 0 ? 'A pending-review purchase order was created.' : 'Rejected offers were removed.'
+      }`
+    );
+  }
+
   function postReceipt() {
     if (!receiptValidation.canPost) return;
     setOrders((current) =>
@@ -1119,7 +1316,9 @@ export function PurchaseOrders() {
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <Chip icon={PackageCheck}>Purchasing</Chip>
-                  <Chip icon={isCreatePoRoute ? Plus : FileText}>{isCreatePoRoute ? 'New PO' : 'Purchase orders'}</Chip>
+                  <Chip icon={isCreatePoRoute ? Plus : isOffersRoute ? ClipboardCheck : FileText}>
+                    {isCreatePoRoute ? 'New PO' : isOffersRoute ? 'Supplier offers' : 'Purchase orders'}
+                  </Chip>
                   <Chip icon={ShieldCheck}>Receiving and bill matching</Chip>
                   <Chip icon={purchaseOrdersReady ? CheckCircle2 : AlertTriangle}>
                     {loadingOrders ? 'Updating purchase orders' : purchaseOrdersReady ? `${orders.length} purchase orders` : 'Purchase orders unavailable'}
@@ -1134,7 +1333,12 @@ export function PurchaseOrders() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <IconButton icon={RefreshCw} label="Refresh purchase orders" onClick={() => setReloadKey((value) => value + 1)} />
-                {isCreatePoRoute ? (
+                {isOffersRoute ? (
+                  <Button onClick={processSupplierOffers} disabled={selectedSupplierOffers.length === 0}>
+                    <Check className="mr-2 h-4 w-4" />
+                    Process offers
+                  </Button>
+                ) : isCreatePoRoute ? (
                   <>
                     <Button variant="secondary" onClick={() => saveDraftOrder('Draft')}>Save draft</Button>
                     <Button onClick={() => saveDraftOrder('Pending Review')}>
@@ -1166,7 +1370,7 @@ export function PurchaseOrders() {
             </div>
           </header>
 
-          {!isCreatePoRoute && filtersOpen ? (
+          {!isCreatePoRoute && !isOffersRoute && filtersOpen ? (
             <div className="border-b border-akiva-border bg-akiva-surface/70 px-4 py-3 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 md:grid-cols-4 2xl:grid-cols-[180px_180px_minmax(220px,1fr)_190px_minmax(210px,0.8fr)]">
                 <SearchableSelect
@@ -1213,7 +1417,23 @@ export function PurchaseOrders() {
 
           <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
             <main className="space-y-4 lg:col-span-12">
-              {isCreatePoRoute ? (
+              {isOffersRoute ? (
+                <OffersReceivedPanel
+                  offers={offers}
+                  selectedSupplier={offerSupplier}
+                  supplierOptions={offerSupplierOptions}
+                  selectedOffers={selectedSupplierOffers}
+                  decisions={offerDecisions}
+                  summary={offerSummary}
+                  message={offerMessage}
+                  onSupplierChange={setOfferSupplier}
+                  onDecisionChange={(offerId, decision) => {
+                    setOfferMessage('');
+                    setOfferDecisions((current) => ({ ...current, [offerId]: decision }));
+                  }}
+                  onProcess={processSupplierOffers}
+                />
+              ) : isCreatePoRoute ? (
                 <>
                   <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-emerald-50/60 to-sky-50/70 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div className="min-w-0">
@@ -1493,6 +1713,164 @@ export function PurchaseOrders() {
 
         {drawerMode === 'view' ? <PurchaseOrderDetailPanel order={selectedOrder} /> : null}
       </Modal>
+    </div>
+  );
+}
+
+function OffersReceivedPanel({
+  offers,
+  selectedSupplier,
+  supplierOptions,
+  selectedOffers,
+  decisions,
+  summary,
+  message,
+  onSupplierChange,
+  onDecisionChange,
+  onProcess,
+}: {
+  offers: SupplierOffer[];
+  selectedSupplier: string;
+  supplierOptions: LookupOption[];
+  selectedOffers: SupplierOffer[];
+  decisions: Record<string, OfferDecision>;
+  summary: {
+    lineCount: number;
+    totalValue: number;
+    acceptedCount: number;
+    rejectedCount: number;
+    expiringSoon: number;
+    currency: PurchaseOrder['currency'];
+  };
+  message: string;
+  onSupplierChange: (value: string) => void;
+  onDecisionChange: (offerId: string, decision: OfferDecision) => void;
+  onProcess: () => void;
+}) {
+  if (offers.length === 0) {
+    return (
+      <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-6 text-center shadow-sm">
+        <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
+        <h2 className="mt-3 text-lg font-semibold text-akiva-text">No outstanding supplier offers</h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-akiva-text-muted">
+          Accepted and rejected offers have been cleared. Deferred offers will appear here when suppliers still have active tender lines.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {message ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100">
+          {message}
+        </div>
+      ) : null}
+
+      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-violet-50/60 to-cyan-50/70 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[minmax(240px,360px)_1fr_auto] lg:items-center">
+        <Field label="Supplier with outstanding offers">
+          <SearchableSelect
+            value={selectedSupplier}
+            onChange={onSupplierChange}
+            options={supplierOptions}
+            inputClassName={inputClass}
+            placeholder="Select supplier"
+          />
+        </Field>
+        <div className="grid gap-2 sm:grid-cols-4">
+          <InfoTile label="Offer lines" value={String(summary.lineCount)} />
+          <InfoTile label="Offer value" value={money(summary.totalValue, summary.currency)} />
+          <InfoTile label="Accepted" value={String(summary.acceptedCount)} />
+          <InfoTile label="Expiring soon" value={String(summary.expiringSoon)} />
+        </div>
+        <Button onClick={onProcess} disabled={selectedOffers.length === 0}>
+          <Check className="mr-2 h-4 w-4" />
+          Process
+        </Button>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
+        <div className="border-b border-akiva-border px-4 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-akiva-text">Offer lines from selected supplier</h2>
+              <p className="mt-1 text-sm text-akiva-text-muted">Accept converts lines into a pending-review PO, reject clears them, defer leaves them outstanding.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900">Accept</span>
+              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900">Reject</span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">Defer</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] table-fixed">
+            <thead className="bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-text-muted">
+              <tr>
+                <th className="w-28 px-4 py-3 text-left">Offer ID</th>
+                <th className="w-28 px-4 py-3 text-left">Tender</th>
+                <th className="w-64 px-4 py-3 text-left">Item</th>
+                <th className="w-28 px-4 py-3 text-right">Quantity</th>
+                <th className="w-32 px-4 py-3 text-right">Price</th>
+                <th className="w-32 px-4 py-3 text-right">Total</th>
+                <th className="w-32 px-4 py-3 text-left">Expires</th>
+                <th className="w-72 px-4 py-3 text-left">Decision</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedOffers.map((offer) => {
+                const decision = decisions[offer.id] ?? 'defer';
+                const days = daysUntil(offer.expiryDate);
+                return (
+                  <tr key={offer.id} className="border-t border-akiva-border">
+                    <td className="px-4 py-3 font-mono text-sm font-semibold text-akiva-text">{offer.id}</td>
+                    <td className="px-4 py-3 font-mono text-sm text-akiva-text-muted">{offer.tenderId}</td>
+                    <td className="px-4 py-3">
+                      <p className="truncate text-sm font-semibold text-akiva-text">{offer.description}</p>
+                      <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.itemCode} · {offer.category}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">{offer.quantity} {offer.units}</td>
+                    <td className="px-4 py-3 text-right text-sm">{money(offer.price, offer.currency)}</td>
+                    <td className="px-4 py-3 text-right text-sm font-semibold">{money(offerTotal(offer), offer.currency)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${
+                        days <= 3
+                          ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-100 dark:ring-rose-900'
+                          : 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-900'
+                      }`}>
+                        {formatDate(offer.expiryDate)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(['accept', 'reject', 'defer'] as OfferDecision[]).map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => onDecisionChange(offer.id, option)}
+                            className={`h-9 rounded-md border px-2 text-xs font-semibold capitalize transition ${
+                              decision === option
+                                ? option === 'accept'
+                                  ? 'border-emerald-500 bg-emerald-600 text-white'
+                                  : option === 'reject'
+                                    ? 'border-rose-500 bg-rose-600 text-white'
+                                    : 'border-slate-500 bg-slate-700 text-white'
+                                : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

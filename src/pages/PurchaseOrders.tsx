@@ -545,6 +545,7 @@ function initialTabForRoute(pathname: string): WorkbenchTab {
 }
 
 function titleForRoute(pathname: string) {
+  if (pathname.includes('po-header')) return 'New Purchase Order';
   if (pathname.includes('po-selectospurchorder')) return 'Select Purchase Order';
   if (pathname.includes('po-authorisemyorders')) return 'Purchase Order Approvals';
   if (pathname.includes('outstanding-grns') || pathname.includes('suppinvgrns')) return 'GRN Bill Matching';
@@ -552,6 +553,9 @@ function titleForRoute(pathname: string) {
 }
 
 function descriptionForRoute(pathname: string) {
+  if (pathname.includes('po-header')) {
+    return 'Start a supplier purchase order with delivery details, stock location, item lines, GL coding, and review-ready totals on one page.';
+  }
   if (pathname.includes('po-selectospurchorder')) {
     return 'Find the right purchase order quickly, then print, receive, review, or inspect the order without losing the queue context.';
   }
@@ -637,6 +641,7 @@ export function PurchaseOrders() {
   const routePath = currentPurchaseRoute();
   const pageTitle = titleForRoute(routePath);
   const pageDescription = descriptionForRoute(routePath);
+  const isCreatePoRoute = routePath.includes('po-header');
 
   useEffect(() => {
     let cancelled = false;
@@ -1083,6 +1088,28 @@ export function PurchaseOrders() {
     </>
   );
 
+  const createPurchaseOrderPanel = (
+    <CreatePurchaseOrderPanel
+      supplier={draftSupplier}
+      location={draftLocation}
+      supplierOptions={lookupSuppliers}
+      locationOptions={lookupLocations}
+      deliveryDate={draftDeliveryDate}
+      requisition={draftRequisition}
+      comments={draftComments}
+      lines={draftLines}
+      onSupplierChange={setDraftSupplier}
+      onLocationChange={setDraftLocation}
+      onDeliveryDateChange={setDraftDeliveryDate}
+      onRequisitionChange={setDraftRequisition}
+      onCommentsChange={setDraftComments}
+      onLineChange={(draftId, patch) =>
+        setDraftLines((current) => current.map((line) => (line.draftId === draftId ? { ...line, ...patch } : line)))
+      }
+      onAddLine={addDraftLine}
+    />
+  );
+
   return (
     <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
       <div className="mx-auto max-w-[1520px]">
@@ -1092,7 +1119,7 @@ export function PurchaseOrders() {
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <Chip icon={PackageCheck}>Purchasing</Chip>
-                  <Chip icon={FileText}>Purchase orders</Chip>
+                  <Chip icon={isCreatePoRoute ? Plus : FileText}>{isCreatePoRoute ? 'New PO' : 'Purchase orders'}</Chip>
                   <Chip icon={ShieldCheck}>Receiving and bill matching</Chip>
                   <Chip icon={purchaseOrdersReady ? CheckCircle2 : AlertTriangle}>
                     {loadingOrders ? 'Updating purchase orders' : purchaseOrdersReady ? `${orders.length} purchase orders` : 'Purchase orders unavailable'}
@@ -1107,27 +1134,39 @@ export function PurchaseOrders() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <IconButton icon={RefreshCw} label="Refresh purchase orders" onClick={() => setReloadKey((value) => value + 1)} />
-                <IconButton
-                  icon={PanelRightOpen}
-                  label={sidePanelOpen ? 'Hide purchase order panel' : 'Show purchase order panel'}
-                  onClick={() => setSidePanelOpen((open) => !open)}
-                  active={sidePanelOpen}
-                />
-                <IconButton
-                  icon={SlidersHorizontal}
-                  label={filtersOpen ? 'Hide filters' : 'Show filters'}
-                  onClick={() => setFiltersOpen((open) => !open)}
-                  active={filtersOpen}
-                />
-                <Button onClick={() => setDrawerMode('create')}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New PO
-                </Button>
+                {isCreatePoRoute ? (
+                  <>
+                    <Button variant="secondary" onClick={() => saveDraftOrder('Draft')}>Save draft</Button>
+                    <Button onClick={() => saveDraftOrder('Pending Review')}>
+                      <Send className="mr-2 h-4 w-4" />
+                      Submit for review
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <IconButton
+                      icon={PanelRightOpen}
+                      label={sidePanelOpen ? 'Hide purchase order panel' : 'Show purchase order panel'}
+                      onClick={() => setSidePanelOpen((open) => !open)}
+                      active={sidePanelOpen}
+                    />
+                    <IconButton
+                      icon={SlidersHorizontal}
+                      label={filtersOpen ? 'Hide filters' : 'Show filters'}
+                      onClick={() => setFiltersOpen((open) => !open)}
+                      active={filtersOpen}
+                    />
+                    <Button onClick={() => setDrawerMode('create')}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      New PO
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </header>
 
-          {filtersOpen ? (
+          {!isCreatePoRoute && filtersOpen ? (
             <div className="border-b border-akiva-border bg-akiva-surface/70 px-4 py-3 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 md:grid-cols-4 2xl:grid-cols-[180px_180px_minmax(220px,1fr)_190px_minmax(210px,0.8fr)]">
                 <SearchableSelect
@@ -1174,89 +1213,153 @@ export function PurchaseOrders() {
 
           <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
             <main className="space-y-4 lg:col-span-12">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="Open commitments" value={money(metrics.openCommitment, 'TZS')} detail="Unclosed POs still reserving budget." icon={FileText} />
-                <MetricCard label="Waiting approval" value={String(metrics.waitingApproval)} detail="Review or authorise before print." icon={ShieldCheck} />
-                <MetricCard label="Ready to receive" value={String(metrics.readyToReceive)} detail="Printed POs that can post GRNs." icon={Truck} />
-                <MetricCard label="GRN accrual" value={money(metrics.grnAccrual, 'TZS')} detail="Received goods awaiting supplier invoice." icon={FileCheck2} />
-              </div>
-
-              <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-sky-50/60 to-amber-50/60 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[1fr_auto] lg:items-center">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Selection queue</p>
-                  <h2 className="mt-1 truncate text-base font-semibold text-akiva-text">
-                    {primaryQueueOrder ? `${actionForStatus(primaryQueueOrder.status)} PO ${primaryQueueOrder.orderNumber} for ${primaryQueueOrder.supplierName}` : 'No urgent purchase orders waiting for action'}
-                  </h2>
-                  <p className="mt-1 text-sm leading-5 text-akiva-text-muted">
-                    {primaryQueueOrder
-                      ? `${formatDate(primaryQueueOrder.deliveryDate)} delivery into ${primaryQueueOrder.location} · ${money(orderTotal(primaryQueueOrder), primaryQueueOrder.currency)}`
-                      : 'The current filters have no approval, receiving, or bill-match work queued.'}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => setFiltersOpen(true)}>
-                    <SlidersHorizontal className="mr-2 h-4 w-4" />
-                    Refine
-                  </Button>
-                  {primaryQueueOrder ? (
-                    <Button size="sm" onClick={() => primaryAction(primaryQueueOrder)}>
-                      {actionForStatus(primaryQueueOrder.status)}
-                    </Button>
-                  ) : null}
-                </div>
-              </section>
-
-              <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
-                <div className="border-b border-akiva-border px-4 py-3">
-                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="flex flex-wrap gap-2">
-                      {tabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const active = activeTab === tab.id;
-                        return (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
-                              active
-                                ? 'border-akiva-accent bg-akiva-accent text-white shadow-sm'
-                                : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
-                            }`}
-                          >
-                            <Icon className="h-4 w-4" />
-                            {tab.label}
-                            <span className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/20 text-white' : 'bg-akiva-surface-muted text-akiva-text-muted'}`}>
-                              {tabCounts[tab.id]}
-                            </span>
-                          </button>
-                        );
-                      })}
+              {isCreatePoRoute ? (
+                <>
+                  <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-emerald-50/60 to-sky-50/70 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[1fr_auto] lg:items-center">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Create workflow</p>
+                      <h2 className="mt-1 text-base font-semibold text-akiva-text">Draft supplier, delivery, and item lines before review.</h2>
+                      <p className="mt-1 text-sm leading-5 text-akiva-text-muted">
+                        Save as draft when details are incomplete, or submit for review once supplier, location, quantities, prices, and GL codes are ready.
+                      </p>
                     </div>
-                    <div className="relative w-full xl:max-w-md">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-                      <input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        className={`${inputClass} pl-10`}
-                        placeholder="Search PO, supplier, requisition, item"
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => saveDraftOrder('Draft')}>Save draft</Button>
+                      <Button size="sm" onClick={() => saveDraftOrder('Pending Review')}>
+                        <Send className="mr-2 h-4 w-4" />
+                        Submit
+                      </Button>
+                    </div>
+                  </section>
+
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                    <div className="min-w-0">{createPurchaseOrderPanel}</div>
+                    <aside className="space-y-4">
+                      <PanelSection title="PO safeguards">
+                        <div className="space-y-2.5">
+                          <ChecklistRow checked title="Supplier selected" description="Supplier currency and address are carried onto the purchase order." />
+                          <ChecklistRow checked title="Delivery location set" description="Receipts will post stock or expenses into the selected location." />
+                          <ChecklistRow checked={draftLines.length > 0} title="Item lines ready" description="Each line should carry quantity, unit price, tax, and GL coding." />
+                          <ChecklistRow checked={false} title="Review required" description="Submitted purchase orders still need review and authorisation before printing." />
+                        </div>
+                      </PanelSection>
+                      <PanelSection title="Draft totals">
+                        <Totals
+                          order={{
+                            id: 'draft-summary',
+                            orderNumber: 'Draft',
+                            realOrderNumber: 'Draft',
+                            supplierCode: draftSupplier,
+                            supplierName: lookupSuppliers.find((supplier) => supplier.value === draftSupplier)?.label ?? draftSupplier,
+                            supplierAddress: '',
+                            currency: lookupSuppliers.find((supplier) => supplier.value === draftSupplier)?.currency ?? 'TZS',
+                            exchangeRate: 1,
+                            orderDate: new Date().toISOString().slice(0, 10),
+                            deliveryDate: draftDeliveryDate,
+                            initiatedBy: 'John Doe',
+                            reviewer: 'Procurement Lead',
+                            location: draftLocation,
+                            requisitionNo: draftRequisition,
+                            paymentTerms: '30 days',
+                            deliveryBy: 'Supplier',
+                            comments: draftComments,
+                            status: 'Draft',
+                            allowPrint: false,
+                            lines: draftLines.map(toPurchaseLine),
+                            events: [],
+                          }}
+                        />
+                      </PanelSection>
+                    </aside>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <MetricCard label="Open commitments" value={money(metrics.openCommitment, 'TZS')} detail="Unclosed POs still reserving budget." icon={FileText} />
+                    <MetricCard label="Waiting approval" value={String(metrics.waitingApproval)} detail="Review or authorise before print." icon={ShieldCheck} />
+                    <MetricCard label="Ready to receive" value={String(metrics.readyToReceive)} detail="Printed POs that can post GRNs." icon={Truck} />
+                    <MetricCard label="GRN accrual" value={money(metrics.grnAccrual, 'TZS')} detail="Received goods awaiting supplier invoice." icon={FileCheck2} />
+                  </div>
+
+                  <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-sky-50/60 to-amber-50/60 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[1fr_auto] lg:items-center">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Selection queue</p>
+                      <h2 className="mt-1 truncate text-base font-semibold text-akiva-text">
+                        {primaryQueueOrder ? `${actionForStatus(primaryQueueOrder.status)} PO ${primaryQueueOrder.orderNumber} for ${primaryQueueOrder.supplierName}` : 'No urgent purchase orders waiting for action'}
+                      </h2>
+                      <p className="mt-1 text-sm leading-5 text-akiva-text-muted">
+                        {primaryQueueOrder
+                          ? `${formatDate(primaryQueueOrder.deliveryDate)} delivery into ${primaryQueueOrder.location} · ${money(orderTotal(primaryQueueOrder), primaryQueueOrder.currency)}`
+                          : 'The current filters have no approval, receiving, or bill-match work queued.'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => setFiltersOpen(true)}>
+                        <SlidersHorizontal className="mr-2 h-4 w-4" />
+                        Refine
+                      </Button>
+                      {primaryQueueOrder ? (
+                        <Button size="sm" onClick={() => primaryAction(primaryQueueOrder)}>
+                          {actionForStatus(primaryQueueOrder.status)}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </section>
+
+                  <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
+                    <div className="border-b border-akiva-border px-4 py-3">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex flex-wrap gap-2">
+                          {tabs.map((tab) => {
+                            const Icon = tab.icon;
+                            const active = activeTab === tab.id;
+                            return (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
+                                  active
+                                    ? 'border-akiva-accent bg-akiva-accent text-white shadow-sm'
+                                    : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                                }`}
+                              >
+                                <Icon className="h-4 w-4" />
+                                {tab.label}
+                                <span className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/20 text-white' : 'bg-akiva-surface-muted text-akiva-text-muted'}`}>
+                                  {tabCounts[tab.id]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="relative w-full xl:max-w-md">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                          <input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            className={`${inputClass} pl-10`}
+                            placeholder="Search PO, supplier, requisition, item"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <AdvancedTable
+                        tableId={showLineDetails ? 'purchase-orders-with-items' : 'purchase-orders'}
+                        columns={columns}
+                        rows={filteredOrders}
+                        rowKey={(order) => order.id}
+                        loading={loadingOrders}
+                        loadingMessage="Preparing purchase orders..."
+                        emptyMessage={loadError ? `Purchase orders could not be loaded: ${loadError}` : 'No purchase orders match these filters.'}
+                        initialPageSize={10}
                       />
                     </div>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <AdvancedTable
-                    tableId={showLineDetails ? 'purchase-orders-with-items' : 'purchase-orders'}
-                    columns={columns}
-                    rows={filteredOrders}
-                    rowKey={(order) => order.id}
-                    loading={loadingOrders}
-                    loadingMessage="Preparing purchase orders..."
-                    emptyMessage={loadError ? `Purchase orders could not be loaded: ${loadError}` : 'No purchase orders match these filters.'}
-                    initialPageSize={10}
-                  />
-                </div>
-              </section>
+                  </section>
+                </>
+              )}
             </main>
 
           </div>
@@ -1364,27 +1467,7 @@ export function PurchaseOrders() {
         size={poDialogSize}
         footer={poDialogFooter}
       >
-        {drawerMode === 'create' ? (
-          <CreatePurchaseOrderPanel
-            supplier={draftSupplier}
-            location={draftLocation}
-            supplierOptions={lookupSuppliers}
-            locationOptions={lookupLocations}
-            deliveryDate={draftDeliveryDate}
-            requisition={draftRequisition}
-            comments={draftComments}
-            lines={draftLines}
-            onSupplierChange={setDraftSupplier}
-            onLocationChange={setDraftLocation}
-            onDeliveryDateChange={setDraftDeliveryDate}
-            onRequisitionChange={setDraftRequisition}
-            onCommentsChange={setDraftComments}
-            onLineChange={(draftId, patch) =>
-              setDraftLines((current) => current.map((line) => (line.draftId === draftId ? { ...line, ...patch } : line)))
-            }
-            onAddLine={addDraftLine}
-          />
-        ) : null}
+        {drawerMode === 'create' ? createPurchaseOrderPanel : null}
 
         {drawerMode === 'receive' ? (
           <ReceivePurchaseOrderPanel

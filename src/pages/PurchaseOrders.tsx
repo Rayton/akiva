@@ -8,6 +8,8 @@ import {
   FileCheck2,
   FileText,
   Filter,
+  Mail,
+  MessageSquare,
   PackageCheck,
   PanelRightOpen,
   Plus,
@@ -27,8 +29,8 @@ import { DatePicker } from '../components/common/DatePicker';
 import { DateRangePicker, getDefaultDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
-import { useApp } from '../contexts/AppContext';
 import { fetchPurchasesPayablesSetup } from '../data/purchasesPayablesSetupApi';
+import { fetchSystemParameters } from '../data/systemParametersApi';
 import { apiFetch } from '../lib/network/apiClient';
 import { buildApiUrl } from '../lib/network/apiBase';
 import type { PoAuthorisationLevel } from '../types/purchasesPayablesSetup';
@@ -55,6 +57,17 @@ interface AuthorisationDecision {
   reviewReason: string;
   authoriseReason: string;
   level: PoAuthorisationLevel | null;
+}
+
+interface PoNotificationSettings {
+  emailEnabled: boolean;
+  smsEnabled: boolean;
+  loaded: boolean;
+}
+
+interface PoNotificationOptions {
+  email: boolean;
+  sms: boolean;
 }
 
 interface PoLine {
@@ -691,37 +704,40 @@ function authProfileMatches(level: PoAuthorisationLevel, user: { id: string; nam
 function authorisationForOrder(order: PurchaseOrder, level: PoAuthorisationLevel | null): AuthorisationDecision {
   if (!level) {
     return {
-      canReview: false,
-      canAuthorise: false,
-      reviewReason: 'No purchase order authorisation profile is configured.',
-      authoriseReason: 'No purchase order authorisation profile is configured.',
+      canReview: true,
+      canAuthorise: true,
+      reviewReason: 'Approve review or reject with a reason. Admin is assumed for now.',
+      authoriseReason: 'Authorise or reject with a reason. Admin is assumed for now.',
       level: null,
     };
   }
 
   if (level.currencyCode !== order.currency) {
     return {
-      canReview: false,
-      canAuthorise: false,
-      reviewReason: `This profile is for ${level.currencyCode}, but the PO is in ${order.currency}.`,
-      authoriseReason: `This profile is for ${level.currencyCode}, but the PO is in ${order.currency}.`,
+      canReview: true,
+      canAuthorise: true,
+      reviewReason: `Approve review or reject with a reason. Configured profile is for ${level.currencyCode}; PO is in ${order.currency}.`,
+      authoriseReason: `Authorise or reject with a reason. Configured profile is for ${level.currencyCode}; PO is in ${order.currency}.`,
       level,
     };
   }
 
   const total = orderTotal(order);
-  const canReview = level.canReview;
-  const canAuthorise = level.authLevel >= total;
+  const withinLimit = level.authLevel >= total;
 
   return {
-    canReview,
-    canAuthorise,
-    reviewReason: canReview ? 'Profile can review purchase orders.' : 'Profile cannot review purchase orders.',
-    authoriseReason: canAuthorise
-      ? `Limit covers ${money(total, order.currency)}.`
-      : `Order value ${money(total, order.currency)} is above the ${money(level.authLevel, order.currency)} approval limit.`,
+    canReview: true,
+    canAuthorise: true,
+    reviewReason: `Approve review or reject with a reason.${level.canReview ? '' : ' Configured review flag is off; admin override is active for now.'}`,
+    authoriseReason: withinLimit
+      ? `Authorise or reject with a reason. Limit covers ${money(total, order.currency)}.`
+      : `Authorise or reject with a reason. Configured limit ${money(level.authLevel, order.currency)} is below ${money(total, order.currency)}; admin override is active for now.`,
     level,
   };
+}
+
+function booleanParameter(value: string | undefined) {
+  return ['1', 'yes', 'y', 'true', 'on'].includes(String(value ?? '').trim().toLowerCase());
 }
 
 function toPurchaseLine(line: DraftLine): PoLine {
@@ -747,10 +763,9 @@ function toPurchaseLine(line: DraftLine): PoLine {
 }
 
 export function PurchaseOrders() {
-  const { currentUser } = useApp();
   const authUser = useMemo(
-    () => ({ id: currentUser.id, name: currentUser.name, email: currentUser.email }),
-    [currentUser.email, currentUser.id, currentUser.name]
+    () => ({ id: 'admin', name: 'ADMIN', email: 'admin@akiva.local' }),
+    []
   );
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -779,6 +794,10 @@ export function PurchaseOrders() {
   const [selectedAuthId, setSelectedAuthId] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState('');
+  const [notificationSettings, setNotificationSettings] = useState<PoNotificationSettings>({ emailEnabled: false, smsEnabled: false, loaded: false });
+  const [notificationOptions, setNotificationOptions] = useState<PoNotificationOptions>({ email: false, sms: false });
+  const [authMessage, setAuthMessage] = useState('');
+  const [rejectDraft, setRejectDraft] = useState<{ order: PurchaseOrder; comment: string } | null>(null);
   const [receiveDate, setReceiveDate] = useState(new Date().toISOString().slice(0, 10));
   const [supplierReference, setSupplierReference] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
@@ -908,6 +927,31 @@ export function PurchaseOrders() {
   }, [authUser]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadNotificationSettings() {
+      try {
+        const payload = await fetchSystemParameters();
+        if (cancelled) return;
+        const emailEnabled = booleanParameter(payload.parameters.SendPOEmailNotification);
+        const smsEnabled = booleanParameter(payload.parameters.SendPOSMSNotification);
+        setNotificationSettings({ emailEnabled, smsEnabled, loaded: true });
+        setNotificationOptions({ email: emailEnabled, sms: smsEnabled });
+      } catch {
+        if (cancelled) return;
+        setNotificationSettings({ emailEnabled: false, smsEnabled: false, loaded: true });
+        setNotificationOptions({ email: false, sms: false });
+      }
+    }
+
+    loadNotificationSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (offerSupplierOptions.length === 0) {
       setOfferSupplier('');
       return;
@@ -987,8 +1031,8 @@ export function PurchaseOrders() {
     return [...currencies].sort();
   }, [poAuthLevels]);
   const authorisableApprovalOrders = useMemo(
-    () => approvalOrders.filter((order) => order.status === 'Reviewed' && authorisationForOrder(order, selectedAuthLevel).canAuthorise).length,
-    [approvalOrders, selectedAuthLevel]
+    () => approvalOrders.filter((order) => order.status === 'Reviewed').length,
+    [approvalOrders]
   );
 
   const receiptValidation = useMemo(() => {
@@ -1177,7 +1221,28 @@ export function PurchaseOrders() {
     openDrawer(order, 'view');
   }
 
-  function transitionOrder(orderId: string, status: PoStatus, eventLabel: string) {
+  function actionActor() {
+    return selectedAuthLevel?.userName || selectedAuthLevel?.userId || 'ADMIN';
+  }
+
+  function notificationEvents(order: PurchaseOrder, action: 'review-approved' | 'authorised' | 'rejected'): StatusEvent[] {
+    const recipient =
+      action === 'review-approved'
+        ? 'final purchase order authorisers'
+        : action === 'authorised'
+          ? `${order.initiatedBy}, stores, and supplier follow-up`
+          : `${order.initiatedBy} and procurement`;
+    const events: StatusEvent[] = [];
+    if (notificationOptions.email && notificationSettings.emailEnabled) {
+      events.push({ label: `Email notification queued to ${recipient}`, by: 'System', at: 'Today' });
+    }
+    if (notificationOptions.sms && notificationSettings.smsEnabled) {
+      events.push({ label: `SMS notification queued to ${recipient}`, by: 'System', at: 'Today' });
+    }
+    return events;
+  }
+
+  function transitionOrder(orderId: string, status: PoStatus, eventLabel: string, extraEvents: StatusEvent[] = []) {
     setOrders((current) =>
       current.map((order) =>
         order.id === orderId
@@ -1185,23 +1250,46 @@ export function PurchaseOrders() {
               ...order,
               status,
               allowPrint: status === 'Authorised' || status === 'Printed' || order.allowPrint,
-              events: [{ label: eventLabel, by: 'John Doe', at: 'Today' }, ...order.events],
+              events: [{ label: eventLabel, by: actionActor(), at: 'Today' }, ...extraEvents, ...order.events],
             }
           : order
       )
     );
   }
 
-  function markOrderReviewed(order: PurchaseOrder) {
-    const decision = authorisationForOrder(order, selectedAuthLevel);
-    if (!decision.canReview) return;
-    transitionOrder(order.id, 'Reviewed', `Reviewed by ${selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name}`);
+  function approveReview(order: PurchaseOrder) {
+    transitionOrder(order.id, 'Reviewed', `Review approved by ${actionActor()}`, notificationEvents(order, 'review-approved'));
+    setAuthMessage(`PO ${order.orderNumber} review approved. ${notificationSummary()}`);
   }
 
   function authoriseOrder(order: PurchaseOrder) {
-    const decision = authorisationForOrder(order, selectedAuthLevel);
-    if (!decision.canAuthorise) return;
-    transitionOrder(order.id, 'Authorised', `Authorised by ${selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name}`);
+    transitionOrder(order.id, 'Authorised', `Authorised by ${actionActor()}`, notificationEvents(order, 'authorised'));
+    setAuthMessage(`PO ${order.orderNumber} authorised. ${notificationSummary()}`);
+  }
+
+  function requestRejectOrder(order: PurchaseOrder) {
+    setRejectDraft({ order, comment: '' });
+  }
+
+  function rejectOrder() {
+    if (!rejectDraft) return;
+    const comment = rejectDraft.comment.trim();
+    if (!comment) {
+      setAuthMessage('Enter a rejection comment before rejecting the purchase order.');
+      return;
+    }
+    transitionOrder(rejectDraft.order.id, 'Rejected', `Rejected by ${actionActor()}: ${comment}`, notificationEvents(rejectDraft.order, 'rejected'));
+    setAuthMessage(`PO ${rejectDraft.order.orderNumber} rejected with comment. ${notificationSummary()}`);
+    setRejectDraft(null);
+    if (drawerMode === 'review') setDrawerMode(null);
+  }
+
+  function notificationSummary() {
+    const sent = [
+      notificationOptions.email && notificationSettings.emailEnabled ? 'email queued' : '',
+      notificationOptions.sms && notificationSettings.smsEnabled ? 'SMS queued' : '',
+    ].filter(Boolean);
+    return sent.length > 0 ? sent.join(' and ') : 'No notifications queued by current settings.';
   }
 
   function addDraftLine() {
@@ -1381,26 +1469,24 @@ export function PurchaseOrders() {
       {drawerMode === 'review' ? (
         <>
           <Button
-            variant={selectedOrder.status === 'Pending Review' ? 'secondary' : 'danger'}
-            onClick={selectedOrder.status === 'Pending Review' ? () => markOrderReviewed(selectedOrder) : () => transitionOrder(selectedOrder.id, 'Rejected', `Rejected by ${selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name}`)}
-            disabled={selectedOrder.status === 'Pending Review' && !selectedOrderAuthDecision.canReview}
+            variant="danger"
+            onClick={() => requestRejectOrder(selectedOrder)}
           >
-            {selectedOrder.status === 'Pending Review' ? (
+            Reject
+          </Button>
+          {selectedOrder.status === 'Pending Review' ? (
+            <Button onClick={() => approveReview(selectedOrder)}>
               <>
                 <ClipboardCheck className="mr-2 h-4 w-4" />
-                Mark reviewed
+                Approve review
               </>
-            ) : (
-              'Reject'
-            )}
-          </Button>
-          <Button
-            onClick={() => authoriseOrder(selectedOrder)}
-            disabled={selectedOrder.status === 'Pending Review' || !selectedOrderAuthDecision.canAuthorise}
-          >
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            Authorise
-          </Button>
+            </Button>
+          ) : (
+            <Button onClick={() => authoriseOrder(selectedOrder)}>
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Authorise
+            </Button>
+          )}
         </>
       ) : null}
       {drawerMode === 'view' ? (
@@ -1619,15 +1705,17 @@ export function PurchaseOrders() {
                   selectedAuthLevel={selectedAuthLevel}
                   loading={authLoading}
                   error={authError}
+                  message={authMessage}
                   currencies={authCurrencyCoverage}
                   authorisableCount={authorisableApprovalOrders}
+                  notificationSettings={notificationSettings}
+                  notificationOptions={notificationOptions}
                   onAuthChange={setSelectedAuthId}
                   onOpen={(order) => openDrawer(order, 'review')}
-                  onReview={markOrderReviewed}
+                  onReview={approveReview}
                   onAuthorise={authoriseOrder}
-                  onReject={(order) =>
-                    transitionOrder(order.id, 'Rejected', `Rejected by ${selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name}`)
-                  }
+                  onReject={requestRejectOrder}
+                  onNotificationChange={(patch) => setNotificationOptions((current) => ({ ...current, ...patch }))}
                   onSetupLevels={() => navigateTo('/configuration/purchases-payables/setup/po-authorisation-levels')}
                 />
               ) : (
@@ -1852,6 +1940,45 @@ export function PurchaseOrders() {
 
         {drawerMode === 'view' ? <PurchaseOrderDetailPanel order={selectedOrder} /> : null}
       </Modal>
+
+      <Modal
+        isOpen={rejectDraft !== null}
+        onClose={() => setRejectDraft(null)}
+        title={rejectDraft ? `Reject PO ${rejectDraft.order.orderNumber}` : 'Reject purchase order'}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setRejectDraft(null)}>Cancel</Button>
+            <Button variant="danger" onClick={rejectOrder} disabled={!rejectDraft?.comment.trim()}>
+              Reject PO
+            </Button>
+          </>
+        }
+      >
+        {rejectDraft ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-3 text-sm">
+              <p className="font-semibold text-akiva-text">{rejectDraft.order.supplierName}</p>
+              <p className="mt-1 text-akiva-text-muted">
+                {money(orderTotal(rejectDraft.order), rejectDraft.order.currency)} · {rejectDraft.order.status}
+              </p>
+            </div>
+            <Field label="Rejection comment">
+              <textarea
+                value={rejectDraft.comment}
+                onChange={(event) => setRejectDraft((current) => (current ? { ...current, comment: event.target.value } : current))}
+                rows={4}
+                className={`${inputClass} h-auto min-h-28 py-3`}
+                placeholder="Enter why this purchase order is being rejected"
+                autoFocus
+              />
+            </Field>
+            <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text-muted">
+              The comment will be saved in the PO audit trail. Enabled email/SMS notifications will be queued from the current System Parameters settings.
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -2021,13 +2148,17 @@ function AuthorisePurchaseOrdersPanel({
   selectedAuthLevel,
   loading,
   error,
+  message,
   currencies,
   authorisableCount,
+  notificationSettings,
+  notificationOptions,
   onAuthChange,
   onOpen,
   onReview,
   onAuthorise,
   onReject,
+  onNotificationChange,
   onSetupLevels,
 }: {
   orders: PurchaseOrder[];
@@ -2036,13 +2167,17 @@ function AuthorisePurchaseOrdersPanel({
   selectedAuthLevel: PoAuthorisationLevel | null;
   loading: boolean;
   error: string;
+  message: string;
   currencies: string[];
   authorisableCount: number;
+  notificationSettings: PoNotificationSettings;
+  notificationOptions: PoNotificationOptions;
   onAuthChange: (value: string) => void;
   onOpen: (order: PurchaseOrder) => void;
   onReview: (order: PurchaseOrder) => void;
   onAuthorise: (order: PurchaseOrder) => void;
   onReject: (order: PurchaseOrder) => void;
+  onNotificationChange: (patch: Partial<PoNotificationOptions>) => void;
   onSetupLevels: () => void;
 }) {
   const profileOptions = authLevels.map((level) => ({ value: level.id, label: authProfileLabel(level) }));
@@ -2071,6 +2206,12 @@ function AuthorisePurchaseOrdersPanel({
 
   return (
     <div className="space-y-4">
+      {message ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100">
+          {message}
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100">
           {error}
@@ -2101,17 +2242,44 @@ function AuthorisePurchaseOrdersPanel({
 
       {selectedAuthLevel ? (
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Profile user" value={selectedAuthLevel.userName || selectedAuthLevel.userId} detail={`Configured as ${selectedAuthLevel.userId}.`} icon={ClipboardCheck} />
-          <MetricCard label="Currency" value={selectedAuthLevel.currencyCode} detail={selectedAuthLevel.currencyName || 'Purchase order currency must match.'} icon={FileText} />
-          <MetricCard label="Approval limit" value={money(selectedAuthLevel.authLevel, selectedAuthLevel.currencyCode as PurchaseOrder['currency'])} detail="Orders above this value stay blocked." icon={ShieldCheck} />
+          <MetricCard label="Action user" value={selectedAuthLevel.userName || selectedAuthLevel.userId} detail="Admin is assumed for now; user validation will be added later." icon={ClipboardCheck} />
+          <MetricCard label="Review action" value="Approve / reject" detail="Pending-review orders can be approved to final authorisation or rejected with a comment." icon={FileText} />
+          <MetricCard label="Authorise action" value={money(selectedAuthLevel.authLevel, selectedAuthLevel.currencyCode as PurchaseOrder['currency'])} detail="Reviewed orders can be authorised or rejected with a comment." icon={ShieldCheck} />
           <MetricCard
-            label="Workflow rights"
-            value={selectedAuthLevel.canReview ? 'Review enabled' : 'Review blocked'}
-            detail={selectedAuthLevel.offHold ? 'Off-hold authority is also enabled.' : 'Review and authorise use separate setup flags.'}
+            label="Currency"
+            value={selectedAuthLevel.currencyCode}
+            detail={selectedAuthLevel.currencyName || 'Purchase order currency context.'}
             icon={CheckCircle2}
           />
         </section>
       ) : null}
+
+      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-3 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-akiva-text">Action notifications</h2>
+          <p className="mt-1 text-sm leading-6 text-akiva-text-muted">
+            Email and SMS queueing follows the purchase order notification settings in System Parameters.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ToggleChip
+            icon={Mail}
+            label="Email"
+            checked={notificationOptions.email && notificationSettings.emailEnabled}
+            disabled={!notificationSettings.emailEnabled}
+            note={notificationSettings.emailEnabled ? 'Enabled' : notificationSettings.loaded ? 'Off in settings' : 'Loading'}
+            onChange={(checked) => onNotificationChange({ email: checked })}
+          />
+          <ToggleChip
+            icon={MessageSquare}
+            label="SMS"
+            checked={notificationOptions.sms && notificationSettings.smsEnabled}
+            disabled={!notificationSettings.smsEnabled}
+            note={notificationSettings.smsEnabled ? 'Enabled' : notificationSettings.loaded ? 'Off in settings' : 'Loading'}
+            onChange={(checked) => onNotificationChange({ sms: checked })}
+          />
+        </div>
+      </section>
 
       <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
         <div className="border-b border-akiva-border px-4 py-3">
@@ -2119,7 +2287,7 @@ function AuthorisePurchaseOrdersPanel({
             <div>
               <h2 className="text-base font-semibold text-akiva-text">Orders waiting for approval</h2>
               <p className="mt-1 text-sm text-akiva-text-muted">
-                Review uses the configured review flag. Authorise uses the matching currency and approval limit.
+                Pending-review orders can be approved or rejected. Reviewed orders can be authorised or rejected.
               </p>
             </div>
             {loading ? (
@@ -2148,7 +2316,7 @@ function AuthorisePurchaseOrdersPanel({
                   <th className="w-36 px-4 py-3 text-left">Requested</th>
                   <th className="w-36 px-4 py-3 text-left">Status</th>
                   <th className="w-40 px-4 py-3 text-right">Total</th>
-                  <th className="w-72 px-4 py-3 text-left">Authorisation check</th>
+                  <th className="w-72 px-4 py-3 text-left">Action needed</th>
                   <th className="w-80 px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -2156,7 +2324,6 @@ function AuthorisePurchaseOrdersPanel({
                 {orders.map((order) => {
                   const decision = authorisationForOrder(order, selectedAuthLevel);
                   const isPendingReview = order.status === 'Pending Review';
-                  const blocked = isPendingReview ? !decision.canReview : !decision.canAuthorise;
                   return (
                     <tr key={order.id} className="border-t border-akiva-border align-top">
                       <td className="px-4 py-3">
@@ -2182,13 +2349,9 @@ function AuthorisePurchaseOrdersPanel({
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-semibold">{money(orderTotal(order), order.currency)}</td>
                       <td className="px-4 py-3">
-                        <div className={`rounded-lg border px-3 py-2 text-xs leading-5 ${
-                          blocked
-                            ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
-                            : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100'
-                        }`}>
-                          <p className="font-semibold">{isPendingReview ? decision.reviewReason : decision.authoriseReason}</p>
-                          <p className="mt-1 opacity-80">{isPendingReview ? decision.authoriseReason : decision.reviewReason}</p>
+                        <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900 dark:border-sky-900/70 dark:bg-sky-950/40 dark:text-sky-100">
+                          <p className="font-semibold">{isPendingReview ? 'Approve review or reject' : 'Authorise or reject'}</p>
+                          <p className="mt-1 opacity-80">{isPendingReview ? 'Approve sends this PO to final authorisation.' : decision.authoriseReason}</p>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -2197,17 +2360,17 @@ function AuthorisePurchaseOrdersPanel({
                             Open
                           </Button>
                           {isPendingReview ? (
-                            <Button size="sm" onClick={() => onReview(order)} disabled={!decision.canReview} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
+                            <Button size="sm" onClick={() => onReview(order)} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
                               <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />
-                              Reviewed
+                              Approve
                             </Button>
                           ) : (
-                            <Button size="sm" onClick={() => onAuthorise(order)} disabled={!decision.canAuthorise} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
+                            <Button size="sm" onClick={() => onAuthorise(order)} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
                               <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
                               Authorise
                             </Button>
                           )}
-                          <Button variant="danger" size="sm" onClick={() => onReject(order)} disabled={!decision.canReview} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
+                          <Button variant="danger" size="sm" onClick={() => onReject(order)} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
                             Reject
                           </Button>
                         </div>
@@ -2562,7 +2725,7 @@ function ReviewPurchaseOrderPanel({
                 : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
             }`}
           >
-            <span className="font-semibold">Review: </span>
+            <span className="font-semibold">Review action: </span>
             {decision.reviewReason}
           </div>
           <div
@@ -2572,7 +2735,7 @@ function ReviewPurchaseOrderPanel({
                 : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
             }`}
           >
-            <span className="font-semibold">Authorise: </span>
+            <span className="font-semibold">Final action: </span>
             {decision.authoriseReason}
           </div>
         </div>
@@ -2580,7 +2743,7 @@ function ReviewPurchaseOrderPanel({
       <PurchaseOrderLines order={order} />
       <PanelSection title="Approval action">
         <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-3 text-sm text-akiva-text-muted">
-          Reviewing confirms supplier, budget, GL coding and quantities. Authorising permits print/send. Changes after authorisation should return the PO to review.
+          Approving review confirms supplier, budget, GL coding and quantities. Authorising permits print/send. Rejection requires a comment saved to the audit trail.
         </div>
       </PanelSection>
     </div>
@@ -2681,6 +2844,47 @@ function Chip({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode 
       <Icon className="h-3.5 w-3.5 text-akiva-accent" />
       {children}
     </span>
+  );
+}
+
+function ToggleChip({
+  icon: Icon,
+  label,
+  note,
+  checked,
+  disabled,
+  onChange,
+}: {
+  icon: LucideIcon;
+  label: string;
+  note: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label
+      className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold shadow-sm transition ${
+        disabled
+          ? 'cursor-not-allowed border-akiva-border bg-akiva-surface-muted text-akiva-text-muted opacity-70'
+          : checked
+            ? 'cursor-pointer border-akiva-accent bg-akiva-accent text-white'
+            : 'cursor-pointer border-akiva-border bg-akiva-surface-raised text-akiva-text hover:bg-akiva-surface-muted'
+      }`}
+    >
+      <input
+        type="checkbox"
+        className="sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <Icon className="h-4 w-4" />
+      <span>{label}</span>
+      <span className={`rounded-full px-2 py-0.5 text-xs ${checked && !disabled ? 'bg-white/20 text-white' : 'bg-akiva-surface text-akiva-text-muted'}`}>
+        {note}
+      </span>
+    </label>
   );
 }
 

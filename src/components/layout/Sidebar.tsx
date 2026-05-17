@@ -687,6 +687,8 @@ function Sidebar() {
 
   const selectedMainMenuId = routeIndex.pageIdToMainId.get(currentPage) ?? null;
   const selectedMainMenu = selectedMainMenuId != null ? mainMenus.find((m) => m.id === selectedMainMenuId) : null;
+  const selectedMainMenuPageId = selectedMainMenuId != null ? mainMenuPageId(selectedMainMenuId) : null;
+  const isDisplayedMainMenuDashboardActive = selectedMainMenuPageId !== null && currentPage === selectedMainMenuPageId;
   // Keep the secondary sidebar stable. Hover only shows icon tooltips; click changes menus.
   const displayedMainMenu = selectedMainMenu;
   const showSecondarySidebar = !sidebarCollapsed && displayedMainMenu != null;
@@ -1123,7 +1125,11 @@ function Sidebar() {
                       <button
                         type="button"
                         onClick={handleDisplayedMainMenuTitleClick}
-                        className="rounded text-left font-semibold text-rose-600 transition hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-white dark:text-rose-300 dark:hover:text-rose-200 dark:focus:ring-offset-slate-950"
+                        className={`rounded text-left font-semibold transition focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950 ${
+                          isDisplayedMainMenuDashboardActive
+                            ? 'text-rose-600 hover:text-rose-700 dark:text-rose-300 dark:hover:text-rose-200'
+                            : 'text-inherit hover:text-slate-700 dark:hover:text-slate-200'
+                        }`}
                       >
                         {displayedMainMenu.caption}
                       </button>

@@ -147,6 +147,8 @@ Route::prefix('purchases')->group(function () {
 Route::prefix('inventory')->group(function () {
     Route::get('/dashboard', [InventoryDashboardController::class, 'show']);
     Route::get('/items/workbench', [InventoryItemController::class, 'workbench']);
+    Route::post('/items/categories', [InventoryItemController::class, 'storeCategory']);
+    Route::post('/items/types', [InventoryItemController::class, 'storeItemType']);
     Route::post('/items', [InventoryItemController::class, 'store']);
     Route::put('/items/{stockId}', [InventoryItemController::class, 'update']);
     Route::get('/adjustments/workbench', [StockAdjustmentController::class, 'workbench']);

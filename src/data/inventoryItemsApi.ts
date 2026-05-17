@@ -1,6 +1,6 @@
 import { apiFetch } from '../lib/network/apiClient';
 import { buildApiUrl } from '../lib/network/apiBase';
-import type { InventoryItem, InventoryItemForm, InventoryItemLookupOption, InventoryItemsPayload } from '../types/inventoryItems';
+import type { InventoryCategoryForm, InventoryItem, InventoryItemForm, InventoryItemLookupOption, InventoryItemsPayload, InventoryItemTypeForm } from '../types/inventoryItems';
 
 interface ApiErrorPayload {
   message?: string;
@@ -130,4 +130,38 @@ export async function saveInventoryItem(form: InventoryItemForm, stockId?: strin
   });
 
   return readPayload(response, 'Inventory item could not be saved.');
+}
+
+export async function saveInventoryCategory(form: InventoryCategoryForm): Promise<InventoryItemsResponse> {
+  const response = await apiFetch(buildApiUrl('/api/inventory/items/categories'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      ...form,
+      code: form.code.trim().toUpperCase().replace(/\s+/g, ''),
+      name: form.name.trim(),
+      stockType: form.stockType.trim().toUpperCase(),
+    }),
+  });
+
+  return readPayload(response, 'Inventory category could not be saved.');
+}
+
+export async function saveInventoryItemType(form: InventoryItemTypeForm): Promise<InventoryItemsResponse> {
+  const response = await apiFetch(buildApiUrl('/api/inventory/items/types'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      code: form.code.trim().toUpperCase(),
+      name: form.name.trim(),
+    }),
+  });
+
+  return readPayload(response, 'Inventory item type could not be saved.');
 }

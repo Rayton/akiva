@@ -79,3 +79,15 @@ export interface InventoryItemForm {
   netWeight: number;
   barcode: string;
 }
+
+export interface InventoryCategoryForm {
+  code: string;
+  name: string;
+  stockType: string;
+  defaultTaxCategoryId: number;
+}
+
+export interface InventoryItemTypeForm {
+  code: string;
+  name: string;
+}

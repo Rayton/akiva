@@ -1,17 +1,27 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Barcode, Boxes, CheckCircle2, Layers3, Loader2, PackagePlus, Pencil, RefreshCw, Save, Search, ShieldCheck, Tags } from 'lucide-react';
+import { Barcode, Boxes, CheckCircle2, Layers3, Loader2, PackagePlus, Pencil, Plus, RefreshCw, Save, Search, ShieldCheck, Tags } from 'lucide-react';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
 import { Button } from '../components/common/Button';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
-import { fetchInventoryItems, saveInventoryItem } from '../data/inventoryItemsApi';
-import type { InventoryItem, InventoryItemForm, InventoryItemLookupOption, InventoryItemsPayload } from '../types/inventoryItems';
+import { fetchInventoryItems, saveInventoryCategory, saveInventoryItem, saveInventoryItemType } from '../data/inventoryItemsApi';
+import type { InventoryCategoryForm, InventoryItem, InventoryItemForm, InventoryItemLookupOption, InventoryItemsPayload, InventoryItemTypeForm } from '../types/inventoryItems';
 
 const inputClassName =
   'min-h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2 text-sm text-akiva-text outline-none transition focus:border-akiva-accent focus:ring-2 focus:ring-akiva-accent/30 disabled:bg-akiva-surface-muted disabled:text-akiva-text-muted';
 
 const checkboxClassName =
   'flex min-h-11 items-center gap-3 rounded-lg border border-akiva-border bg-akiva-surface px-3 text-sm font-medium text-akiva-text';
+
+const iconButtonClassName =
+  'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-muted text-akiva-text transition hover:bg-akiva-accent hover:text-white focus:outline-none focus:ring-2 focus:ring-akiva-accent/30';
+
+const categoryStockTypeOptions = [
+  { value: 'F', label: 'F - Finished product' },
+  { value: 'D', label: 'D - Dummy item' },
+  { value: 'L', label: 'L - Labour' },
+  { value: 'M', label: 'M - Raw materials' },
+];
 
 function firstCode(options: InventoryItemLookupOption[] | undefined, fallback = ''): string {
   return options?.[0]?.code ? String(options[0].code) : fallback;
@@ -38,6 +48,22 @@ function emptyForm(payload?: InventoryItemsPayload | null): InventoryItemForm {
     kgs: 0,
     netWeight: 0,
     barcode: '',
+  };
+}
+
+function emptyCategoryForm(payload?: InventoryItemsPayload | null): InventoryCategoryForm {
+  return {
+    code: '',
+    name: '',
+    stockType: 'F',
+    defaultTaxCategoryId: Number(firstCode(payload?.lookups.taxCategories, '1')),
+  };
+}
+
+function emptyItemTypeForm(): InventoryItemTypeForm {
+  return {
+    code: '',
+    name: '',
   };
 }
 
@@ -74,7 +100,7 @@ function yesNo(value: boolean): string {
 }
 
 function statusLabel(item: InventoryItem): string {
-  return item.discontinued ? 'Discontinued' : 'Active';
+  return item.discontinued ? 'Inactive' : 'Active';
 }
 
 function formatNumber(value: number, decimals = 2): string {
@@ -103,12 +129,18 @@ export function InventoryItems() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState<InventoryItemForm>(() => emptyForm(null));
+  const [categoryForm, setCategoryForm] = useState<InventoryCategoryForm>(() => emptyCategoryForm(null));
+  const [typeForm, setTypeForm] = useState<InventoryItemTypeForm>(() => emptyItemTypeForm());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [quickSaving, setQuickSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [quickError, setQuickError] = useState('');
 
   const loadItems = async () => {
     setLoading(true);
@@ -197,7 +229,7 @@ export function InventoryItems() {
       if (categoryFilter !== 'all' && item.categoryId !== categoryFilter) return false;
       if (typeFilter !== 'all' && item.mbFlag !== typeFilter) return false;
       if (statusFilter === 'active' && item.discontinued) return false;
-      if (statusFilter === 'discontinued' && !item.discontinued) return false;
+      if (statusFilter === 'inactive' && !item.discontinued) return false;
       if (statusFilter === 'controlled' && !item.controlled) return false;
       if (statusFilter === 'serialised' && !item.serialised) return false;
       if (!needle) return true;
@@ -222,6 +254,14 @@ export function InventoryItems() {
     setForm((previous) => ({ ...previous, [fieldName]: value }));
   };
 
+  const setCategoryField = <K extends keyof InventoryCategoryForm>(fieldName: K, value: InventoryCategoryForm[K]) => {
+    setCategoryForm((previous) => ({ ...previous, [fieldName]: value }));
+  };
+
+  const setTypeField = <K extends keyof InventoryItemTypeForm>(fieldName: K, value: InventoryItemTypeForm[K]) => {
+    setTypeForm((previous) => ({ ...previous, [fieldName]: value }));
+  };
+
   const openCreateDialog = () => {
     setEditingItem(null);
     setForm(emptyForm(payload));
@@ -236,6 +276,18 @@ export function InventoryItems() {
     setMessage('');
     setError('');
     setDialogOpen(true);
+  };
+
+  const openCategoryDialog = () => {
+    setCategoryForm(emptyCategoryForm(payload));
+    setQuickError('');
+    setCategoryDialogOpen(true);
+  };
+
+  const openTypeDialog = () => {
+    setTypeForm(emptyItemTypeForm());
+    setQuickError('');
+    setTypeDialogOpen(true);
   };
 
   const submitForm = async (event: FormEvent<HTMLFormElement>) => {
@@ -254,6 +306,42 @@ export function InventoryItems() {
       setError(saveError instanceof Error ? saveError.message : 'Inventory item could not be saved.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const submitCategoryForm = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setQuickSaving(true);
+    setQuickError('');
+    try {
+      const response = await saveInventoryCategory(categoryForm);
+      if (response.data) setPayload(response.data);
+      const selectedId = String(response.data?.selectedId ?? categoryForm.code).toUpperCase();
+      setField('categoryId', selectedId);
+      setCategoryDialogOpen(false);
+      setCategoryForm(emptyCategoryForm(response.data ?? payload));
+    } catch (saveError) {
+      setQuickError(saveError instanceof Error ? saveError.message : 'Inventory category could not be saved.');
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
+  const submitItemTypeForm = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setQuickSaving(true);
+    setQuickError('');
+    try {
+      const response = await saveInventoryItemType(typeForm);
+      if (response.data) setPayload(response.data);
+      const selectedId = String(response.data?.selectedId ?? typeForm.code).toUpperCase();
+      setField('mbFlag', selectedId);
+      setTypeDialogOpen(false);
+      setTypeForm(emptyItemTypeForm());
+    } catch (saveError) {
+      setQuickError(saveError instanceof Error ? saveError.message : 'Inventory item type could not be saved.');
+    } finally {
+      setQuickSaving(false);
     }
   };
 
@@ -322,9 +410,9 @@ export function InventoryItems() {
           <div className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-akiva-accent">Inventory Maintenance</p>
-              <h1 className="mt-1 text-2xl font-bold text-akiva-text sm:text-3xl">Inventory Items Maintenance</h1>
+              <h1 className="mt-1 text-2xl font-bold leading-tight text-akiva-text sm:text-3xl">Inventory Items</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
-                Maintain stock master records, item classification, controls, units, tax setup, and searchable item details.
+                Maintain stock master records, item classification, controls, units, and tax setup.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row min-[900px]:shrink-0">
@@ -341,7 +429,7 @@ export function InventoryItems() {
             {[
               ['Total Items', stats.totalItems, Boxes],
               ['Active', stats.activeItems, CheckCircle2],
-              ['Discontinued', stats.discontinuedItems, Layers3],
+              ['Inactive', stats.discontinuedItems, Layers3],
               ['Controlled', stats.controlledItems, ShieldCheck],
               ['Serialised', stats.serialisedItems, Barcode],
               ['Categories', stats.categories, Tags],
@@ -374,7 +462,7 @@ export function InventoryItems() {
               options={[
                 { value: 'all', label: 'All statuses' },
                 { value: 'active', label: 'Active' },
-                { value: 'discontinued', label: 'Discontinued' },
+                { value: 'inactive', label: 'Inactive' },
                 { value: 'controlled', label: 'Controlled' },
                 { value: 'serialised', label: 'Serialised' },
               ]}
@@ -434,10 +522,42 @@ export function InventoryItems() {
               Item code
               <input className={`${inputClassName} mt-1 uppercase`} value={form.stockId} onChange={(event) => setField('stockId', event.target.value)} maxLength={20} required disabled={Boolean(editingItem)} />
             </label>
-            <label className="block text-sm font-medium text-akiva-text">
+            <div className="block text-sm font-medium text-akiva-text">
               Item type
-              <SearchableSelect className="mt-1" value={form.mbFlag} onChange={(value) => setField('mbFlag', value)} options={formTypeOptions} required />
-            </label>
+              <div className="mt-1 flex gap-2">
+                <SearchableSelect className="min-w-0 flex-1" value={form.mbFlag} onChange={(value) => setField('mbFlag', value)} options={formTypeOptions} required />
+                <button type="button" className={iconButtonClassName} onClick={openTypeDialog} title="Add item type" aria-label="Add item type">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="block text-sm font-medium text-akiva-text">
+              Status
+              <div className="mt-1 grid grid-cols-2 overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface p-1">
+                {[
+                  ['active', 'Active'],
+                  ['inactive', 'Inactive'],
+                ].map(([value, label]) => {
+                  const selected = (form.discontinued ? 'inactive' : 'active') === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setField('discontinued', value === 'inactive')}
+                      className={`min-h-9 rounded-md px-3 text-sm font-semibold transition ${
+                        selected
+                          ? value === 'active'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-amber-600 text-white shadow-sm'
+                          : 'text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <label className="block text-sm font-medium text-akiva-text sm:col-span-2">
               Description
               <input className={`${inputClassName} mt-1`} value={form.description} onChange={(event) => setField('description', event.target.value)} maxLength={50} required />
@@ -446,10 +566,15 @@ export function InventoryItems() {
               Long description
               <textarea className={`${inputClassName} mt-1 min-h-24 resize-y`} value={form.longDescription} onChange={(event) => setField('longDescription', event.target.value)} />
             </label>
-            <label className="block text-sm font-medium text-akiva-text">
+            <div className="block text-sm font-medium text-akiva-text">
               Category
-              <SearchableSelect className="mt-1" value={form.categoryId} onChange={(value) => setField('categoryId', value)} options={formCategoryOptions} required />
-            </label>
+              <div className="mt-1 flex gap-2">
+                <SearchableSelect className="min-w-0 flex-1" value={form.categoryId} onChange={(value) => setField('categoryId', value)} options={formCategoryOptions} required />
+                <button type="button" className={iconButtonClassName} onClick={openCategoryDialog} title="Add category" aria-label="Add category">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
             <label className="block text-sm font-medium text-akiva-text">
               Units
               <SearchableSelect className="mt-1" value={form.units} onChange={(value) => setField('units', value)} options={unitOptions} required />
@@ -474,7 +599,6 @@ export function InventoryItems() {
                 ['controlled', 'Batch controlled'],
                 ['serialised', 'Serialised'],
                 ['perishable', 'Perishable'],
-                ['discontinued', 'Discontinued'],
               ].map(([fieldName, label]) => (
                 <label key={fieldName} className={checkboxClassName}>
                   <input
@@ -513,6 +637,74 @@ export function InventoryItems() {
               </div>
             ) : null}
           </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={categoryDialogOpen}
+        onClose={() => setCategoryDialogOpen(false)}
+        title="Add Inventory Category"
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCategoryDialogOpen(false)} disabled={quickSaving}>Cancel</Button>
+            <Button type="submit" form="inventory-category-form" disabled={quickSaving}>
+              <span className="inline-flex items-center justify-center gap-2">
+                {quickSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save
+              </span>
+            </Button>
+          </>
+        }
+      >
+        <form id="inventory-category-form" onSubmit={submitCategoryForm} className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-medium text-akiva-text">
+            Code
+            <input className={`${inputClassName} mt-1 uppercase`} value={categoryForm.code} onChange={(event) => setCategoryField('code', event.target.value)} maxLength={6} required />
+          </label>
+          <label className="block text-sm font-medium text-akiva-text">
+            Category name
+            <input className={`${inputClassName} mt-1`} value={categoryForm.name} onChange={(event) => setCategoryField('name', event.target.value)} maxLength={20} required />
+          </label>
+          <label className="block text-sm font-medium text-akiva-text">
+            Stock type
+            <SearchableSelect className="mt-1" value={categoryForm.stockType} onChange={(value) => setCategoryField('stockType', value)} options={categoryStockTypeOptions} required />
+          </label>
+          <label className="block text-sm font-medium text-akiva-text">
+            Default tax category
+            <SearchableSelect className="mt-1" value={String(categoryForm.defaultTaxCategoryId)} onChange={(value) => setCategoryField('defaultTaxCategoryId', Number(value))} options={taxCategoryOptions} required />
+          </label>
+          {quickError ? <div className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{quickError}</div> : null}
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={typeDialogOpen}
+        onClose={() => setTypeDialogOpen(false)}
+        title="Add Item Type"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setTypeDialogOpen(false)} disabled={quickSaving}>Cancel</Button>
+            <Button type="submit" form="inventory-item-type-form" disabled={quickSaving}>
+              <span className="inline-flex items-center justify-center gap-2">
+                {quickSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save
+              </span>
+            </Button>
+          </>
+        }
+      >
+        <form id="inventory-item-type-form" onSubmit={submitItemTypeForm} className="grid gap-4">
+          <label className="block text-sm font-medium text-akiva-text">
+            Code
+            <input className={`${inputClassName} mt-1 uppercase`} value={typeForm.code} onChange={(event) => setTypeField('code', event.target.value)} maxLength={1} required />
+          </label>
+          <label className="block text-sm font-medium text-akiva-text">
+            Type name
+            <input className={`${inputClassName} mt-1`} value={typeForm.name} onChange={(event) => setTypeField('name', event.target.value)} maxLength={50} required />
+          </label>
+          {quickError ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{quickError}</div> : null}
         </form>
       </Modal>
     </div>

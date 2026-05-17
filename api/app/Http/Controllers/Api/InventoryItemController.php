@@ -111,6 +111,106 @@ class InventoryItemController extends Controller
         }
     }
 
+    public function storeCategory(Request $request)
+    {
+        if (!Schema::hasTable('stockcategory')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Inventory categories are not available.',
+            ], 503);
+        }
+
+        $request->merge([
+            'code' => strtoupper(str_replace(' ', '', trim((string) $request->input('code', '')))),
+            'name' => trim((string) $request->input('name', '')),
+            'stockType' => strtoupper(trim((string) $request->input('stockType', 'F'))),
+            'defaultTaxCategoryId' => (int) $request->input('defaultTaxCategoryId', 1),
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'code' => ['required', 'string', 'max:6', 'regex:/^[A-Za-z0-9_]+$/', Rule::unique('stockcategory', 'categoryid')],
+            'name' => ['required', 'string', 'max:20'],
+            'stockType' => ['required', Rule::in(['F', 'D', 'L', 'M'])],
+            'defaultTaxCategoryId' => ['required', 'integer', Rule::exists('taxcategories', 'taxcatid')],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationResponse($validator);
+        }
+
+        $data = $validator->validated();
+        $accounts = $this->categoryPostingDefaults();
+
+        try {
+            DB::table('stockcategory')->insert([
+                'categoryid' => (string) $data['code'],
+                'categorydescription' => trim((string) $data['name']),
+                'stocktype' => (string) $data['stockType'],
+                'stockact' => $accounts['stockact'],
+                'adjglact' => $accounts['adjglact'],
+                'issueglact' => $accounts['issueglact'],
+                'purchpricevaract' => $accounts['purchpricevaract'],
+                'materialuseagevarac' => $accounts['materialuseagevarac'],
+                'wipact' => $accounts['wipact'],
+                'defaulttaxcatid' => (int) $data['defaultTaxCategoryId'],
+            ]);
+
+            return $this->savedResponse('Inventory category created.', (string) $data['code'], 201);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Inventory category could not be created.',
+            ], 500);
+        }
+    }
+
+    public function storeItemType(Request $request)
+    {
+        if (!Schema::hasTable('stockitemtypes')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Inventory item types are not available.',
+            ], 503);
+        }
+
+        $request->merge([
+            'code' => strtoupper(trim((string) $request->input('code', ''))),
+            'name' => trim((string) $request->input('name', '')),
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'code' => ['required', 'string', 'size:1', 'regex:/^[A-Za-z0-9]$/', Rule::unique('stockitemtypes', 'code')],
+            'name' => ['required', 'string', 'max:50'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationResponse($validator);
+        }
+
+        $data = $validator->validated();
+
+        try {
+            DB::table('stockitemtypes')->insert([
+                'code' => (string) $data['code'],
+                'name' => trim((string) $data['name']),
+                'is_system' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return $this->savedResponse('Item type created.', (string) $data['code'], 201);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Item type could not be created.',
+            ], 500);
+        }
+    }
+
     private function payload(?Request $request = null): array
     {
         return [
@@ -236,7 +336,7 @@ class InventoryItemController extends Controller
 
         if ($status === 'active') {
             $query->where('sm.discontinued', 0);
-        } elseif ($status === 'discontinued') {
+        } elseif ($status === 'inactive' || $status === 'discontinued') {
             $query->where('sm.discontinued', 1);
         } elseif ($status === 'controlled') {
             $query->where('sm.controlled', 1);
@@ -460,14 +560,37 @@ class InventoryItemController extends Controller
 
     private function itemTypes(): array
     {
-        return [
-            'B' => 'Bought stock',
+        $defaults = [
+            'B' => 'Purchased stock',
             'M' => 'Manufactured stock',
-            'D' => 'Dummy item',
-            'L' => 'Labour or service',
+            'D' => 'Service or labour',
             'A' => 'Assembly',
             'K' => 'Kit set',
         ];
+
+        if (!Schema::hasTable('stockitemtypes')) {
+            return $defaults;
+        }
+
+        $rows = DB::table('stockitemtypes')
+            ->select('code', 'name')
+            ->orderBy('code')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return $defaults;
+        }
+
+        $types = $defaults;
+        foreach ($rows as $row) {
+            $code = strtoupper(trim((string) $row->code));
+            if ($code === '') {
+                continue;
+            }
+            $types[$code] = html_entity_decode((string) $row->name);
+        }
+
+        return $types;
     }
 
     private function itemTypeLabel(string $code): string
@@ -479,6 +602,38 @@ class InventoryItemController extends Controller
     {
         $columns = array_flip(Schema::getColumnListing($table));
         return array_intersect_key($payload, $columns);
+    }
+
+    private function categoryPostingDefaults(): array
+    {
+        $template = DB::table('stockcategory')
+            ->select('stockact', 'adjglact', 'issueglact', 'purchpricevaract', 'materialuseagevarac', 'wipact')
+            ->orderBy('categoryid')
+            ->first();
+
+        if ($template) {
+            return [
+                'stockact' => (string) $template->stockact,
+                'adjglact' => (string) $template->adjglact,
+                'issueglact' => (string) $template->issueglact,
+                'purchpricevaract' => (string) $template->purchpricevaract,
+                'materialuseagevarac' => (string) $template->materialuseagevarac,
+                'wipact' => (string) $template->wipact,
+            ];
+        }
+
+        $defaultAccount = Schema::hasTable('chartmaster')
+            ? (string) (DB::table('chartmaster')->orderBy('accountcode')->value('accountcode') ?? '0')
+            : '0';
+
+        return [
+            'stockact' => $defaultAccount,
+            'adjglact' => $defaultAccount,
+            'issueglact' => $defaultAccount,
+            'purchpricevaract' => '80000',
+            'materialuseagevarac' => '80000',
+            'wipact' => $defaultAccount,
+        ];
     }
 
     private function numberValue($value): float

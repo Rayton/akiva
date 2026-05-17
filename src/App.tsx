@@ -16,6 +16,7 @@ import { UserLocations } from './pages/UserLocations';
 import { Departments } from './pages/Departments';
 import { InternalStockCategoryRoles } from './pages/InternalStockCategoryRoles';
 import { SalesOrders } from './pages/SalesOrders';
+import { PurchasesDashboard } from './pages/PurchasesDashboard';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
 import { InventoryTransferReceive } from './pages/InventoryTransferReceive';
@@ -1000,9 +1001,27 @@ function AppContent() {
       return <Inventory />;
     }
 
+    if (normalizedPath === '/purchases') {
+      return <PurchasesDashboard />;
+    }
+
+    if (locationPathname.toLowerCase().startsWith('/purchases/')) {
+      if (isSupplierPayablesMenuSlug(locationPathname)) {
+        return <AccountsPayable />;
+      }
+
+      if (isPurchaseOrderMenuSlug(locationPathname)) {
+        return <PurchaseOrders />;
+      }
+    }
+
     if (currentPage.startsWith('main-')) {
       const mainId = parseInt(currentPage.replace('main-', ''), 10);
       const mainModule = appMenu.find((item) => item.id === mainId);
+
+      if (mainModule && normalizedSlugKey(mainModule.caption) === 'purchases') {
+        return <PurchasesDashboard />;
+      }
 
       if (mainModule && isConfigurationMenuCaption(mainModule.caption)) {
         return <ConfigurationDashboard module={mainModule} onSelectPage={setCurrentPage} />;

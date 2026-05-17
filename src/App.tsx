@@ -10,6 +10,7 @@ import { AccountsReceivable } from './pages/AccountsReceivable';
 import { AccountsPayable } from './pages/AccountsPayable';
 import { Inventory } from './pages/Inventory';
 import { InventoryItems } from './pages/InventoryItems';
+import { SalesCategories } from './pages/SalesCategories';
 import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
@@ -596,6 +597,11 @@ function isInventoryItemsMenuSlug(slug: string): boolean {
   );
 }
 
+function isSalesCategoriesMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'salescategories' || key.includes('salescategories');
+}
+
 function isInventorySetupMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
@@ -697,6 +703,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (isInventoryItemsMenuSlug(pathname)) {
     return <InventoryItems />;
+  }
+
+  if (isSalesCategoriesMenuSlug(pathname)) {
+    return <SalesCategories />;
   }
 
   if (pathKey.includes('configurationuserswwwusers')) {
@@ -1006,6 +1016,10 @@ function AppContent() {
         return <InventoryItems />;
       }
 
+      if (isSalesCategoriesMenuSlug(menuSlug)) {
+        return <SalesCategories />;
+      }
+
       if (isManufacturingSetupMenuSlug(menuSlug)) {
         return <ManufacturingSetup initialTab={resolveManufacturingSetupTab(menuSlug)} />;
       }
@@ -1243,6 +1257,10 @@ function AppContent() {
       return <InventoryItems />;
     }
 
+    if (isSalesCategoriesMenuSlug(locationPathname)) {
+      return <SalesCategories />;
+    }
+
     switch (currentPage) {
       case 'accounts':
         return <ChartOfAccounts />;
@@ -1260,6 +1278,9 @@ function AppContent() {
       case 'inventoryitems':
       case 'stockmaster':
         return <InventoryItems />;
+      case 'salescategories':
+      case 'sales-categories':
+        return <SalesCategories />;
       case 'sales-orders':
         return <SalesOrders mode="transactions" sourceSlug="sales-orders" />;
       case 'purchase-orders':

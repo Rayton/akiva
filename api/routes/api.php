@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\PurchasesPayablesSetupController;
 use App\Http\Controllers\Api\InventorySetupController;
 use App\Http\Controllers\Api\InventoryDashboardController;
 use App\Http\Controllers\Api\InventoryItemController;
+use App\Http\Controllers\Api\SalesCategoryController;
 use App\Http\Controllers\Api\AllInventoryUsageController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
@@ -151,6 +152,10 @@ Route::prefix('inventory')->group(function () {
     Route::post('/items/types', [InventoryItemController::class, 'storeItemType']);
     Route::post('/items', [InventoryItemController::class, 'store']);
     Route::put('/items/{stockId}', [InventoryItemController::class, 'update']);
+    Route::get('/sales-categories', [SalesCategoryController::class, 'index']);
+    Route::post('/sales-categories', [SalesCategoryController::class, 'store']);
+    Route::put('/sales-categories/{id}', [SalesCategoryController::class, 'update']);
+    Route::delete('/sales-categories/{id}', [SalesCategoryController::class, 'destroy']);
     Route::get('/adjustments/workbench', [StockAdjustmentController::class, 'workbench']);
     Route::get('/adjustment-items', [StockAdjustmentController::class, 'items']);
     Route::post('/adjustments', [StockAdjustmentController::class, 'store']);

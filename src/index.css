@@ -369,8 +369,7 @@ html.dark select {
   scrollbar-color: transparent transparent;
 }
 
-.scrollbar-hover:hover,
-.scrollbar-hover:focus-within {
+.scrollbar-hover:hover {
   scrollbar-width: thin;
   scrollbar-color: #94a3b8 transparent;
 }
@@ -380,8 +379,7 @@ html.dark select {
   height: 0;
 }
 
-.scrollbar-hover:hover::-webkit-scrollbar,
-.scrollbar-hover:focus-within::-webkit-scrollbar {
+.scrollbar-hover:hover::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
@@ -399,8 +397,7 @@ html.dark select {
   background: #64748b;
 }
 
-html.dark .scrollbar-hover:hover,
-html.dark .scrollbar-hover:focus-within {
+html.dark .scrollbar-hover:hover {
   scrollbar-color: #64748b transparent;
 }
 

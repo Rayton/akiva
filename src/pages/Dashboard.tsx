@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   Cell,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -35,7 +36,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-type RiskTone = 'danger' | 'warning' | 'success' | 'info' | 'neutral';
+type RiskTone = 'danger' | 'warning' | 'pending' | 'success' | 'info' | 'neutral';
 
 const currency = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -85,7 +86,7 @@ const executiveMetrics = [
     value: '27',
     detail: 'POs and supplier bills awaiting decision',
     status: 'Aging',
-    tone: 'warning' as const,
+    tone: 'pending' as const,
     icon: ShieldCheck,
   },
   {
@@ -98,10 +99,26 @@ const executiveMetrics = [
   },
 ];
 
+const operationalRisk = {
+  score: 82,
+  label: 'Elevated',
+  financialExposure: '$186.9k',
+  blockedDocuments: 48,
+  criticalCount: 6,
+  pendingApprovals: 27,
+};
+
+const riskControls = [
+  { label: 'Cash floor', value: '$120k', current: '$214.9k', tone: 'success' as const },
+  { label: 'Overdue AR limit', value: '$30k', current: '$38.2k', tone: 'warning' as const },
+  { label: 'Approval SLA', value: '8 hrs', current: '11.4 hrs', tone: 'pending' as const },
+  { label: 'Stockout tolerance', value: '5 items', current: '18 items', tone: 'danger' as const },
+];
+
 const operatingFlow = [
-  { label: 'PO approval', count: 18, value: 126000, target: 12, icon: ShoppingCart, tone: 'warning' as const },
+  { label: 'PO approval', count: 18, value: 126000, target: 12, icon: ShoppingCart, tone: 'pending' as const },
   { label: 'GRN posting', count: 9, value: 48300, target: 8, icon: Truck, tone: 'info' as const },
-  { label: 'Invoice match', count: 14, value: 62700, target: 10, icon: FileCheck2, tone: 'warning' as const },
+  { label: 'Invoice match', count: 14, value: 62700, target: 10, icon: FileCheck2, tone: 'pending' as const },
   { label: 'Payment run', count: 7, value: 84200, target: 6, icon: CreditCard, tone: 'danger' as const },
 ];
 
@@ -120,8 +137,8 @@ const cashTrend = [
 const supplierExposure = [
   { supplier: 'MSD Medical Store', value: 98200, orders: 8, color: 'var(--akiva-chart-danger)' },
   { supplier: 'Primecare Equipment', value: 74300, orders: 6, color: 'var(--akiva-chart-warning)' },
-  { supplier: 'Afri Dental Products', value: 51100, orders: 9, color: 'var(--akiva-chart-ink)' },
-  { supplier: 'Anudha Ltd', value: 38600, orders: 4, color: 'var(--akiva-chart-brand)' },
+  { supplier: 'Afri Dental Products', value: 51100, orders: 9, color: 'var(--akiva-chart-pending)' },
+  { supplier: 'Anudha Ltd', value: 38600, orders: 4, color: 'var(--akiva-chart-ink)' },
   { supplier: 'Action Medeor', value: 24200, orders: 3, color: 'var(--akiva-chart-success)' },
 ];
 
@@ -141,7 +158,7 @@ const exceptionQueue = [
     value: '$44,960',
     age: '5 hours',
     owner: 'Procurement Lead',
-    tone: 'warning' as const,
+    tone: 'pending' as const,
     action: 'Approve',
   },
   {
@@ -168,18 +185,24 @@ const aiControlBrief = [
   {
     title: 'Defer non-critical payment batch',
     detail: 'Preserves $31k cash until receivables follow-up clears.',
+    confidence: 'High confidence',
+    approval: 'CFO review',
     icon: Banknote,
     tone: 'warning' as const,
   },
   {
     title: 'Escalate supplier PO approval',
     detail: 'Medical consumables are blocking replenishment for two locations.',
+    confidence: 'High confidence',
+    approval: 'Procurement director',
     icon: ShieldCheck,
-    tone: 'danger' as const,
+    tone: 'pending' as const,
   },
   {
     title: 'Create transfer before purchase',
     detail: 'Theatre Store has surplus of two low-stock central-store items.',
+    confidence: 'Medium confidence',
+    approval: 'Stores manager',
     icon: PackageCheck,
     tone: 'info' as const,
   },
@@ -193,18 +216,20 @@ const modulePulse = [
 ];
 
 function toneClasses(tone: RiskTone): string {
-  if (tone === 'danger') return 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100';
-  if (tone === 'warning') return 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100';
+  if (tone === 'danger') return 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100';
+  if (tone === 'warning') return 'border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100';
+  if (tone === 'pending') return 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-100';
   if (tone === 'success') return 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100';
-  if (tone === 'info') return 'border-teal-300 bg-teal-50 text-teal-800 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-100';
+  if (tone === 'info') return 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100';
   return 'border-akiva-border bg-akiva-surface-muted text-akiva-text';
 }
 
 function dotClass(tone: RiskTone): string {
-  if (tone === 'danger') return 'bg-rose-600 dark:bg-rose-300';
-  if (tone === 'warning') return 'bg-amber-600 dark:bg-amber-300';
+  if (tone === 'danger') return 'bg-red-600 dark:bg-red-300';
+  if (tone === 'warning') return 'bg-orange-600 dark:bg-orange-300';
+  if (tone === 'pending') return 'bg-purple-600 dark:bg-purple-300';
   if (tone === 'success') return 'bg-emerald-600 dark:bg-emerald-300';
-  if (tone === 'info') return 'bg-teal-600 dark:bg-teal-300';
+  if (tone === 'info') return 'bg-blue-600 dark:bg-blue-300';
   return 'bg-slate-500 dark:bg-slate-300';
 }
 
@@ -261,6 +286,57 @@ function MetricCard({
         <StatusBadge tone={tone}>{status}</StatusBadge>
       </div>
     </article>
+  );
+}
+
+function RiskCommandStrip() {
+  return (
+    <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
+      <div className="grid gap-4 xl:grid-cols-[220px_1fr] xl:items-center">
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/35">
+          <p className="text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-100">Operational risk index</p>
+          <div className="mt-3 flex items-end gap-2">
+            <span className="akiva-financial-value text-4xl font-semibold text-red-800 dark:text-red-100">{operationalRisk.score}</span>
+            <span className="pb-1 text-sm font-semibold text-red-700 dark:text-red-200">/100</span>
+          </div>
+          <p className="mt-2 text-sm font-semibold text-red-800 dark:text-red-100">{operationalRisk.label}</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Financial exposure</p>
+            <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{operationalRisk.financialExposure}</p>
+          </div>
+          <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Blocked documents</p>
+            <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{operationalRisk.blockedDocuments}</p>
+          </div>
+          <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Critical exceptions</p>
+            <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{operationalRisk.criticalCount}</p>
+          </div>
+          <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Pending approvals</p>
+            <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{operationalRisk.pendingApprovals}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {riskControls.map((control) => (
+          <div key={control.label} className="flex items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
+            <span className="min-w-0">
+              <span className="block truncate text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{control.label}</span>
+              <span className="mt-1 block text-xs text-akiva-text-muted">Limit {control.value}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2 text-sm font-semibold text-akiva-text">
+              <span className={`akiva-status-dot ${dotClass(control.tone)}`} />
+              {control.current}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -377,6 +453,8 @@ export function Dashboard() {
                 ))}
               </section>
 
+              <RiskCommandStrip />
+
               <Panel title="Cash, Receivables, And Payables" detail="Month-end liquidity view with collectable exposure and upcoming payment pressure." icon={ReceiptText}>
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
@@ -393,8 +471,21 @@ export function Dashboard() {
                       <Area type="monotone" dataKey="receivables" name="Receivables" stroke="var(--akiva-chart-warning)" strokeWidth={2} fill="rgba(180, 83, 9, 0.12)" />
                       <Area type="monotone" dataKey="payables" name="Payables" stroke="var(--akiva-chart-danger)" strokeWidth={2} fill="rgba(190, 18, 60, 0.1)" />
                       <Line type="monotone" dataKey="cash" name="Cash" stroke="var(--akiva-chart-ink)" strokeWidth={3} dot={false} />
+                      <ReferenceLine y={120000} stroke="var(--akiva-chart-danger)" strokeDasharray="5 5" label={{ value: 'Cash floor', fill: 'var(--akiva-chart-danger)', fontSize: 11 }} />
+                      <ReferenceLine y={160000} stroke="var(--akiva-chart-warning)" strokeDasharray="4 6" label={{ value: 'AR review', fill: 'var(--akiva-chart-warning)', fontSize: 11 }} />
                     </AreaChart>
                   </ResponsiveContainer>
+                </div>
+                <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-semibold text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
+                    Cash floor protected by $94.9k
+                  </div>
+                  <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-100">
+                    Receivables crossed review benchmark
+                  </div>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+                    Drilldown ready for AR and AP ledgers
+                  </div>
                 </div>
               </Panel>
 
@@ -486,6 +577,10 @@ export function Dashboard() {
                           <span className="min-w-0">
                             <span className="block text-sm font-semibold text-akiva-text">{item.title}</span>
                             <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{item.detail}</span>
+                            <span className="mt-2 flex flex-wrap gap-2">
+                              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClasses(item.tone)}`}>{item.confidence}</span>
+                              <span className="rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">{item.approval}</span>
+                            </span>
                           </span>
                         </div>
                       </button>

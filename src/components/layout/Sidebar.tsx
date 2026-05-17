@@ -432,10 +432,10 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
           className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-all duration-200 ${
             isCurrentBranchActive
               ? 'bg-white text-slate-950 shadow-sm shadow-slate-200/60 dark:bg-slate-800 dark:text-white dark:shadow-black/20'
-              : 'text-slate-600 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white'
+              : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
           }`}
         >
-          <ItemIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${isCurrentBranchActive ? 'text-rose-600 dark:text-rose-300' : 'text-slate-400 dark:text-slate-500'}`} />
+          <ItemIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${isCurrentBranchActive ? 'text-rose-600 dark:text-rose-300' : 'text-akiva-text-muted'}`} />
           <span className="truncate font-medium flex-1 text-left">{categoryLabel}</span>
           <ChevronUp className={`w-3 h-3 transition-transform duration-200 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
         </button>
@@ -456,10 +456,10 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                       className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-all duration-200 ${
                         childBranchActive
                           ? 'bg-white text-slate-950 shadow-sm shadow-slate-200/60 dark:bg-slate-800 dark:text-white dark:shadow-black/20'
-                          : 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white'
+                          : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
                       }`}
                     >
-                      <ChildIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${childBranchActive ? 'text-rose-600 dark:text-rose-300' : 'text-slate-400 dark:text-slate-500'}`} />
+                      <ChildIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${childBranchActive ? 'text-rose-600 dark:text-rose-300' : 'text-akiva-text-muted'}`} />
                       <span className="truncate flex-1 text-left">{childLabel}</span>
                       <ChevronUp className={`w-3 h-3 transition-transform duration-200 flex-shrink-0 ${childExpanded ? 'rotate-180' : ''}`} />
                     </button>
@@ -475,12 +475,12 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                               className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-all duration-200 rounded text-left ${
                                 nodeMatchesPage(grandChild, currentPage)
                                   ? 'bg-rose-50 text-rose-700 font-medium dark:bg-rose-950/40 dark:text-rose-300'
-                                  : 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white'
+                                  : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
                               }`}
                             >
                               {(() => {
                                 const GrandChildIcon = getSecondaryMenuIcon(grandChildLabel, false, grandChild.href);
-                                return <GrandChildIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />;
+                                return <GrandChildIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-akiva-text-muted" />;
                               })()}
                               <span className="truncate">{grandChildLabel}</span>
                             </button>
@@ -498,12 +498,12 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                   className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-all duration-200 rounded text-left ${
                     nodeMatchesPage(child, currentPage)
                       ? 'bg-rose-50 text-rose-700 font-medium dark:bg-rose-950/40 dark:text-rose-300'
-                      : 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white'
+                      : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
                   }`}
                 >
                   {(() => {
                     const LeafIcon = getSecondaryMenuIcon(childLabel, false, child.href);
-                    return <LeafIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />;
+                    return <LeafIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-akiva-text-muted" />;
                   })()}
                   <span className="truncate">{childLabel}</span>
                 </button>
@@ -520,12 +520,12 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
       className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-all duration-200 rounded text-left ${
         nodeMatchesPage(category, currentPage)
           ? 'bg-white text-slate-950 font-medium shadow-sm shadow-slate-200/60 dark:bg-slate-800 dark:text-white dark:shadow-black/20'
-          : 'text-slate-600 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-white'
+          : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
       }`}
     >
       {(() => {
         const LeafIcon = getSecondaryMenuIcon(categoryLabel, false, category.href);
-        return <LeafIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />;
+        return <LeafIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-akiva-text-muted" />;
       })()}
       <span className="truncate font-medium">{categoryLabel}</span>
     </button>
@@ -964,7 +964,7 @@ function Sidebar() {
               </div>
             )}
 	            {!menuLoading && primaryMainMenus.length === 0 && (
-	              <div className="px-2 py-2 text-center text-xs text-gray-500 dark:text-gray-400">No modules</div>
+	              <div className="px-2 py-2 text-center text-xs text-akiva-text-muted">No modules</div>
 	            )}
 	            {!menuLoading && primaryMainMenus.map((category) => {
 	              const pageId = mainMenuPageId(category.id);
@@ -985,7 +985,7 @@ function Sidebar() {
                       isActive
                         ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/25 dark:bg-rose-500 dark:shadow-rose-500/20'
                         : iconSidebarExpanded
-                          ? 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-white'
+                          ? 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800 dark:hover:text-white'
                           : 'bg-white/86 text-slate-700 shadow-sm shadow-slate-200/70 hover:bg-white hover:text-slate-950 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white'
 	                    } ${iconSidebarExpanded ? 'h-10 w-full justify-start gap-3 rounded-lg px-3' : 'mx-auto h-11 w-11 justify-center'}`}
 	                  >
@@ -1032,7 +1032,7 @@ function Sidebar() {
 	                      ? 'h-10 w-full justify-start gap-3 rounded-lg bg-rose-600 px-3 text-white shadow-lg shadow-rose-500/25 dark:bg-rose-500 dark:shadow-rose-500/20'
 	                      : 'mx-auto h-11 w-11 justify-center rounded-full bg-rose-600 text-white shadow-lg shadow-rose-500/25 dark:bg-rose-500 dark:shadow-rose-500/20'
 	                    : iconSidebarExpanded
-	                      ? 'h-10 w-full justify-start gap-3 rounded-lg px-3 text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-white'
+	                      ? 'h-10 w-full justify-start gap-3 rounded-lg px-3 text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800 dark:hover:text-white'
 	                      : 'mx-auto h-11 w-11 justify-center rounded-full bg-white/86 text-slate-700 shadow-sm shadow-slate-200/70 hover:bg-white hover:text-slate-950 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white'
 	                }`}
 	                aria-label="Open configuration"
@@ -1117,11 +1117,11 @@ function Sidebar() {
               {menuLoading && (
                 <div className="flex items-center justify-center py-4">
                     <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
-                  <span className="ml-2 text-sm text-gray-500">Loading...</span>
+                  <span className="ml-2 text-sm text-akiva-text-muted">Loading...</span>
                 </div>
               )}
               {!menuLoading && !displayedMainMenu && mainMenus.length > 0 && (
-                <div className="text-sm text-gray-500 dark:text-gray-400 py-2">Select or hover a module</div>
+                <div className="text-sm text-akiva-text-muted py-2">Select or hover a module</div>
               )}
               {!menuLoading && displayedMainMenu && (
                 <>
@@ -1155,19 +1155,19 @@ function Sidebar() {
                         />
                       ))
                     ) : (
-                      <div className="text-sm text-gray-500 dark:text-gray-400 py-2">No submodules</div>
+                      <div className="text-sm text-akiva-text-muted py-2">No submodules</div>
                     )}
                   </div>
                 </>
               )}
               {!menuLoading && mainMenus.length === 0 && (
-                <div className="text-sm text-gray-500 dark:text-gray-400 py-2">No modules</div>
+                <div className="text-sm text-akiva-text-muted py-2">No modules</div>
               )}
             </nav>
 
             {/* System Administration - Fixed at very bottom */}
             <div className="mt-auto flex-shrink-0 border-t border-akiva-border p-4 dark:border-slate-800">
-              <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-600 transition-all duration-200 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
+              <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-akiva-text-muted transition-all duration-200 hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800 dark:hover:text-white">
                 <Shield className="w-4 h-4 mr-3 flex-shrink-0" />
                 <span className="truncate">System Administration</span>
               </button>

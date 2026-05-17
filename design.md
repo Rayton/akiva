@@ -16,7 +16,7 @@ Do not build marketing-style pages, oversized empty hero sections, or decorative
 - Shared primitives: `src/components/common`
 - Layout shell: `src/components/layout`
 
-Prefer token classes such as `bg-akiva-bg`, `bg-akiva-surface-raised`, `border-akiva-border`, `text-akiva-text`, and `text-akiva-text-muted` when building new shared components. Use semantic tokens such as `akiva-success`, `akiva-warning`, `akiva-danger`, and `akiva-info` for workflow states. Use explicit dashboard classes only when matching an existing dashboard pattern exactly.
+Prefer token classes such as `bg-akiva-bg`, `bg-akiva-surface-raised`, `border-akiva-border`, `text-akiva-text`, and `text-akiva-text-muted` when building new shared components. Use semantic tokens such as `akiva-danger`, `akiva-warning`, `akiva-pending`, `akiva-success`, and `akiva-info` for workflow states. Use explicit dashboard classes only when matching an existing dashboard pattern exactly.
 
 ## Page Shell
 
@@ -94,15 +94,16 @@ Use the Akiva tokens before raw Tailwind colors:
 - Border: `akiva-border`, `akiva-border-strong`
 - Text: `akiva-text`, `akiva-text-muted`
 - Brand/accent: `akiva-accent`, `akiva-accent-strong`, `akiva-accent-soft`, `akiva-accent-text`
-- Workflow semantics: `akiva-success`, `akiva-warning`, `akiva-danger`, `akiva-info` and their `-soft` variants
+- Workflow semantics: `akiva-danger`, `akiva-warning`, `akiva-pending`, `akiva-success`, `akiva-info` and their `-soft` variants
 - Tables: `akiva-table-header`, `akiva-table-row-hover`
 
 Semantic colors are allowed for status:
 
-- Success: emerald
-- Warning: amber
-- Danger/overdue: rose or red
-- Info/in-progress: teal/cyan
+- Critical risk: red
+- Warning/aging: orange
+- Workflow pending: purple
+- Healthy: green
+- Informational: blue
 - Neutral: Akiva surface and text tokens
 
 Do not use a one-note palette. Primary actions use the Akiva accent. Status and chart colors must remain distinguishable without relying on color alone, usually by adding labels, icons, dots, or queue counts.
@@ -143,7 +144,7 @@ Controls should be familiar:
 
 ### Data Grid Standards
 
-Use dense rows by default for accounting, inventory, and procurement lists. Table headers must be sticky, filter inputs must be labelled, and row focus must remain visible for keyboard users. Numeric columns should be right-aligned and use tabular figures. Status cells must include text plus a visual marker, not color alone.
+Use dense rows by default for accounting, inventory, and procurement lists. Table headers must be sticky, filter inputs must be labelled, and row focus must remain visible for keyboard users. Numeric columns should be right-aligned and use tabular figures. Status cells must include text plus a visual marker, not color alone. Operational tables should support saved views, density switching, row selection, and bulk-action hooks where users review queues repeatedly.
 
 Recommended advanced table:
 
@@ -155,6 +156,8 @@ Recommended advanced table:
   rows={rows}
   rowKey={(row) => row.id}
   density="compact"
+  selectableRows
+  bulkActions={[{ id: 'approve', label: 'Approve', onClick: approveRows }]}
   initialPageSize={25}
 />
 ```
@@ -321,10 +324,12 @@ Prefer `AdvancedTable` for live operational data. It already provides filtering,
 
 Table conventions:
 
-- Header: uppercase, `text-xs`, muted
+- Header: uppercase, `text-xs`, high-contrast muted
 - Sorting: every sortable header uses an icon button with `ArrowUpDown`, switching to `ArrowUp` or `ArrowDown` for the active column
 - Active sort icon: `text-akiva-accent`
 - Accessibility: sorted headers set `aria-sort` to `ascending`, `descending`, or `none`
+- Saved views: local persistence is acceptable for user-level workbench preferences; server persistence should be added for enterprise role profiles
+- Bulk actions: available only when rows are selectable and actions operate on auditable workflow events
 - Row text: `text-sm`
 - Borders: `border-akiva-border`
 - Hover: `hover:bg-akiva-table-row-hover`
@@ -345,9 +350,11 @@ Chart colors should come from CSS variables:
 - Grid: `var(--akiva-chart-grid)`
 - Muted series: `var(--akiva-chart-muted)` or `var(--akiva-chart-ink)`
 - Brand series: `var(--akiva-chart-brand)`
+- Thresholds and operational benchmarks: `ReferenceLine` with semantic colors and short labels
+- Anomaly markers: pair color with labels, icons, or callout rows so meaning is not color-only
 - Tooltip background/border/text: `--akiva-chart-tooltip-*`
 
-Keep charts compact and framed by a useful analytical panel. Avoid decorative charts without an operational decision attached.
+Keep charts compact and framed by a useful analytical panel. Avoid decorative charts without an operational decision attached. A chart should answer what crossed a threshold, what changed versus the benchmark, and which workflow should be opened next.
 
 ## Forms And Drawers
 

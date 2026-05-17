@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, FileSpreadsheet, FileText, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckSquare, ChevronLeft, ChevronRight, Columns3, FileSpreadsheet, FileText, Rows3, Save, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -32,6 +32,14 @@ interface AdvancedTableProps<T> {
   loadingMessage?: string;
   density?: 'compact' | 'comfortable';
   maxTableHeight?: string;
+  enableDensityToggle?: boolean;
+  enableSavedViews?: boolean;
+  selectableRows?: boolean;
+  bulkActions?: Array<{
+    id: string;
+    label: string;
+    onClick: (selectedRows: T[]) => void;
+  }>;
   initialPageSize?: number;
   pageSizeOptions?: number[];
   initialScroll?: 'left' | 'right';
@@ -52,6 +60,17 @@ type SortDirection = 'asc' | 'desc';
 type SortState = {
   columnId: string;
   direction: SortDirection;
+};
+
+type Density = 'compact' | 'comfortable';
+
+type SavedView = {
+  name: string;
+  visibleColumnIds: string[];
+  filters: FilterMap;
+  sort: SortState | null;
+  density: Density;
+  pageSize: number;
 };
 
 const DEFAULT_PAGE_SIZES = [10, 25, 50, 100];
@@ -97,6 +116,10 @@ export function AdvancedTable<T>({
   loadingMessage = 'Loading...',
   density = 'compact',
   maxTableHeight = 'min(70vh, 760px)',
+  enableDensityToggle = true,
+  enableSavedViews = true,
+  selectableRows = false,
+  bulkActions = [],
   initialPageSize = 25,
   pageSizeOptions = DEFAULT_PAGE_SIZES,
   initialScroll = 'left',
@@ -111,20 +134,28 @@ export function AdvancedTable<T>({
   const [pageIndex, setPageIndex] = useState(0);
   const [filters, setFilters] = useState<FilterMap>({});
   const [sort, setSort] = useState<SortState | null>(null);
+  const [activeDensity, setActiveDensity] = useState<Density>(density);
   const [internalSearch, setInternalSearch] = useState('');
   const [showColumnsPanel, setShowColumnsPanel] = useState(false);
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => columns.map((column) => column.id));
   const [columnWidths, setColumnWidths] = useState<WidthMap>({});
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
 
   const resizerRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const previousTableIdRef = useRef(tableId);
   const activeSearch = searchValue ?? internalSearch;
+  const savedViewsKey = `table-saved-views:${tableId}`;
 
   const updateSearch = (value: string) => {
     onSearchChange?.(value);
     if (searchValue === undefined) setInternalSearch(value);
   };
+
+  useEffect(() => {
+    setActiveDensity(density);
+  }, [density, tableId]);
 
   useEffect(() => {
     const storageKey = `table-col-widths:${tableId}`;
@@ -154,6 +185,27 @@ export function AdvancedTable<T>({
     const storageKey = `table-col-widths:${tableId}`;
     localStorage.setItem(storageKey, JSON.stringify(columnWidths));
   }, [columnWidths, tableId]);
+
+  useEffect(() => {
+    if (!enableSavedViews) return;
+    const stored = localStorage.getItem(savedViewsKey);
+    if (!stored) {
+      setSavedViews([]);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as SavedView[];
+      setSavedViews(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSavedViews([]);
+    }
+  }, [enableSavedViews, savedViewsKey]);
+
+  useEffect(() => {
+    if (!enableSavedViews) return;
+    localStorage.setItem(savedViewsKey, JSON.stringify(savedViews));
+  }, [enableSavedViews, savedViews, savedViewsKey]);
 
   useEffect(() => {
     if (previousTableIdRef.current !== tableId) {
@@ -205,10 +257,10 @@ export function AdvancedTable<T>({
     [columns, visibleColumnIds]
   );
 
-  const tableMinWidth = useMemo(
-    () => Math.max(640, visibleColumns.reduce((sum, column) => sum + (columnWidths[column.id] ?? column.width ?? 180), 0)),
-    [columnWidths, visibleColumns]
-  );
+  const tableMinWidth = useMemo(() => {
+    const selectionWidth = selectableRows ? 52 : 0;
+    return Math.max(640, selectionWidth + visibleColumns.reduce((sum, column) => sum + (columnWidths[column.id] ?? column.width ?? 180), 0));
+  }, [columnWidths, selectableRows, visibleColumns]);
 
   useEffect(() => {
     if (initialScroll !== 'right') return;
@@ -274,6 +326,12 @@ export function AdvancedTable<T>({
 
   const rangeStart = sortedRows.length === 0 ? 0 : pageIndex * pageSize + 1;
   const rangeEnd = Math.min(sortedRows.length, (pageIndex + 1) * pageSize);
+  const visibleColumnCount = visibleColumns.length + (selectableRows ? 1 : 0);
+  const rowKeyFor = (row: T, index: number) => rowKey ? rowKey(row, index) : `${tableId}-${pageIndex}-${index}`;
+  const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+  const selectedRows = pagedRows.filter((row, index) => selectedKeySet.has(rowKeyFor(row, index)));
+  const allPageRowsSelected = pagedRows.length > 0 && pagedRows.every((row, index) => selectedKeySet.has(rowKeyFor(row, index)));
+  const somePageRowsSelected = pagedRows.some((row, index) => selectedKeySet.has(rowKeyFor(row, index)));
 
   const alignClass = (align: AdvancedTableColumn<T>['align']) => {
     if (align === 'right') return 'text-right';
@@ -303,9 +361,50 @@ export function AdvancedTable<T>({
     setPageIndex(0);
   }, [activeSearch, filters, sort]);
 
-  const headerCellClass = density === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
-  const filterCellClass = density === 'compact' ? 'px-3 py-2' : 'px-4 py-2.5';
-  const bodyCellClass = density === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
+  const headerCellClass = activeDensity === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
+  const filterCellClass = activeDensity === 'compact' ? 'px-3 py-2' : 'px-4 py-2.5';
+  const bodyCellClass = activeDensity === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
+
+  const saveCurrentView = () => {
+    const view: SavedView = {
+      name: `View ${savedViews.length + 1}`,
+      visibleColumnIds,
+      filters,
+      sort,
+      density: activeDensity,
+      pageSize,
+    };
+    setSavedViews((previous) => [view, ...previous.filter((existing) => existing.name !== view.name)].slice(0, 6));
+  };
+
+  const applySavedView = (viewName: string) => {
+    const view = savedViews.find((candidate) => candidate.name === viewName);
+    if (!view) return;
+    setVisibleColumnIds(view.visibleColumnIds.filter((id) => columns.some((column) => column.id === id)));
+    setFilters(view.filters);
+    setSort(view.sort);
+    setActiveDensity(view.density);
+    setPageSize(view.pageSize);
+    setPageIndex(0);
+  };
+
+  const togglePageSelection = () => {
+    setSelectedKeys((previous) => {
+      const next = new Set(previous);
+      if (allPageRowsSelected) {
+        pagedRows.forEach((row, index) => next.delete(rowKeyFor(row, index)));
+      } else {
+        pagedRows.forEach((row, index) => next.add(rowKeyFor(row, index)));
+      }
+      return [...next];
+    });
+  };
+
+  const toggleRowSelection = (key: string) => {
+    setSelectedKeys((previous) => (
+      previous.includes(key) ? previous.filter((candidate) => candidate !== key) : [...previous, key]
+    ));
+  };
 
   const onExportExcel = () => {
     const exportRows = sortedRows.map((row) => {
@@ -357,6 +456,42 @@ export function AdvancedTable<T>({
             <Columns3 className="h-3.5 w-3.5" />
             Columns
           </button>
+          {enableDensityToggle ? (
+            <button
+              type="button"
+              onClick={() => setActiveDensity((current) => current === 'compact' ? 'comfortable' : 'compact')}
+              aria-pressed={activeDensity === 'comfortable'}
+              title="Toggle row density"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
+            >
+              <Rows3 className="h-3.5 w-3.5" />
+              {activeDensity === 'compact' ? 'Dense' : 'Comfort'}
+            </button>
+          ) : null}
+          {enableSavedViews ? (
+            <>
+              <button
+                type="button"
+                onClick={saveCurrentView}
+                title="Save current table view"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Save view
+              </button>
+              {savedViews.length > 0 ? (
+                <SearchableSelect
+                  value=""
+                  onChange={applySavedView}
+                  options={[{ value: '', label: 'Saved views' }, ...savedViews.map((view) => ({ value: view.name, label: view.name }))]}
+                  className="w-36"
+                  inputClassName="h-9 rounded-md py-1 pl-2 pr-7 text-xs font-semibold"
+                  panelClassName="max-h-48"
+                  placeholder="Saved views"
+                />
+              ) : null}
+            </>
+          ) : null}
           {showExports ? (
             <>
               <button
@@ -407,6 +542,29 @@ export function AdvancedTable<T>({
         </div>
       </div>
 
+      {selectableRows && selectedKeys.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-akiva-pending bg-akiva-pending-soft px-3 py-2 text-xs font-semibold text-akiva-text shadow-sm">
+          <span className="inline-flex items-center gap-2">
+            <CheckSquare className="h-4 w-4 text-akiva-accent-text" />
+            {selectedKeys.length} selected on this view
+          </span>
+          {bulkActions.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {bulkActions.map((action) => (
+                <button
+                  key={action.id}
+                  type="button"
+                  onClick={() => action.onClick(selectedRows)}
+                  className="inline-flex min-h-8 items-center rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 text-xs font-semibold text-akiva-text shadow-sm hover:bg-akiva-surface-muted"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {showColumnsPanel ? (
         <div id={`${tableId}-columns-panel`} className="rounded-lg border border-akiva-border bg-akiva-surface-muted p-3">
           <p className="mb-2 text-xs font-semibold text-akiva-text">Column Visibility</p>
@@ -444,6 +602,18 @@ export function AdvancedTable<T>({
         <table aria-label={ariaLabel ?? tableId} className="w-full table-fixed border-separate border-spacing-0" style={{ minWidth: tableMinWidth }}>
           <thead>
             <tr className="bg-akiva-table-header text-left text-xs uppercase tracking-wide text-akiva-text-muted">
+              {selectableRows ? (
+                <th className="sticky left-0 top-0 z-40 w-[52px] border-b border-r border-akiva-border bg-akiva-table-header px-3 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={allPageRowsSelected}
+                    aria-checked={somePageRowsSelected && !allPageRowsSelected ? 'mixed' : allPageRowsSelected}
+                    aria-label="Select all rows on this page"
+                    onChange={togglePageSelection}
+                    className="h-4 w-4 rounded border-akiva-border-strong text-akiva-accent-text focus:ring-akiva-accent"
+                  />
+                </th>
+              ) : null}
               {visibleColumns.map((column) => {
                 const width = columnWidths[column.id] ?? column.width ?? 180;
                 const sortable = column.sortable !== false;
@@ -490,6 +660,9 @@ export function AdvancedTable<T>({
               })}
             </tr>
             <tr className="bg-akiva-surface-raised">
+              {selectableRows ? (
+                <th className="sticky left-0 top-[37px] z-30 w-[52px] border-b border-r border-akiva-border bg-akiva-surface-raised px-3 py-2" />
+              ) : null}
               {visibleColumns.map((column) => (
                 <th key={`${column.id}-filter`} className={`sticky top-[37px] z-20 border-b border-akiva-border bg-akiva-surface-raised ${filterCellClass} ${alignClass(column.align)} ${stickyFilterClass(column)}`}>
                   {column.filterable === false ? null : (
@@ -513,24 +686,35 @@ export function AdvancedTable<T>({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={visibleColumns.length} className="px-3 py-8 text-center text-sm text-akiva-text-muted">
+                <td colSpan={visibleColumnCount} className="px-3 py-8 text-center text-sm text-akiva-text-muted">
                   {loadingMessage}
                 </td>
               </tr>
             ) : pagedRows.length === 0 ? (
               <tr>
-                <td colSpan={visibleColumns.length} className="px-3 py-8 text-center text-sm text-akiva-text-muted">
+                <td colSpan={visibleColumnCount} className="px-3 py-8 text-center text-sm text-akiva-text-muted">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
               pagedRows.map((row, index) => (
                 <tr
-                  key={rowKey ? rowKey(row, index) : `${tableId}-${pageIndex}-${index}`}
+                  key={rowKeyFor(row, index)}
                   tabIndex={0}
                   aria-label={rowAriaLabel ? rowAriaLabel(row, index) : undefined}
                   className="group border-t border-akiva-border odd:bg-akiva-surface-raised even:bg-akiva-table-stripe hover:bg-akiva-table-row-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-akiva-accent"
                 >
+                  {selectableRows ? (
+                    <td className="sticky left-0 z-20 border-r border-akiva-border bg-inherit px-3 py-2 text-center group-hover:bg-akiva-table-row-hover">
+                      <input
+                        type="checkbox"
+                        checked={selectedKeySet.has(rowKeyFor(row, index))}
+                        aria-label={`Select row ${rangeStart + index}`}
+                        onChange={() => toggleRowSelection(rowKeyFor(row, index))}
+                        className="h-4 w-4 rounded border-akiva-border-strong text-akiva-accent-text focus:ring-akiva-accent"
+                      />
+                    </td>
+                  ) : null}
                   {visibleColumns.map((column) => {
                     const value = column.accessor(row);
                     return (

@@ -1900,7 +1900,7 @@ function MobileNav() {
               className={`flex flex-col items-center justify-center min-w-[50px] h-12 px-1 rounded-lg transition-all duration-200 ${
                 isActive
                   ? 'bg-white text-rose-600 shadow-sm shadow-slate-200/60 dark:bg-slate-900 dark:text-rose-300 dark:shadow-black/20'
-                  : 'text-slate-500 dark:text-slate-400'
+                  : 'text-akiva-text-muted'
               }`}
             >
               <Icon className="w-5 h-5" />
@@ -1912,7 +1912,7 @@ function MobileNav() {
         {/* More menu button */}
         <button
           onClick={() => setMobileSidebarOpen(true)}
-          className="flex h-12 min-w-[50px] flex-col items-center justify-center rounded-lg px-1 text-slate-500 transition-all duration-200 dark:text-slate-400"
+          className="flex h-12 min-w-[50px] flex-col items-center justify-center rounded-lg px-1 text-akiva-text-muted transition-all duration-200"
         >
           <Menu className="w-5 h-5" />
           <span className="text-[9px] font-medium mt-0.5">More</span>
@@ -1951,7 +1951,7 @@ function MobileSidebarOverlay() {
           className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
             isActive
               ? 'bg-white text-rose-700 shadow-sm dark:bg-slate-900 dark:text-rose-300'
-              : 'text-slate-600 hover:bg-white/70 dark:text-slate-400 dark:hover:bg-slate-900'
+              : 'text-akiva-text-muted hover:bg-white/70 dark:text-akiva-text-muted dark:hover:bg-slate-900'
           }`}
           style={{ paddingLeft: `${12 + depth * 12}px` }}
         >
@@ -1987,7 +1987,7 @@ function MobileSidebarOverlay() {
             className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
               isActive
                 ? 'bg-white text-rose-700 shadow-sm dark:bg-slate-900 dark:text-rose-300'
-                : 'text-slate-500 hover:bg-white/70 dark:text-slate-400 dark:hover:bg-slate-900'
+                : 'text-akiva-text-muted hover:bg-white/70 dark:text-akiva-text-muted dark:hover:bg-slate-900'
             }`}
             style={{ paddingLeft: `${24 + depth * 12}px` }}
           >
@@ -2052,7 +2052,7 @@ function MobileSidebarOverlay() {
 
           <div className="space-y-1">
             {visibleMenus.length > 0 ? visibleMenus.map((node) => renderMenuNode(node)) : (
-              <p className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">No modules available.</p>
+              <p className="px-4 py-3 text-sm text-akiva-text-muted">No modules available.</p>
             )}
           </div>
 

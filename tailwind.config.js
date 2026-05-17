@@ -36,6 +36,8 @@ export default {
           'warning-soft': 'var(--akiva-warning-soft)',
           danger: 'var(--akiva-danger)',
           'danger-soft': 'var(--akiva-danger-soft)',
+          pending: 'var(--akiva-pending)',
+          'pending-soft': 'var(--akiva-pending-soft)',
           info: 'var(--akiva-info)',
           'info-soft': 'var(--akiva-info-soft)',
           'table-header': 'var(--akiva-table-header)',

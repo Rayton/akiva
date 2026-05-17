@@ -13,6 +13,53 @@ use Illuminate\Support\Facades\Validator;
 
 class PrintPriceLabelController extends Controller
 {
+    private const CODE39_PATTERNS = [
+        '0' => 'nnnwwnwnn',
+        '1' => 'wnnwnnnnw',
+        '2' => 'nnwwnnnnw',
+        '3' => 'wnwwnnnnn',
+        '4' => 'nnnwwnnnw',
+        '5' => 'wnnwwnnnn',
+        '6' => 'nnwwwnnnn',
+        '7' => 'nnnwnnwnw',
+        '8' => 'wnnwnnwnn',
+        '9' => 'nnwwnnwnn',
+        'A' => 'wnnnnwnnw',
+        'B' => 'nnwnnwnnw',
+        'C' => 'wnwnnwnnn',
+        'D' => 'nnnnwwnnw',
+        'E' => 'wnnnwwnnn',
+        'F' => 'nnwnwwnnn',
+        'G' => 'nnnnnwwnw',
+        'H' => 'wnnnnwwnn',
+        'I' => 'nnwnnwwnn',
+        'J' => 'nnnnwwwnn',
+        'K' => 'wnnnnnnww',
+        'L' => 'nnwnnnnww',
+        'M' => 'wnwnnnnwn',
+        'N' => 'nnnnwnnww',
+        'O' => 'wnnnwnnwn',
+        'P' => 'nnwnwnnwn',
+        'Q' => 'nnnnnnwww',
+        'R' => 'wnnnnnwwn',
+        'S' => 'nnwnnnwwn',
+        'T' => 'nnnnwnwwn',
+        'U' => 'wwnnnnnnw',
+        'V' => 'nwwnnnnnw',
+        'W' => 'wwwnnnnnn',
+        'X' => 'nwnnwnnnw',
+        'Y' => 'wwnnwnnnn',
+        'Z' => 'nwwnwnnnn',
+        '-' => 'nwnnnnwnw',
+        '.' => 'wwnnnnwnn',
+        ' ' => 'nwwnnnwnn',
+        '$' => 'nwnwnwnnn',
+        '/' => 'nwnwnnnwn',
+        '+' => 'nwnnnwnwn',
+        '%' => 'nnnwnwnwn',
+        '*' => 'nwnnwnwnn',
+    ];
+
     public function workbench()
     {
         if (!$this->hasCoreTables()) {
@@ -515,6 +562,8 @@ class PrintPriceLabelController extends Controller
     .field { color: #211019; line-height: 1.15; overflow: hidden; position: absolute; white-space: nowrap; }
     .price { color: #d81b72; font-weight: 700; }
     .barcode { color: #111827; font-family: DejaVu Sans Mono, monospace; letter-spacing: .04em; }
+    .barcode-block { line-height: 0; overflow: hidden; white-space: nowrap; }
+    .barcode-bar { display: inline-block; height: 100%; vertical-align: top; }
     .logo { object-fit: contain; }
     .tiny-note { bottom: 1.2mm; color: #9a8290; font-size: 5pt; left: 2mm; position: absolute; right: 2mm; text-align: right; }
   </style>
@@ -551,13 +600,74 @@ class PrintPriceLabelController extends Controller
             }
 
             if ($isBarcode || $fieldValue === 'barcode') {
-                $text = '|||' . $text . '|||';
+                $barcodeWidth = max(4.0, (float) $label['width'] - (float) $field['hPos'] - 2.0);
+                $barcodeHeight = max(5.0, min(12.0, (float) $label['height'] - (float) $field['vPos'] - 2.0));
+                $html .= '<div class="' . $class . ' barcode-block" style="left:' . $this->cssNumber((float) $field['hPos']) . 'mm;top:' . $this->cssNumber((float) $field['vPos']) . 'mm;height:' . $this->cssNumber($barcodeHeight) . 'mm;right:2mm;">'
+                    . $this->barcodeHtml($text, $barcodeWidth)
+                    . '</div>';
+                continue;
             }
 
             $html .= '<div class="' . $class . '" style="left:' . $this->cssNumber((float) $field['hPos']) . 'mm;top:' . $this->cssNumber((float) $field['vPos']) . 'mm;font-size:' . $fontSize . 'pt;right:2mm;">' . $this->html($text) . '</div>';
         }
 
         return $html;
+    }
+
+    private function barcodeHtml(string $value, float $availableWidth): string
+    {
+        [$runs, $totalUnits] = $this->code39Runs($value);
+        $unitWidth = max(0.14, min(0.36, $availableWidth / max(1, $totalUnits)));
+        $html = '';
+
+        foreach ($runs as $run) {
+            $style = 'width:' . $this->cssNumber($run['width'] * $unitWidth) . 'mm;';
+            $style .= $run['bar'] ? 'background:#111827;' : 'background:transparent;';
+            $html .= '<span class="barcode-bar" style="' . $style . '"></span>';
+        }
+
+        return $html;
+    }
+
+    private function code39Runs(string $value): array
+    {
+        $text = $this->sanitizeBarcodeValue($value);
+        $characters = str_split('*' . $text . '*');
+        $runs = [];
+        $totalUnits = 0;
+
+        foreach ($characters as $characterIndex => $character) {
+            $pattern = self::CODE39_PATTERNS[$character] ?? self::CODE39_PATTERNS['-'];
+            $parts = str_split($pattern);
+
+            foreach ($parts as $partIndex => $part) {
+                $width = $part === 'w' ? 3 : 1;
+                $runs[] = [
+                    'bar' => $partIndex % 2 === 0,
+                    'width' => $width,
+                ];
+                $totalUnits += $width;
+            }
+
+            if ($characterIndex < count($characters) - 1) {
+                $runs[] = ['bar' => false, 'width' => 1];
+                $totalUnits += 1;
+            }
+        }
+
+        return [$runs, $totalUnits, $text];
+    }
+
+    private function sanitizeBarcodeValue(string $value): string
+    {
+        $sanitized = '';
+        foreach (str_split(strtoupper($value)) as $character) {
+            $sanitized .= isset(self::CODE39_PATTERNS[$character]) && $character !== '*' ? $character : '-';
+        }
+
+        $sanitized = (string) preg_replace('/-+/', '-', trim($sanitized, '-'));
+
+        return substr($sanitized !== '' ? $sanitized : 'A1001', 0, 24);
     }
 
     private function fieldText(string $fieldValue, array $item, array $company): string

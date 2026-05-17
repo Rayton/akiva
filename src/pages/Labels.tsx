@@ -17,7 +17,9 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
+import { BarcodeGraphic } from '../components/common/BarcodeGraphic';
 import { Button } from '../components/common/Button';
+import { SearchableSelect } from '../components/common/SearchableSelect';
 import { archiveLabel, fetchLabels, saveLabel } from '../data/labelTemplateApi';
 import type { LabelField, LabelLookups, LabelPayload, LabelPreset, LabelTemplate } from '../types/labelTemplate';
 
@@ -182,14 +184,15 @@ function StatCard({
 }
 
 function LabelPreview({ label }: { label: LabelTemplate }) {
-  const scale = Math.min(1.2, 420 / Math.max(label.pageWidth, label.pageHeight));
-  const rows = Math.min(rowCount(label), 8);
-  const columns = Math.min(columnCount(label), 5);
+  const scale = Math.min(1.9, 560 / Math.max(label.pageWidth, label.pageHeight));
+  const rows = Math.min(rowCount(label), 12);
+  const columns = Math.min(columnCount(label), 6);
+  const sortedFields = [...label.fields].sort((a, b) => a.vPos - b.vPos || a.hPos - b.hPos);
 
   return (
-    <div className="overflow-auto rounded-lg border border-akiva-border bg-akiva-surface-muted p-3">
+    <div className="max-h-[760px] overflow-auto rounded-lg border border-akiva-border bg-akiva-surface-muted p-4">
       <div
-        className="relative mx-auto bg-white text-slate-900 shadow-sm"
+        className="relative mx-auto bg-white text-slate-900 shadow-md"
         style={{ width: label.pageWidth * scale, height: label.pageHeight * scale }}
       >
         {Array.from({ length: Math.max(1, columns) }).map((_, col) =>
@@ -207,22 +210,53 @@ function LabelPreview({ label }: { label: LabelTemplate }) {
                   height: label.height * scale,
                 }}
               >
-                {label.fields.map((field, index) => (
-                  <div
-                    key={`${field.id ?? index}-${field.fieldValue}`}
-                    className={field.barcode ? 'font-mono tracking-widest' : field.fieldValue === 'price' ? 'font-semibold' : ''}
-                    style={{
-                      position: 'absolute',
-                      left: field.hPos * scale,
-                      top: field.vPos * scale,
-                      fontSize: Math.max(5, field.fontSize * scale),
-                      lineHeight: 1.1,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {field.barcode ? `|||| ${labelValue(field)} ||||` : labelValue(field)}
-                  </div>
-                ))}
+                {sortedFields.map((field, index) => {
+                  const isBarcode = field.barcode || field.fieldValue === 'barcode';
+                  const remainingWidth = Math.max(4, label.width - field.hPos - 2);
+                  const nextField = sortedFields.find((candidate, candidateIndex) => candidateIndex > index && candidate.vPos > field.vPos);
+                  const availableHeight = Math.max(
+                    3,
+                    Math.min(
+                      label.height - field.vPos - 1,
+                      nextField ? nextField.vPos - field.vPos - 1 : label.height - field.vPos - 1,
+                    ),
+                  );
+                  const fontSize = Math.max(6, Math.min(18, field.fontSize * scale * 0.9));
+                  const barcodeHeight = Math.max(10, Math.min(availableHeight * scale, 22 * scale));
+
+                  return (
+                    <div
+                      key={`${field.id ?? index}-${field.fieldValue}`}
+                      className={field.fieldValue === 'price' ? 'font-semibold text-akiva-accent-text' : ''}
+                      style={{
+                        position: 'absolute',
+                        left: field.hPos * scale,
+                        top: field.vPos * scale,
+                        width: remainingWidth * scale,
+                        maxHeight: availableHeight * scale,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {isBarcode ? (
+                        <div style={{ height: barcodeHeight, width: '100%' }}>
+                          <BarcodeGraphic value={labelValue(field)} showText={availableHeight > 12} />
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            fontSize,
+                            lineHeight: 1.05,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {labelValue(field)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           }),
@@ -388,7 +422,7 @@ export function Labels() {
 
   return (
     <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
-      <div className="mx-auto max-w-[1520px]">
+      <div className="mx-auto max-w-[1800px]">
         <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/72 shadow-xl shadow-slate-300/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/72 dark:shadow-black/30">
           <div className="flex flex-col gap-4 border-b border-akiva-border px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
             <div>
@@ -422,16 +456,16 @@ export function Labels() {
             </div>
           </div>
 
-          <div className="grid gap-4 px-4 py-4 sm:px-6 min-[1800px]:grid-cols-12 lg:px-8 lg:py-7">
+          <div className="grid gap-4 px-4 py-4 sm:px-6 xl:grid-cols-[20rem_minmax(0,1fr)_minmax(24rem,36rem)] lg:px-8 lg:py-7">
             {errorMessage ? (
-              <div className="min-[1800px]:col-span-12 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900/70 dark:bg-rose-950 dark:text-rose-100">
+              <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 xl:col-span-3 dark:border-rose-900/70 dark:bg-rose-950 dark:text-rose-100">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
                 <p>{errorMessage}</p>
               </div>
             ) : null}
 
             {loading && !draft ? (
-              <div className="min-[1800px]:col-span-12 flex min-h-80 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-raised text-sm text-akiva-text-muted shadow-sm">
+              <div className="flex min-h-80 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-raised text-sm text-akiva-text-muted shadow-sm xl:col-span-3">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 Loading labels
               </div>
@@ -439,7 +473,7 @@ export function Labels() {
 
             {draft ? (
               <>
-                <aside className="space-y-4 min-[1800px]:col-span-3">
+                <aside className="space-y-4">
                   <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
@@ -487,7 +521,7 @@ export function Labels() {
                   </section>
                 </aside>
 
-                <main className="space-y-4 min-[1800px]:col-span-5">
+                <main className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-3">
                     <StatCard label="Templates" value={String(stats.templates)} detail="Active label layouts" icon={Tag} />
                     <StatCard label="Fields" value={String(stats.fields)} detail="Printable field placements" icon={FileText} />
@@ -502,19 +536,17 @@ export function Labels() {
                       </label>
                       <label className="space-y-1.5 text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">
                         Paper size
-                        <select
-                          className={inputClass}
+                        <SearchableSelect
+                          inputClassName={inputClass}
+                          options={lookups.paperSizes.map((paper) => ({ value: paper.name, label: paper.name }))}
                           value={lookups.paperSizes.find((size) => size.pageWidth === draft.pageWidth && size.pageHeight === draft.pageHeight)?.name ?? 'Custom'}
-                          onChange={(event) => {
-                            const paper = lookups.paperSizes.find((size) => size.name === event.target.value);
+                          onChange={(value) => {
+                            const paper = lookups.paperSizes.find((size) => size.name === value);
                             if (!paper || paper.name === 'Custom') return;
                             updateDraft((label) => ({ ...label, pageWidth: paper.pageWidth, pageHeight: paper.pageHeight }));
                           }}
-                        >
-                          {lookups.paperSizes.map((paper) => (
-                            <option key={paper.name} value={paper.name}>{paper.name}</option>
-                          ))}
-                        </select>
+                          placeholder="Choose paper size"
+                        />
                       </label>
                       <label className="space-y-1.5 text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">
                         Last saved
@@ -595,11 +627,13 @@ export function Labels() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         <label className="space-y-1.5 text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">
                           Field
-                          <select className={inputClass} value={selectedField.fieldValue} onChange={(event) => updateField({ fieldValue: event.target.value })}>
-                            {lookups.fieldTypes.map((type) => (
-                              <option key={type.value} value={type.value}>{type.label}</option>
-                            ))}
-                          </select>
+                          <SearchableSelect
+                            inputClassName={inputClass}
+                            options={lookups.fieldTypes.map((type) => ({ value: type.value, label: type.label }))}
+                            value={selectedField.fieldValue}
+                            onChange={(value) => updateField({ fieldValue: value, barcode: value === 'barcode' ? true : selectedField.barcode })}
+                            placeholder="Choose field"
+                          />
                         </label>
                         <label className="space-y-1.5 text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">
                           Font size
@@ -629,7 +663,7 @@ export function Labels() {
                   ) : null}
                 </main>
 
-                <aside className="space-y-4 min-[1800px]:col-span-4">
+                <aside className="space-y-4">
                   <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div>

@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
+import { BarcodeGraphic } from '../components/common/BarcodeGraphic';
 import { Button } from '../components/common/Button';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { apiFetch } from '../lib/network/apiClient';
@@ -548,6 +549,7 @@ function LabelPreview({ template, item, currency }: { template?: LabelTemplate |
     { fieldValue: 'itemdescription', hPos: 5, vPos: 14, fontSize: 8, barcode: false },
     { fieldValue: 'price', hPos: 5, vPos: 23, fontSize: 11, barcode: false },
   ];
+  const sortedFields = [...fields].sort((a, b) => a.vPos - b.vPos || a.hPos - b.hPos);
 
   const textFor = (fieldValue: string) => {
     const key = fieldValue.toLowerCase();
@@ -575,16 +577,39 @@ function LabelPreview({ template, item, currency }: { template?: LabelTemplate |
           aspectRatio: `${Math.max(1, template.width)} / ${Math.max(1, template.height)}`,
         }}
       >
-        {fields.map((field, index) => {
+        {sortedFields.map((field, index) => {
           const left = Math.min(94, Math.max(0, (field.hPos / template.width) * 100));
           const top = Math.min(90, Math.max(0, (field.vPos / template.height) * 100));
           const isPrice = field.fieldValue.toLowerCase() === 'price';
           const isBarcode = field.barcode || field.fieldValue.toLowerCase() === 'barcode';
-          const text = isBarcode ? `|||${textFor(field.fieldValue)}|||` : textFor(field.fieldValue);
+          const text = textFor(field.fieldValue);
+          const nextField = sortedFields.find((candidate, candidateIndex) => candidateIndex > index && candidate.vPos > field.vPos);
+          const availableHeight = Math.max(
+            3,
+            Math.min(
+              template.height - field.vPos - 1,
+              nextField ? nextField.vPos - field.vPos - 1 : template.height - field.vPos - 1,
+            ),
+          );
+          const width = Math.max(8, 100 - left - 3);
+          const height = Math.max(12, Math.min(40, (availableHeight / template.height) * 100));
+
+          if (isBarcode) {
+            return (
+              <span
+                key={`${field.fieldValue}-${index}`}
+                className="absolute block overflow-hidden bg-white"
+                style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }}
+              >
+                <BarcodeGraphic value={text} showText={availableHeight > 12} />
+              </span>
+            );
+          }
+
           return (
             <span
               key={`${field.fieldValue}-${index}`}
-              className={`absolute max-w-[88%] truncate leading-none ${isPrice ? 'font-bold text-akiva-accent-text' : 'text-akiva-text'} ${isBarcode ? 'font-mono tracking-wide' : ''}`}
+              className={`absolute max-w-[88%] truncate leading-none ${isPrice ? 'font-bold text-akiva-accent-text' : 'text-akiva-text'}`}
               style={{ left: `${left}%`, top: `${top}%`, fontSize: Math.max(9, Math.min(18, field.fontSize + 3)) }}
             >
               {text}

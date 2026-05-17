@@ -20,6 +20,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -115,7 +116,12 @@ interface RiskOrder {
   risk: 'Overdue' | 'Due soon' | 'Waiting';
 }
 
-const pipelineColors = ['#be185d', '#2563eb', '#0891b2', '#059669'];
+const pipelineColors = ['#2563eb', '#f59e0b', '#14b8a6', '#8b5cf6'];
+const supplierColors = ['#0ea5e9', '#f97316', '#22c55e', '#7c3aed', '#ef4444'];
+
+function chartColor(colors: string[], index: number): string {
+  return colors[index % colors.length];
+}
 
 function navigate(path: string) {
   window.history.pushState({}, '', path);
@@ -470,9 +476,9 @@ function MetricCard({
 
 function ChartPanel({ title, note, icon: Icon, children }: { title: string; note: string; icon: LucideIcon; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+    <section className="rounded-2xl border border-akiva-border bg-gradient-to-br from-white via-white to-sky-50/70 p-4 shadow-sm dark:from-slate-950/90 dark:via-slate-950/80 dark:to-slate-900/80">
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-akiva-accent-soft text-akiva-accent-text">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
@@ -492,11 +498,11 @@ function PipelineChart({ rows, currency, loading }: { rows: PipelineRow[]; curre
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 18, left: 12, bottom: 4 }}>
+      <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 30, left: 12, bottom: 4 }}>
         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(148, 163, 184, 0.25)" />
         <XAxis type="number" tick={{ fill: '#8b6f7d', fontSize: 11 }} axisLine={false} tickLine={false} />
         <YAxis type="category" dataKey="label" width={82} tick={{ fill: '#3f2b36', fontSize: 11 }} axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: 'rgba(225, 29, 112, 0.06)' }} content={({ active, payload }) => {
+        <Tooltip cursor={{ fill: 'rgba(37, 99, 235, 0.08)' }} content={({ active, payload }) => {
           if (!active || !payload?.length) return null;
           const row = payload[0].payload as PipelineRow;
           return chartTooltip({
@@ -509,8 +515,9 @@ function PipelineChart({ rows, currency, loading }: { rows: PipelineRow[]; curre
             ),
           });
         }} />
-        <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={22}>
+        <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={22} background={{ fill: 'rgba(148, 163, 184, 0.14)', radius: 8 }}>
           {rows.map((row) => <Cell key={row.label} fill={row.color} />)}
+          <LabelList dataKey="count" position="right" className="fill-slate-700 text-[11px] font-semibold dark:fill-slate-200" />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -525,7 +532,7 @@ function SupplierChart({ rows, currency, loading }: { rows: SupplierExposure[]; 
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 18 }}>
+      <BarChart data={data} margin={{ top: 14, right: 14, left: -20, bottom: 18 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.25)" />
         <XAxis dataKey="supplierLabel" tick={{ fill: '#8b6f7d', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} angle={-12} textAnchor="end" height={48} />
         <YAxis tickFormatter={(value) => formatMoney(Number(value), currency)} tick={{ fill: '#8b6f7d', fontSize: 10 }} axisLine={false} tickLine={false} width={72} />
@@ -542,7 +549,9 @@ function SupplierChart({ rows, currency, loading }: { rows: SupplierExposure[]; 
             ),
           });
         }} />
-        <Bar dataKey="value" fill="#be185d" radius={[8, 8, 0, 0]} barSize={26} />
+        <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={26} background={{ fill: 'rgba(148, 163, 184, 0.12)', radius: 8 }}>
+          {data.map((row, index) => <Cell key={row.supplier} fill={chartColor(supplierColors, index)} />)}
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
@@ -555,25 +564,35 @@ function CommitmentPie({ rows, currency, loading }: { rows: PipelineRow[]; curre
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie data={data} dataKey="value" nameKey="label" innerRadius="52%" outerRadius="78%" paddingAngle={3}>
-          {data.map((row) => <Cell key={row.label} fill={row.color} />)}
-        </Pie>
-        <Tooltip content={({ active, payload }) => {
-          if (!active || !payload?.length) return null;
-          const row = payload[0].payload as PipelineRow;
-          return chartTooltip({
-            children: (
-              <>
-                <p className="font-semibold">{row.label}</p>
-                <p className="mt-1 text-akiva-text-muted">{formatMoney(row.value, currency)}</p>
-              </>
-            ),
-          });
-        }} />
-      </PieChart>
-    </ResponsiveContainer>
+    <div className="grid h-full grid-rows-[minmax(0,1fr)_auto] gap-2">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie data={data} dataKey="value" nameKey="label" innerRadius="50%" outerRadius="78%" paddingAngle={4} stroke="#ffffff" strokeWidth={3}>
+            {data.map((row) => <Cell key={row.label} fill={row.color} />)}
+          </Pie>
+          <Tooltip content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const row = payload[0].payload as PipelineRow;
+            return chartTooltip({
+              children: (
+                <>
+                  <p className="font-semibold">{row.label}</p>
+                  <p className="mt-1 text-akiva-text-muted">{formatMoney(row.value, currency)}</p>
+                </>
+              ),
+            });
+          }} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        {data.map((row) => (
+          <div key={row.label} className="flex min-w-0 items-center gap-2 rounded-full bg-white/70 px-2 py-1 dark:bg-slate-900/60">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+            <span className="truncate font-medium text-akiva-text">{row.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

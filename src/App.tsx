@@ -13,6 +13,7 @@ import { InventoryItems } from './pages/InventoryItems';
 import { MarkupPrices } from './pages/MarkupPrices';
 import { SalesCategories } from './pages/SalesCategories';
 import { UserLocations } from './pages/UserLocations';
+import { Departments } from './pages/Departments';
 import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
@@ -614,6 +615,16 @@ function isLocationUsersMenuSlug(slug: string): boolean {
   return key === 'locationusers' || key.includes('locationusers');
 }
 
+function isDepartmentsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'departments' ||
+    key === 'departmentauthorization' ||
+    key.includes('departments') ||
+    key.includes('maintaininternaldepartments')
+  );
+}
+
 function isMarkupPricesMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
@@ -638,7 +649,6 @@ function isInventorySetupMenuSlug(slug: string): boolean {
     key.includes('unitsofmeasurement') ||
     key.includes('locationusers') ||
     key.includes('userlocations') ||
-    key.includes('departments') ||
     key.includes('internalstockcategoriesbyrole')
   );
 }
@@ -679,7 +689,7 @@ function resolvePurchasesPayablesSetupTab(slug: string) {
 
 function resolveInventorySetupTab(slug: string) {
   const key = normalizedSlugKey(slug);
-  if (key.includes('locations') || key.includes('locationusers') || key.includes('userlocations') || key.includes('departments')) return 'locations' as const;
+  if (key.includes('locations') || key.includes('locationusers') || key.includes('userlocations')) return 'locations' as const;
   if (key.includes('discountcategories')) return 'discount-categories' as const;
   if (key.includes('unitsofmeasure') || key.includes('unitsofmeasurement')) return 'units-of-measure' as const;
   return 'stock-categories' as const;
@@ -711,6 +721,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (isLocationUsersMenuSlug(pathname)) {
     return <UserLocations initialMode="location" />;
+  }
+
+  if (isDepartmentsMenuSlug(pathname)) {
+    return <Departments />;
   }
 
   if (pathKey.includes('configurationgeneralledgersetup')) {
@@ -1064,6 +1078,10 @@ function AppContent() {
         return <UserLocations initialMode="location" />;
       }
 
+      if (isDepartmentsMenuSlug(menuSlug)) {
+        return <Departments />;
+      }
+
       if (isSalesCategoriesMenuSlug(menuSlug)) {
         return <SalesCategories />;
       }
@@ -1317,6 +1335,10 @@ function AppContent() {
       return <UserLocations initialMode="location" />;
     }
 
+    if (isDepartmentsMenuSlug(locationPathname)) {
+      return <Departments />;
+    }
+
     if (isSalesCategoriesMenuSlug(locationPathname)) {
       return <SalesCategories />;
     }
@@ -1350,6 +1372,11 @@ function AppContent() {
       case 'locationusers':
       case 'location-users':
         return <UserLocations initialMode="location" />;
+      case 'departments':
+      case 'department-authorization':
+      case 'departmentauthorization':
+      case 'maintaininternaldepartments':
+        return <Departments />;
       case 'salescategories':
       case 'sales-categories':
         return <SalesCategories />;

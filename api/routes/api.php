@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\InventoryItemController;
 use App\Http\Controllers\Api\MarkupPriceController;
 use App\Http\Controllers\Api\SalesCategoryController;
 use App\Http\Controllers\Api\UserLocationController;
+use App\Http\Controllers\Api\DepartmentAuthorizationController;
 use App\Http\Controllers\Api\AllInventoryUsageController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
@@ -161,6 +162,10 @@ Route::prefix('inventory')->group(function () {
     Route::post('/user-locations', [UserLocationController::class, 'store']);
     Route::put('/user-locations/{userId}/{locationCode}', [UserLocationController::class, 'update']);
     Route::delete('/user-locations/{userId}/{locationCode}', [UserLocationController::class, 'destroy']);
+    Route::get('/departments/workbench', [DepartmentAuthorizationController::class, 'workbench']);
+    Route::post('/departments/authorizations', [DepartmentAuthorizationController::class, 'store']);
+    Route::put('/departments/authorizations/{locationCode}/{userId}', [DepartmentAuthorizationController::class, 'update']);
+    Route::delete('/departments/authorizations/{locationCode}/{userId}', [DepartmentAuthorizationController::class, 'destroy']);
     Route::get('/sales-categories', [SalesCategoryController::class, 'index']);
     Route::post('/sales-categories', [SalesCategoryController::class, 'store']);
     Route::put('/sales-categories/{id}', [SalesCategoryController::class, 'update']);

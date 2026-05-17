@@ -18,6 +18,7 @@ export interface AdvancedTableColumn<T> {
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
   sticky?: 'right';
+  alwaysVisible?: boolean;
 }
 
 interface AdvancedTableProps<T> {
@@ -191,6 +192,10 @@ export function AdvancedTable<T>({
   const previousTableIdRef = useRef(tableId);
   const activeSearch = searchValue ?? internalSearch;
   const savedViewsKey = `table-saved-views:${tableId}`;
+  const alwaysVisibleColumnIds = useMemo(
+    () => columns.filter((column) => column.alwaysVisible).map((column) => column.id),
+    [columns]
+  );
 
   const updateSearch = (value: string) => {
     onSearchChange?.(value);
@@ -264,10 +269,11 @@ export function AdvancedTable<T>({
     const knownIds = new Set(columns.map((column) => column.id));
     setVisibleColumnIds((previous) => {
       const next = previous.filter((id) => knownIds.has(id));
-      if (next.length === 0) return columns.map((column) => column.id);
-      return next;
+      const withRequired = [...new Set([...next, ...alwaysVisibleColumnIds])];
+      if (withRequired.length === 0) return columns.map((column) => column.id);
+      return withRequired;
     });
-  }, [columns, tableId]);
+  }, [alwaysVisibleColumnIds, columns, tableId]);
 
   useEffect(() => {
     const onMouseMove = (event: MouseEvent) => {
@@ -426,7 +432,12 @@ export function AdvancedTable<T>({
   const applySavedView = (viewName: string) => {
     const view = savedViews.find((candidate) => candidate.name === viewName);
     if (!view) return;
-    setVisibleColumnIds(view.visibleColumnIds.filter((id) => columns.some((column) => column.id === id)));
+    setVisibleColumnIds([
+      ...new Set([
+        ...view.visibleColumnIds.filter((id) => columns.some((column) => column.id === id)),
+        ...alwaysVisibleColumnIds,
+      ]),
+    ]);
     setFilters(view.filters);
     setSort(view.sort);
     setActiveDensity(view.density);
@@ -631,13 +642,16 @@ export function AdvancedTable<T>({
           <p className="mb-2 text-xs font-semibold text-akiva-text">Column Visibility</p>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {columns.map((column) => {
-              const checked = visibleColumnIds.includes(column.id);
+              const locked = Boolean(column.alwaysVisible);
+              const checked = locked || visibleColumnIds.includes(column.id);
               return (
                 <label key={column.id} className="inline-flex items-center gap-2 text-xs text-akiva-text-muted">
                   <input
                     type="checkbox"
                     checked={checked}
+                    disabled={locked}
                     onChange={(event) => {
+                      if (locked) return;
                       const isChecked = event.target.checked;
                       setVisibleColumnIds((previous) => {
                         if (isChecked) return [...new Set([...previous, column.id])];
@@ -645,9 +659,9 @@ export function AdvancedTable<T>({
                         return next.length === 0 ? previous : next;
                       });
                     }}
-                    className="h-4 w-4 rounded border-akiva-border-strong text-akiva-accent-text focus:ring-akiva-accent"
+                    className="h-4 w-4 rounded border-akiva-border-strong text-akiva-accent-text focus:ring-akiva-accent disabled:opacity-60"
                   />
-                  {column.header}
+                  {column.header}{locked ? ' (required)' : ''}
                 </label>
               );
             })}

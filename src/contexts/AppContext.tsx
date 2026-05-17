@@ -170,9 +170,9 @@ export function AppProvider({ children }: AppProviderProps) {
   };
 
   const currentUser: User = {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@company.com',
+    id: 'admin',
+    name: 'Israel Pascal',
+    email: 'israel@ostech.co.tz',
     role: 'Administrator',
     avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=64&h=64&dpr=1'
   };

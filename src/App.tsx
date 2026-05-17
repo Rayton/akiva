@@ -313,6 +313,7 @@ function isPurchaseOrderMenuSlug(slug: string): boolean {
   return (
     key === 'poselectospurchorder' ||
     key.includes('poselectospurchorder') ||
+    key.includes('selectsupplier') ||
     key.includes('poselectpurchorder') ||
     key === 'poheader' ||
     key === 'poitems' ||

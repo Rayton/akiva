@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
+  Bell,
   Check,
   CheckCircle2,
   ClipboardCheck,
@@ -29,6 +30,7 @@ import { DatePicker } from '../components/common/DatePicker';
 import { DateRangePicker, getDefaultDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
+import { useApp } from '../contexts/AppContext';
 import { fetchPurchasesPayablesSetup } from '../data/purchasesPayablesSetupApi';
 import { fetchSystemParameters } from '../data/systemParametersApi';
 import { apiFetch } from '../lib/network/apiClient';
@@ -54,6 +56,7 @@ type TenderStatus = 'Draft' | 'Published' | 'Supplier Invited' | 'Offers Receive
 type TenderInvitationStatus = 'Invited' | 'Viewed' | 'Responded' | 'Declined' | 'Expired';
 type OfferComplianceStatus = 'Compliant' | 'Clarification' | 'Non-compliant';
 type TenderRiskLevel = 'Low' | 'Moderate' | 'High';
+type TenderProcessStep = 'dossier' | 'responses' | 'evaluation' | 'award' | 'conversion';
 
 interface AuthorisationDecision {
   canReview: boolean;
@@ -66,12 +69,22 @@ interface AuthorisationDecision {
 interface PoNotificationSettings {
   emailEnabled: boolean;
   smsEnabled: boolean;
+  userEnabled: boolean;
   loaded: boolean;
 }
 
 interface PoNotificationOptions {
   email: boolean;
   sms: boolean;
+  user: boolean;
+}
+
+type ApprovalDecisionAction = 'review' | 'authorise';
+
+interface ApprovalDecisionDraft {
+  order: PurchaseOrder;
+  action: ApprovalDecisionAction;
+  comment: string;
 }
 
 interface PoLine {
@@ -230,6 +243,59 @@ interface OfferEvaluation {
   recommendation: 'Recommended' | 'Viable' | 'Review' | 'Reject';
 }
 
+interface TenderDraftState {
+  title: string;
+  method: Tender['method'];
+  category: string;
+  location: string;
+  requiredDate: string;
+  submissionDeadline: string;
+  estimatedValue: number;
+  itemCode: string;
+  quantity: number;
+  units: string;
+  technicalRequirement: string;
+  glCode: string;
+  supplierCodes: string[];
+  priceWeight: number;
+  deliveryWeight: number;
+  complianceWeight: number;
+  performanceWeight: number;
+}
+
+interface VendorResponseDraftState {
+  supplierCode: string;
+  lineId: string;
+  price: number;
+  leadTimeDays: number;
+  complianceStatus: OfferComplianceStatus;
+  technicalScore: number;
+  supplierRating: number;
+  paymentTerms: string;
+  expiryDate: string;
+  notes: string;
+}
+
+const tenderProcessSteps: Array<{ id: TenderProcessStep; label: string; detail: string }> = [
+  { id: 'dossier', label: 'Dossier', detail: 'Scope and lines' },
+  { id: 'responses', label: 'Responses', detail: 'Vendor submissions' },
+  { id: 'evaluation', label: 'Evaluation', detail: 'Score and risk' },
+  { id: 'award', label: 'Award', detail: 'Approve winners' },
+  { id: 'conversion', label: 'PO conversion', detail: 'Create POs' },
+];
+
+const tenderMethodOptions: Array<{ value: Tender['method']; label: string }> = [
+  { value: 'RFQ', label: 'RFQ' },
+  { value: 'Restricted Tender', label: 'Restricted Tender' },
+  { value: 'Open Tender', label: 'Open Tender' },
+];
+
+const complianceOptions: Array<{ value: OfferComplianceStatus; label: string }> = [
+  { value: 'Compliant', label: 'Compliant' },
+  { value: 'Clarification', label: 'Clarification required' },
+  { value: 'Non-compliant', label: 'Non-compliant' },
+];
+
 const inputClass =
   'h-11 min-w-0 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent';
 
@@ -352,6 +418,49 @@ const catalog: Array<Omit<PoLine, 'id' | 'quantityOrdered' | 'quantityReceived' 
     glCode: '6300',
   },
 ];
+
+function createTenderDraftState(supplierOptions: SupplierLookup[] = suppliers): TenderDraftState {
+  const item = catalog[0];
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    title: '',
+    method: 'RFQ',
+    category: item.category,
+    location: 'CENTRAL STORE',
+    requiredDate: today,
+    submissionDeadline: today,
+    estimatedValue: item.unitPrice,
+    itemCode: item.itemCode,
+    quantity: 1,
+    units: item.supplierUnits,
+    technicalRequirement: item.description,
+    glCode: item.glCode,
+    supplierCodes: supplierOptions.slice(0, 3).map((supplier) => supplier.value),
+    priceWeight: 45,
+    deliveryWeight: 20,
+    complianceWeight: 25,
+    performanceWeight: 10,
+  };
+}
+
+function createVendorResponseDraft(tender?: Tender | null, supplierCode?: string): VendorResponseDraftState {
+  const line = tender?.lines[0];
+  const supplier = supplierCode ?? tender?.suppliers[0]?.supplierCode ?? '';
+  const expiryDate = tender?.submissionDeadline ?? new Date().toISOString().slice(0, 10);
+
+  return {
+    supplierCode: supplier,
+    lineId: line?.id ?? '',
+    price: 0,
+    leadTimeDays: 7,
+    complianceStatus: 'Compliant',
+    technicalScore: 85,
+    supplierRating: 80,
+    paymentTerms: '30 days',
+    expiryDate,
+    notes: '',
+  };
+}
 
 const initialOrders: PurchaseOrder[] = [
   {
@@ -1073,6 +1182,7 @@ function initialTabForRoute(pathname: string): WorkbenchTab {
 
 function titleForRoute(pathname: string) {
   if (pathname.includes('offersreceived')) return 'Supplier Tenders and Offers';
+  if (pathname.includes('selectsupplier')) return 'Shipment Operations Hub';
   if (pathname.includes('po-header')) return 'New Purchase Order';
   if (pathname.includes('po-selectospurchorder')) return 'Select Purchase Order';
   if (pathname.includes('po-authorisemyorders')) return 'Purchase Order Approvals';
@@ -1083,6 +1193,9 @@ function titleForRoute(pathname: string) {
 function descriptionForRoute(pathname: string) {
   if (pathname.includes('offersreceived')) {
     return 'Control tender dossiers, compare supplier responses, score commercial and technical risk, and convert approved award decisions into purchase orders.';
+  }
+  if (pathname.includes('selectsupplier')) {
+    return 'Monitor inbound shipments, receiving priorities, delayed deliveries, GRN queues, supplier risks, and operational actions from one logistics control surface.';
   }
   if (pathname.includes('po-header')) {
     return 'Start a supplier purchase order with delivery details, stock location, item lines, GL coding, and review-ready totals on one page.';
@@ -1107,10 +1220,6 @@ function daysUntil(value: string) {
   const today = new Date(new Date().toISOString().slice(0, 10));
   const date = new Date(`${value}T00:00:00`);
   return Math.ceil((date.getTime() - today.getTime()) / 86400000);
-}
-
-function authProfileLabel(level: PoAuthorisationLevel) {
-  return `${level.userName || level.userId} (${level.userId}) · ${level.currencyCode} · limit ${money(level.authLevel, level.currencyCode as PurchaseOrder['currency'])}`;
 }
 
 function authProfileMatches(level: PoAuthorisationLevel, user: { id: string; name: string; email: string }) {
@@ -1180,9 +1289,10 @@ function toPurchaseLine(line: DraftLine): PoLine {
 }
 
 export function PurchaseOrders() {
+  const { currentUser } = useApp();
   const authUser = useMemo(
-    () => ({ id: 'admin', name: 'ADMIN', email: 'admin@akiva.local' }),
-    []
+    () => ({ id: currentUser.id, name: currentUser.name, email: currentUser.email }),
+    [currentUser.email, currentUser.id, currentUser.name]
   );
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -1201,6 +1311,11 @@ export function PurchaseOrders() {
   const [purchaseOrdersReady, setPurchaseOrdersReady] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [lookupSuppliers, setLookupSuppliers] = useState<SupplierLookup[]>(suppliers);
+  const [selectedSupplierCode, setSelectedSupplierCode] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('SupplierID') || params.get('SelectedSupplier') || '';
+  });
   const [lookupLocations, setLookupLocations] = useState<LookupOption[]>(locations);
   const [lookupCategories, setLookupCategories] = useState<LookupOption[]>(categoryOptions.filter((option) => option.value !== 'All'));
   const [offers, setOffers] = useState<SupplierOffer[]>(initialOffers);
@@ -1208,14 +1323,17 @@ export function PurchaseOrders() {
   const [selectedTenderId, setSelectedTenderId] = useState(initialTenders[0]?.id ?? '');
   const [offerDecisions, setOfferDecisions] = useState<Record<string, OfferDecision>>({});
   const [offerMessage, setOfferMessage] = useState('');
+  const [tenderModalOpen, setTenderModalOpen] = useState(false);
+  const [tenderDraft, setTenderDraft] = useState<TenderDraftState>(() => createTenderDraftState());
+  const [tenderDraftError, setTenderDraftError] = useState('');
   const [poAuthLevels, setPoAuthLevels] = useState<PoAuthorisationLevel[]>([]);
-  const [selectedAuthId, setSelectedAuthId] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState('');
-  const [notificationSettings, setNotificationSettings] = useState<PoNotificationSettings>({ emailEnabled: false, smsEnabled: false, loaded: false });
-  const [notificationOptions, setNotificationOptions] = useState<PoNotificationOptions>({ email: false, sms: false });
+  const [notificationSettings, setNotificationSettings] = useState<PoNotificationSettings>({ emailEnabled: false, smsEnabled: false, userEnabled: false, loaded: false });
+  const [notificationOptions, setNotificationOptions] = useState<PoNotificationOptions>({ email: false, sms: false, user: false });
   const [authMessage, setAuthMessage] = useState('');
   const [rejectDraft, setRejectDraft] = useState<{ order: PurchaseOrder; comment: string } | null>(null);
+  const [approvalDraft, setApprovalDraft] = useState<ApprovalDecisionDraft | null>(null);
   const [receiveDate, setReceiveDate] = useState(new Date().toISOString().slice(0, 10));
   const [supplierReference, setSupplierReference] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
@@ -1244,6 +1362,7 @@ export function PurchaseOrders() {
   const pageTitle = titleForRoute(routePath);
   const pageDescription = descriptionForRoute(routePath);
   const isCreatePoRoute = routePath.includes('po-header');
+  const isSelectSupplierRoute = routePath.includes('selectsupplier');
   const isOffersRoute = routePath.includes('offersreceived');
   const isAuthoriseRoute = routePath.includes('po-authorisemyorders');
 
@@ -1308,6 +1427,12 @@ export function PurchaseOrders() {
   }, [reloadKey]);
 
   useEffect(() => {
+    if (!selectedSupplierCode) return;
+    if (lookupSuppliers.some((supplier) => supplier.value === selectedSupplierCode)) return;
+    setSelectedSupplierCode('');
+  }, [lookupSuppliers, selectedSupplierCode]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadAuthorisationLevels() {
@@ -1318,10 +1443,6 @@ export function PurchaseOrders() {
         if (cancelled) return;
         const levels = setup.poAuthorisationLevels;
         setPoAuthLevels(levels);
-        setSelectedAuthId((current) => {
-          if (current && levels.some((level) => level.id === current)) return current;
-          return levels.find((level) => authProfileMatches(level, authUser))?.id ?? levels.find((level) => level.canReview)?.id ?? levels[0]?.id ?? '';
-        });
       } catch (error) {
         if (cancelled) return;
         setPoAuthLevels([]);
@@ -1336,7 +1457,7 @@ export function PurchaseOrders() {
     return () => {
       cancelled = true;
     };
-  }, [authUser]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1347,12 +1468,13 @@ export function PurchaseOrders() {
         if (cancelled) return;
         const emailEnabled = booleanParameter(payload.parameters.SendPOEmailNotification);
         const smsEnabled = booleanParameter(payload.parameters.SendPOSMSNotification);
-        setNotificationSettings({ emailEnabled, smsEnabled, loaded: true });
-        setNotificationOptions({ email: emailEnabled, sms: smsEnabled });
+        const userEnabled = booleanParameter(payload.parameters.SendPOUserNotification);
+        setNotificationSettings({ emailEnabled, smsEnabled, userEnabled, loaded: true });
+        setNotificationOptions({ email: emailEnabled, sms: smsEnabled, user: userEnabled });
       } catch {
         if (cancelled) return;
-        setNotificationSettings({ emailEnabled: false, smsEnabled: false, loaded: true });
-        setNotificationOptions({ email: false, sms: false });
+        setNotificationSettings({ emailEnabled: false, smsEnabled: false, userEnabled: false, loaded: true });
+        setNotificationOptions({ email: false, sms: false, user: false });
       }
     }
 
@@ -1433,20 +1555,14 @@ export function PurchaseOrders() {
   );
 
   const primaryQueueOrder = nextActionOrders[0] ?? null;
-  const selectedAuthLevel = useMemo(() => poAuthLevels.find((level) => level.id === selectedAuthId) ?? null, [poAuthLevels, selectedAuthId]);
+  const selectedAuthLevel = useMemo(
+    () => poAuthLevels.find((level) => authProfileMatches(level, authUser)) ?? poAuthLevels.find((level) => level.canReview) ?? poAuthLevels[0] ?? null,
+    [poAuthLevels, authUser]
+  );
   const approvalOrders = useMemo(
     () => orders.filter((order) => ['Pending Review', 'Reviewed'].includes(order.status)).sort((a, b) => b.orderDate.localeCompare(a.orderDate)),
     [orders]
   );
-  const authCurrencyCoverage = useMemo(() => {
-    const currencies = new Set(poAuthLevels.map((level) => level.currencyCode));
-    return [...currencies].sort();
-  }, [poAuthLevels]);
-  const authorisableApprovalOrders = useMemo(
-    () => approvalOrders.filter((order) => order.status === 'Reviewed').length,
-    [approvalOrders]
-  );
-
   const receiptValidation = useMemo(() => {
     if (drawerMode !== 'receive') return { hasQuantity: false, hasOverQuantity: false, canPost: false };
     const quantities = selectedOrder.lines.map((line) => {
@@ -1586,10 +1702,11 @@ export function PurchaseOrders() {
       },
       {
         id: 'action',
-        header: 'Action',
+        header: 'Actions',
         accessor: (order) => actionForStatus(order.status),
         filterable: false,
         sortable: false,
+        alwaysVisible: true,
         cell: (order) => (
           <div className="flex justify-end gap-2">
             <Button
@@ -1603,7 +1720,8 @@ export function PurchaseOrders() {
           </div>
         ),
         align: 'right',
-        width: 140,
+        sticky: 'right',
+        width: 170,
       },
     ];
 
@@ -1639,7 +1757,7 @@ export function PurchaseOrders() {
   }
 
   function actionActor() {
-    return selectedAuthLevel?.userName || selectedAuthLevel?.userId || 'ADMIN';
+    return selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name || currentUser.id || 'Current user';
   }
 
   function notificationEvents(order: PurchaseOrder, action: 'review-approved' | 'authorised' | 'rejected'): StatusEvent[] {
@@ -1655,6 +1773,9 @@ export function PurchaseOrders() {
     }
     if (notificationOptions.sms && notificationSettings.smsEnabled) {
       events.push({ label: `SMS notification queued to ${recipient}`, by: 'System', at: 'Today' });
+    }
+    if (notificationOptions.user && notificationSettings.userEnabled) {
+      events.push({ label: `User notification queued to ${recipient}`, by: 'System', at: 'Today' });
     }
     return events;
   }
@@ -1674,14 +1795,40 @@ export function PurchaseOrders() {
     );
   }
 
-  function approveReview(order: PurchaseOrder) {
-    transitionOrder(order.id, 'Reviewed', `Review approved by ${actionActor()}`, notificationEvents(order, 'review-approved'));
+  function requestApproveReview(order: PurchaseOrder) {
+    setApprovalDraft({ order, action: 'review', comment: '' });
+  }
+
+  function requestAuthoriseOrder(order: PurchaseOrder) {
+    setApprovalDraft({ order, action: 'authorise', comment: '' });
+  }
+
+  function approveReview(order: PurchaseOrder, reason: string) {
+    transitionOrder(order.id, 'Reviewed', `Review approved by ${actionActor()}: ${reason}`, notificationEvents(order, 'review-approved'));
     setAuthMessage(`PO ${order.orderNumber} review approved. ${notificationSummary()}`);
   }
 
-  function authoriseOrder(order: PurchaseOrder) {
-    transitionOrder(order.id, 'Authorised', `Authorised by ${actionActor()}`, notificationEvents(order, 'authorised'));
+  function authoriseOrder(order: PurchaseOrder, reason: string) {
+    transitionOrder(order.id, 'Authorised', `Authorised by ${actionActor()}: ${reason}`, notificationEvents(order, 'authorised'));
     setAuthMessage(`PO ${order.orderNumber} authorised. ${notificationSummary()}`);
+  }
+
+  function submitApprovalDecision() {
+    if (!approvalDraft) return;
+    const reason = approvalDraft.comment.trim();
+    if (!reason) {
+      setAuthMessage('Enter a reason before posting the approval action.');
+      return;
+    }
+
+    if (approvalDraft.action === 'review') {
+      approveReview(approvalDraft.order, reason);
+    } else {
+      authoriseOrder(approvalDraft.order, reason);
+    }
+
+    setApprovalDraft(null);
+    if (drawerMode === 'review') setDrawerMode(null);
   }
 
   function requestRejectOrder(order: PurchaseOrder) {
@@ -1705,6 +1852,7 @@ export function PurchaseOrders() {
     const sent = [
       notificationOptions.email && notificationSettings.emailEnabled ? 'email queued' : '',
       notificationOptions.sms && notificationSettings.smsEnabled ? 'SMS queued' : '',
+      notificationOptions.user && notificationSettings.userEnabled ? 'user notification queued' : '',
     ].filter(Boolean);
     return sent.length > 0 ? sent.join(' and ') : 'No notifications queued by current settings.';
   }
@@ -1724,6 +1872,164 @@ export function PurchaseOrders() {
         completed: false,
       },
     ]);
+  }
+
+  function startPurchaseOrderForSupplier(supplierCode: string) {
+    setDraftSupplier(supplierCode);
+    navigateTo('/purchases/transactions/po-header');
+  }
+
+  function viewPurchaseOrdersForSupplier(supplier: SupplierLookup, status = 'outstanding') {
+    setQuery(`${supplier.value} ${supplier.label}`);
+    setActiveTab(status === 'all' ? 'all' : 'outstanding');
+    setStatusFilter(status);
+    setFiltersOpen(true);
+    navigateTo(`/purchases/transactions/po-selectospurchorder?SelectedSupplier=${encodeURIComponent(supplier.value)}`);
+  }
+
+  function openTenderDossierModal() {
+    setTenderDraft(createTenderDraftState(lookupSuppliers));
+    setTenderDraftError('');
+    setTenderModalOpen(true);
+  }
+
+  function toggleTenderDraftSupplier(supplierCode: string) {
+    setTenderDraft((current) => {
+      const selected = current.supplierCodes.includes(supplierCode);
+      return {
+        ...current,
+        supplierCodes: selected
+          ? current.supplierCodes.filter((code) => code !== supplierCode)
+          : [...current.supplierCodes, supplierCode],
+      };
+    });
+  }
+
+  function createTenderDossier() {
+    const title = tenderDraft.title.trim();
+    const selectedSuppliers = lookupSuppliers.filter((supplier) => tenderDraft.supplierCodes.includes(supplier.value));
+    const item = catalog.find((candidate) => candidate.itemCode === tenderDraft.itemCode) ?? catalog[0];
+    const totalWeight = tenderDraft.priceWeight + tenderDraft.deliveryWeight + tenderDraft.complianceWeight + tenderDraft.performanceWeight;
+
+    if (!title) {
+      setTenderDraftError('Enter a tender title before creating the dossier.');
+      return;
+    }
+
+    if (selectedSuppliers.length === 0) {
+      setTenderDraftError('Select at least one supplier to invite.');
+      return;
+    }
+
+    if (tenderDraft.quantity <= 0 || tenderDraft.estimatedValue <= 0) {
+      setTenderDraftError('Quantity and estimated value must be greater than zero.');
+      return;
+    }
+
+    if (totalWeight !== 100) {
+      setTenderDraftError('Evaluation weights must total 100%.');
+      return;
+    }
+
+    const reference = `TEN-${2500 + tenders.length + 1}`;
+    const tender: Tender = {
+      id: `tender-${Date.now()}`,
+      reference,
+      title,
+      status: 'Supplier Invited',
+      method: tenderDraft.method,
+      category: tenderDraft.category,
+      location: tenderDraft.location,
+      currency: 'TZS',
+      requiredDate: tenderDraft.requiredDate,
+      submissionDeadline: tenderDraft.submissionDeadline,
+      estimatedValue: tenderDraft.estimatedValue,
+      createdBy: 'Procurement Lead',
+      evaluationWeights: {
+        price: tenderDraft.priceWeight,
+        delivery: tenderDraft.deliveryWeight,
+        compliance: tenderDraft.complianceWeight,
+        performance: tenderDraft.performanceWeight,
+      },
+      lines: [
+        {
+          id: `${reference}-L1`,
+          itemCode: item.itemCode,
+          description: item.description,
+          category: tenderDraft.category,
+          quantity: tenderDraft.quantity,
+          units: tenderDraft.units,
+          requiredDate: tenderDraft.requiredDate,
+          technicalRequirement: tenderDraft.technicalRequirement || item.description,
+          glCode: tenderDraft.glCode,
+        },
+      ],
+      suppliers: selectedSuppliers.map((supplier) => ({
+        supplierCode: supplier.value,
+        supplierName: supplier.label,
+        status: 'Invited',
+        invitedAt: 'Today',
+      })),
+      auditEvents: [
+        { label: 'Tender dossier created and supplier invitations staged', by: 'Procurement Lead', at: 'Today' },
+      ],
+    };
+
+    setTenders((current) => [tender, ...current]);
+    setSelectedTenderId(tender.id);
+    setOfferDecisions({});
+    setOfferMessage(`Tender dossier ${reference} created. Add supplier responses from the Responses step when vendors submit offers.`);
+    setTenderModalOpen(false);
+  }
+
+  function addVendorResponse(draft: VendorResponseDraftState) {
+    if (!selectedTender) return;
+    const line = selectedTender.lines.find((item) => item.id === draft.lineId);
+    const supplier = selectedTender.suppliers.find((item) => item.supplierCode === draft.supplierCode);
+    if (!line || !supplier) return;
+
+    const offer: SupplierOffer = {
+      id: `OFF-${1100 + offers.length + 1}`,
+      tenderId: selectedTender.reference,
+      lineId: line.id,
+      supplierCode: supplier.supplierCode,
+      supplierName: supplier.supplierName,
+      currency: selectedTender.currency,
+      itemCode: line.itemCode,
+      description: line.description,
+      quantity: line.quantity,
+      units: line.units,
+      price: draft.price,
+      leadTimeDays: draft.leadTimeDays,
+      complianceStatus: draft.complianceStatus,
+      technicalScore: draft.technicalScore,
+      supplierRating: draft.supplierRating,
+      paymentTerms: draft.paymentTerms,
+      notes: draft.notes || 'Vendor application captured from the tender response stage.',
+      expiryDate: draft.expiryDate,
+      category: line.category,
+    };
+
+    setOffers((current) => [offer, ...current]);
+    setTenders((current) =>
+      current.map((tender) => {
+        if (tender.id !== selectedTender.id) return tender;
+        return {
+          ...tender,
+          status: tender.status === 'Supplier Invited' || tender.status === 'Published' ? 'Offers Received' : tender.status,
+          suppliers: tender.suppliers.map((item) =>
+            item.supplierCode === supplier.supplierCode
+              ? { ...item, status: 'Responded', respondedAt: item.respondedAt ?? 'Today' }
+              : item
+          ),
+          auditEvents: [
+            { label: `Vendor application received from ${supplier.supplierName}`, by: 'Procurement Lead', at: 'Today' },
+            ...tender.auditEvents,
+          ],
+        };
+      })
+    );
+    setOfferMessage(`Vendor application ${offer.id} from ${supplier.supplierName} was added to ${selectedTender.reference}.`);
   }
 
   function saveDraftOrder(status: PoStatus) {
@@ -1939,14 +2245,14 @@ export function PurchaseOrders() {
             Reject
           </Button>
           {selectedOrder.status === 'Pending Review' ? (
-            <Button onClick={() => approveReview(selectedOrder)}>
+            <Button onClick={() => requestApproveReview(selectedOrder)}>
               <>
                 <ClipboardCheck className="mr-2 h-4 w-4" />
                 Approve review
               </>
             </Button>
           ) : (
-            <Button onClick={() => authoriseOrder(selectedOrder)}>
+            <Button onClick={() => requestAuthoriseOrder(selectedOrder)}>
               <ShieldCheck className="mr-2 h-4 w-4" />
               Authorise
             </Button>
@@ -1996,8 +2302,8 @@ export function PurchaseOrders() {
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <Chip icon={PackageCheck}>Purchasing</Chip>
-                  <Chip icon={isCreatePoRoute ? Plus : isOffersRoute ? ClipboardCheck : isAuthoriseRoute ? ShieldCheck : FileText}>
-                    {isCreatePoRoute ? 'New PO' : isOffersRoute ? 'Tender awards' : isAuthoriseRoute ? 'Authorise POs' : 'Purchase orders'}
+                  <Chip icon={isCreatePoRoute ? Plus : isSelectSupplierRoute ? Truck : isOffersRoute ? ClipboardCheck : isAuthoriseRoute ? ShieldCheck : FileText}>
+                    {isCreatePoRoute ? 'New PO' : isSelectSupplierRoute ? 'Inbound logistics' : isOffersRoute ? 'Tender awards' : isAuthoriseRoute ? 'Authorise POs' : 'Purchase orders'}
                   </Chip>
                   <Chip icon={ShieldCheck}>Receiving and bill matching</Chip>
                   <Chip icon={purchaseOrdersReady ? CheckCircle2 : AlertTriangle}>
@@ -2038,11 +2344,34 @@ export function PurchaseOrders() {
                       Submit for review
                     </Button>
                   </div>
+                ) : isSelectSupplierRoute ? (
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <Button
+                      disabled={!selectedSupplierCode}
+                      onClick={() => {
+                        const supplier = lookupSuppliers.find((item) => item.value === selectedSupplierCode);
+                        if (supplier) startPurchaseOrderForSupplier(supplier.value);
+                      }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      New PO
+                    </Button>
+                    <Button variant="secondary" onClick={() => navigateTo('/purchases/maintenance/supplier-maintenance')}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Add supplier
+                    </Button>
+                  </div>
                 ) : isOffersRoute ? (
-                  <Button onClick={processSupplierOffers} disabled={selectedTenderOffers.length === 0}>
-                    <Check className="mr-2 h-4 w-4" />
-                    Process award
-                  </Button>
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <Button onClick={openTenderDossierModal}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      New tender dossier
+                    </Button>
+                    <Button variant="secondary" onClick={processSupplierOffers} disabled={selectedTenderOffers.length === 0}>
+                      <Check className="mr-2 h-4 w-4" />
+                      Process award
+                    </Button>
+                  </div>
                 ) : isAuthoriseRoute ? (
                   <Button variant="secondary" onClick={() => navigateTo('/configuration/purchases-payables/setup/po-authorisation-levels')}>
                     <ShieldCheck className="mr-2 h-4 w-4" />
@@ -2072,7 +2401,7 @@ export function PurchaseOrders() {
             </div>
           </header>
 
-          {!isCreatePoRoute && !isOffersRoute && !isAuthoriseRoute && filtersOpen ? (
+          {!isCreatePoRoute && !isSelectSupplierRoute && !isOffersRoute && !isAuthoriseRoute && filtersOpen ? (
             <div className="border-b border-akiva-border bg-akiva-surface/70 px-4 py-3 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 md:grid-cols-4 2xl:grid-cols-[180px_180px_minmax(220px,1fr)_190px_minmax(210px,0.8fr)]">
                 <SearchableSelect
@@ -2119,10 +2448,20 @@ export function PurchaseOrders() {
 
           <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
             <main className="space-y-4 lg:col-span-12">
-              {isOffersRoute ? (
+              {isSelectSupplierRoute ? (
+                <SelectSupplierPanel
+                  suppliers={lookupSuppliers}
+                  orders={orders}
+                  selectedSupplierCode={selectedSupplierCode}
+                  loading={loadingOrders}
+                  onSelect={setSelectedSupplierCode}
+                  onNewPurchaseOrder={startPurchaseOrderForSupplier}
+                  onViewPurchaseOrders={viewPurchaseOrdersForSupplier}
+                  onNavigate={navigateTo}
+                />
+              ) : isOffersRoute ? (
                 <OffersReceivedPanel
                   tenders={tenders}
-                  offers={offers}
                   selectedTender={selectedTender}
                   selectedTenderId={selectedTenderId}
                   tenderOptions={tenderOptions}
@@ -2148,6 +2487,7 @@ export function PurchaseOrders() {
                       return next;
                     });
                   }}
+                  onAddVendorResponse={addVendorResponse}
                   onProcess={processSupplierOffers}
                 />
               ) : isCreatePoRoute ? (
@@ -2197,22 +2537,19 @@ export function PurchaseOrders() {
                 <AuthorisePurchaseOrdersPanel
                   orders={approvalOrders}
                   authLevels={poAuthLevels}
-                  selectedAuthId={selectedAuthId}
                   selectedAuthLevel={selectedAuthLevel}
                   loading={authLoading}
                   error={authError}
                   message={authMessage}
-                  currencies={authCurrencyCoverage}
-                  authorisableCount={authorisableApprovalOrders}
                   notificationSettings={notificationSettings}
                   notificationOptions={notificationOptions}
-                  onAuthChange={setSelectedAuthId}
                   onOpen={(order) => openDrawer(order, 'review')}
-                  onReview={approveReview}
-                  onAuthorise={authoriseOrder}
+                  onReview={requestApproveReview}
+                  onAuthorise={requestAuthoriseOrder}
                   onReject={requestRejectOrder}
                   onNotificationChange={(patch) => setNotificationOptions((current) => ({ ...current, ...patch }))}
                   onSetupLevels={() => navigateTo('/configuration/purchases-payables/setup/po-authorisation-levels')}
+                  onOpenNotificationSettings={() => navigateTo('/configuration/system/system-parameters')}
                 />
               ) : (
                 <>
@@ -2296,6 +2633,7 @@ export function PurchaseOrders() {
                         loadingMessage="Preparing purchase orders..."
                         emptyMessage={loadError ? `Purchase orders could not be loaded: ${loadError}` : 'No purchase orders match these filters.'}
                         initialPageSize={10}
+                        initialScroll="right"
                       />
                     </div>
                   </section>
@@ -2438,6 +2776,59 @@ export function PurchaseOrders() {
       </Modal>
 
       <Modal
+        isOpen={approvalDraft !== null}
+        onClose={() => setApprovalDraft(null)}
+        title={
+          approvalDraft
+            ? `${approvalDraft.action === 'review' ? 'Approve review' : 'Authorise'} PO ${approvalDraft.order.orderNumber}`
+            : 'Post approval action'
+        }
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setApprovalDraft(null)}>Cancel</Button>
+            <Button onClick={submitApprovalDecision} disabled={!approvalDraft?.comment.trim()}>
+              {approvalDraft?.action === 'review' ? (
+                <>
+                  <ClipboardCheck className="mr-2 h-4 w-4" />
+                  Approve review
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Authorise PO
+                </>
+              )}
+            </Button>
+          </>
+        }
+      >
+        {approvalDraft ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-3 text-sm">
+              <p className="font-semibold text-akiva-text">{approvalDraft.order.supplierName}</p>
+              <p className="mt-1 text-akiva-text-muted">
+                {money(orderTotal(approvalDraft.order), approvalDraft.order.currency)} · {approvalDraft.order.status}
+              </p>
+            </div>
+            <Field label={approvalDraft.action === 'review' ? 'Review approval reason' : 'Authorisation reason'}>
+              <textarea
+                value={approvalDraft.comment}
+                onChange={(event) => setApprovalDraft((current) => (current ? { ...current, comment: event.target.value } : current))}
+                rows={4}
+                className={`${inputClass} h-auto min-h-28 py-3`}
+                placeholder={approvalDraft.action === 'review' ? 'Explain why this purchase order can move to final authorisation' : 'Explain why this purchase order can be authorised'}
+                autoFocus
+              />
+            </Field>
+            <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text-muted">
+              The reason will be saved in the PO audit trail. Enabled user, email, and SMS notifications will be queued from the current System Parameters settings.
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
         isOpen={rejectDraft !== null}
         onClose={() => setRejectDraft(null)}
         title={rejectDraft ? `Reject PO ${rejectDraft.order.orderNumber}` : 'Reject purchase order'}
@@ -2470,18 +2861,1118 @@ export function PurchaseOrders() {
               />
             </Field>
             <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-sm text-akiva-text-muted">
-              The comment will be saved in the PO audit trail. Enabled email/SMS notifications will be queued from the current System Parameters settings.
+              The comment will be saved in the PO audit trail. Enabled user, email, and SMS notifications will be queued from the current System Parameters settings.
             </div>
           </div>
         ) : null}
       </Modal>
+
+      <Modal
+        isOpen={tenderModalOpen}
+        onClose={() => setTenderModalOpen(false)}
+        title="Create Tender Dossier"
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setTenderModalOpen(false)}>Cancel</Button>
+            <Button onClick={createTenderDossier}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create dossier
+            </Button>
+          </>
+        }
+      >
+        <CreateTenderDossierPanel
+          draft={tenderDraft}
+          suppliers={lookupSuppliers}
+          locations={lookupLocations}
+          categories={lookupCategories}
+          error={tenderDraftError}
+          onChange={(patch) => {
+            setTenderDraftError('');
+            setTenderDraft((current) => ({ ...current, ...patch }));
+          }}
+          onToggleSupplier={toggleTenderDraftSupplier}
+        />
+      </Modal>
+    </div>
+  );
+}
+
+function CreateTenderDossierPanel({
+  draft,
+  suppliers: supplierOptions,
+  locations: locationOptions,
+  categories,
+  error,
+  onChange,
+  onToggleSupplier,
+}: {
+  draft: TenderDraftState;
+  suppliers: SupplierLookup[];
+  locations: LookupOption[];
+  categories: LookupOption[];
+  error: string;
+  onChange: (patch: Partial<TenderDraftState>) => void;
+  onToggleSupplier: (supplierCode: string) => void;
+}) {
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const itemOptions = catalog.map((item) => ({ value: item.itemCode, label: `${item.itemCode} - ${item.description}` }));
+  const selectedItem = catalog.find((item) => item.itemCode === draft.itemCode) ?? catalog[0];
+  const totalWeight = draft.priceWeight + draft.deliveryWeight + draft.complianceWeight + draft.performanceWeight;
+  const selectedSupplierCount = draft.supplierCodes.length;
+  const supplierSearchTerm = supplierSearch.trim().toLowerCase();
+  const filteredSuppliers = supplierSearchTerm
+    ? supplierOptions.filter((supplier) =>
+        `${supplier.label} ${supplier.value} ${supplier.address ?? ''}`.toLowerCase().includes(supplierSearchTerm)
+      )
+    : supplierOptions;
+
+  return (
+    <div className="space-y-4">
+      {error ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100">
+          {error}
+        </div>
+      ) : null}
+
+      <PanelSection title="Tender header">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Tender title">
+            <input
+              className={inputClass}
+              value={draft.title}
+              onChange={(event) => onChange({ title: event.target.value })}
+              placeholder="Example: Pharmacy antibiotic replenishment"
+            />
+          </Field>
+          <Field label="Procurement method">
+            <SearchableSelect
+              value={draft.method}
+              onChange={(value) => onChange({ method: value as Tender['method'] })}
+              options={tenderMethodOptions}
+              inputClassName={inputClass}
+            />
+          </Field>
+          <Field label="Category">
+            <SearchableSelect
+              value={draft.category}
+              onChange={(value) => onChange({ category: value })}
+              options={categories}
+              inputClassName={inputClass}
+            />
+          </Field>
+          <Field label="Required location">
+            <SearchableSelect
+              value={draft.location}
+              onChange={(value) => onChange({ location: value })}
+              options={locationOptions}
+              inputClassName={inputClass}
+            />
+          </Field>
+          <Field label="Submission deadline">
+            <DatePicker value={draft.submissionDeadline} onChange={(value) => onChange({ submissionDeadline: value })} />
+          </Field>
+          <Field label="Required date">
+            <DatePicker value={draft.requiredDate} onChange={(value) => onChange({ requiredDate: value })} />
+          </Field>
+        </div>
+      </PanelSection>
+
+      <PanelSection title="First tender line">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_110px_130px_120px]">
+          <Field label="Item">
+            <SearchableSelect
+              value={draft.itemCode}
+              onChange={(value) => {
+                const item = catalog.find((candidate) => candidate.itemCode === value) ?? selectedItem;
+                onChange({
+                  itemCode: item.itemCode,
+                  category: item.category,
+                  units: item.supplierUnits,
+                  technicalRequirement: item.description,
+                  glCode: item.glCode,
+                  estimatedValue: Math.max(1, draft.quantity) * item.unitPrice,
+                });
+              }}
+              options={itemOptions}
+              inputClassName={inputClass}
+            />
+          </Field>
+          <Field label="Quantity">
+            <input
+              className={`${inputClass} text-right`}
+              type="number"
+              min={1}
+              value={draft.quantity}
+              onChange={(event) => {
+                const quantity = Math.max(1, Number(event.target.value));
+                onChange({ quantity, estimatedValue: quantity * selectedItem.unitPrice });
+              }}
+            />
+          </Field>
+          <Field label="Units">
+            <input className={inputClass} value={draft.units} onChange={(event) => onChange({ units: event.target.value })} />
+          </Field>
+          <Field label="GL code">
+            <input className={inputClass} value={draft.glCode} onChange={(event) => onChange({ glCode: event.target.value })} />
+          </Field>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_180px]">
+          <Field label="Technical requirement">
+            <textarea
+              rows={3}
+              className={`${inputClass} h-auto min-h-24 py-3`}
+              value={draft.technicalRequirement}
+              onChange={(event) => onChange({ technicalRequirement: event.target.value })}
+            />
+          </Field>
+          <Field label="Estimated value">
+            <input
+              className={`${inputClass} text-right`}
+              type="number"
+              min={1}
+              value={draft.estimatedValue}
+              onChange={(event) => onChange({ estimatedValue: Math.max(1, Number(event.target.value)) })}
+            />
+          </Field>
+        </div>
+      </PanelSection>
+
+      <PanelSection title={`Supplier shortlist (${selectedSupplierCount} selected)`}>
+        <div className="relative mb-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+          <input
+            className={`${inputClass} pl-10`}
+            value={supplierSearch}
+            onChange={(event) => setSupplierSearch(event.target.value)}
+            placeholder="Search suppliers by name, code, or address"
+          />
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {filteredSuppliers.map((supplier) => {
+            const checked = draft.supplierCodes.includes(supplier.value);
+            return (
+              <label
+                key={supplier.value}
+                className={`flex cursor-pointer items-start justify-between gap-3 rounded-lg border px-3 py-2 shadow-sm transition ${
+                  checked
+                    ? 'border-akiva-accent bg-akiva-accent-soft text-akiva-text'
+                    : 'border-akiva-border bg-akiva-surface-raised text-akiva-text hover:border-akiva-accent/60 hover:bg-akiva-surface-muted'
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{supplier.label}</span>
+                  <span className="mt-0.5 block text-xs text-akiva-text-muted">{supplier.value} · {supplier.currency ?? 'TZS'}</span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggleSupplier(supplier.value)}
+                  className="peer sr-only"
+                />
+                <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border shadow-sm ${
+                  checked ? 'border-akiva-accent bg-akiva-accent text-white' : 'border-akiva-border bg-akiva-surface text-transparent'
+                }`}>
+                  <Check className="h-4 w-4 stroke-[3]" />
+                </span>
+              </label>
+            );
+          })}
+          {filteredSuppliers.length === 0 ? (
+            <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-3 text-sm text-akiva-text-muted sm:col-span-2">
+              No suppliers match this search.
+            </div>
+          ) : null}
+        </div>
+      </PanelSection>
+
+      <PanelSection title="Evaluation weights">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Field label="Price %">
+            <input className={`${inputClass} text-right`} type="number" min={0} max={100} value={draft.priceWeight} onChange={(event) => onChange({ priceWeight: Number(event.target.value) })} />
+          </Field>
+          <Field label="Delivery %">
+            <input className={`${inputClass} text-right`} type="number" min={0} max={100} value={draft.deliveryWeight} onChange={(event) => onChange({ deliveryWeight: Number(event.target.value) })} />
+          </Field>
+          <Field label="Compliance %">
+            <input className={`${inputClass} text-right`} type="number" min={0} max={100} value={draft.complianceWeight} onChange={(event) => onChange({ complianceWeight: Number(event.target.value) })} />
+          </Field>
+          <Field label="Performance %">
+            <input className={`${inputClass} text-right`} type="number" min={0} max={100} value={draft.performanceWeight} onChange={(event) => onChange({ performanceWeight: Number(event.target.value) })} />
+          </Field>
+        </div>
+        <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+          totalWeight === 100
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100'
+            : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
+        }`}>
+          Weight total: {totalWeight}%
+        </div>
+      </PanelSection>
+    </div>
+  );
+}
+
+function VendorResponsePanel({
+  tender,
+  draft,
+  error,
+  onChange,
+}: {
+  tender: Tender;
+  draft: VendorResponseDraftState;
+  error: string;
+  onChange: (patch: Partial<VendorResponseDraftState>) => void;
+}) {
+  const supplierOptions = tender.suppliers.map((supplier) => ({ value: supplier.supplierCode, label: supplier.supplierName }));
+  const lineOptions = tender.lines.map((line) => ({ value: line.id, label: `${line.itemCode} - ${line.description}` }));
+  const selectedLine = tender.lines.find((line) => line.id === draft.lineId) ?? tender.lines[0];
+  const responseValue = selectedLine ? selectedLine.quantity * draft.price : 0;
+
+  return (
+    <div className="space-y-4">
+      {error ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100">
+          {error}
+        </div>
+      ) : null}
+
+      <PanelSection title="Vendor application header">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Vendor">
+            <SearchableSelect
+              value={draft.supplierCode}
+              onChange={(value) => onChange({ supplierCode: value })}
+              options={supplierOptions}
+              inputClassName={inputClass}
+            />
+          </Field>
+          <Field label="Tender line">
+            <SearchableSelect
+              value={draft.lineId}
+              onChange={(value) => onChange({ lineId: value })}
+              options={lineOptions}
+              inputClassName={inputClass}
+            />
+          </Field>
+          <Field label="Unit price">
+            <input
+              className={`${inputClass} text-right`}
+              type="number"
+              min={0}
+              value={draft.price}
+              onChange={(event) => onChange({ price: Number(event.target.value) })}
+            />
+          </Field>
+          <Field label="Lead time days">
+            <input
+              className={`${inputClass} text-right`}
+              type="number"
+              min={1}
+              value={draft.leadTimeDays}
+              onChange={(event) => onChange({ leadTimeDays: Math.max(1, Number(event.target.value)) })}
+            />
+          </Field>
+          <Field label="Payment terms">
+            <input className={inputClass} value={draft.paymentTerms} onChange={(event) => onChange({ paymentTerms: event.target.value })} />
+          </Field>
+          <Field label="Offer valid until">
+            <DatePicker value={draft.expiryDate} onChange={(value) => onChange({ expiryDate: value })} />
+          </Field>
+        </div>
+      </PanelSection>
+
+      <PanelSection title="Compliance and scoring">
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Compliance">
+            <SearchableSelect
+              value={draft.complianceStatus}
+              onChange={(value) => onChange({ complianceStatus: value as OfferComplianceStatus })}
+              options={complianceOptions}
+              inputClassName={inputClass}
+            />
+          </Field>
+          <Field label="Technical score">
+            <input
+              className={`${inputClass} text-right`}
+              type="number"
+              min={0}
+              max={100}
+              value={draft.technicalScore}
+              onChange={(event) => onChange({ technicalScore: Number(event.target.value) })}
+            />
+          </Field>
+          <Field label="Supplier rating">
+            <input
+              className={`${inputClass} text-right`}
+              type="number"
+              min={0}
+              max={100}
+              value={draft.supplierRating}
+              onChange={(event) => onChange({ supplierRating: Number(event.target.value) })}
+            />
+          </Field>
+        </div>
+        <Field label="Application notes">
+          <textarea
+            rows={3}
+            className={`${inputClass} h-auto min-h-24 py-3`}
+            value={draft.notes}
+            onChange={(event) => onChange({ notes: event.target.value })}
+            placeholder="Capture commercial exceptions, attached certificates, delivery constraints, or clarification notes."
+          />
+        </Field>
+      </PanelSection>
+
+      <div className="grid gap-3 rounded-xl border border-akiva-border bg-akiva-surface-raised p-3 shadow-sm sm:grid-cols-3">
+        <InfoTile label="Tender" value={tender.reference} />
+        <InfoTile label="Quantity" value={selectedLine ? `${selectedLine.quantity} ${selectedLine.units}` : 'No line'} />
+        <InfoTile label="Response value" value={money(responseValue, tender.currency)} />
+      </div>
+    </div>
+  );
+}
+
+type ShipmentRisk = 'Low' | 'Medium' | 'High';
+type ShipmentStatus = 'Ordered' | 'In Transit' | 'Customs Hold' | 'Warehouse Receiving' | 'Awaiting GRN' | 'Partial Receipt' | 'Invoice Match';
+type OperationalWorkspaceTab = 'Overview' | 'Workflow' | 'Actions' | 'Intelligence' | 'Tracking';
+
+interface ShipmentWorkspaceAction {
+  label: string;
+  detail: string;
+  icon: LucideIcon;
+  primary?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}
+
+interface ShipmentRecord {
+  id: string;
+  order: PurchaseOrder;
+  supplierCode: string;
+  supplierName: string;
+  etaLabel: string;
+  etaDays: number;
+  status: ShipmentStatus;
+  risk: ShipmentRisk;
+  value: number;
+  progress: number;
+  containerCount: number;
+  issue: string;
+  priority: number;
+}
+
+function SelectSupplierPanel({
+  suppliers: supplierOptions,
+  orders,
+  selectedSupplierCode,
+  loading,
+  onSelect,
+  onNewPurchaseOrder,
+  onViewPurchaseOrders,
+  onNavigate,
+}: {
+  suppliers: SupplierLookup[];
+  orders: PurchaseOrder[];
+  selectedSupplierCode: string;
+  loading: boolean;
+  onSelect: (supplierCode: string) => void;
+  onNewPurchaseOrder: (supplierCode: string) => void;
+  onViewPurchaseOrders: (supplier: SupplierLookup, status?: string) => void;
+  onNavigate: (path: string) => void;
+}) {
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [shipmentFilter, setShipmentFilter] = useState('All');
+  const [workspaceTab, setWorkspaceTab] = useState<OperationalWorkspaceTab>('Overview');
+  const selectedSupplier = supplierOptions.find((supplier) => supplier.value === selectedSupplierCode) ?? null;
+  const supplierNeedle = supplierSearch.trim().toLowerCase();
+  const filteredSuppliers = supplierNeedle
+    ? supplierOptions.filter((supplier) =>
+        `${supplier.value} ${supplier.label} ${supplier.address ?? ''}`.toLowerCase().includes(supplierNeedle)
+      )
+    : supplierOptions;
+
+  const shipments: ShipmentRecord[] = orders
+    .filter((order) => !['Draft', 'Pending Review', 'Reviewed', 'Rejected', 'Cancelled', 'Completed'].includes(order.status))
+    .map((order, index) => {
+      const etaDays = daysUntil(order.deliveryDate);
+      const value = orderTotal(order);
+      const customsFlagged = order.status === 'Printed' && (index + order.orderNumber.length) % 4 === 1;
+      const status: ShipmentStatus =
+        customsFlagged ? 'Customs Hold'
+          : order.status === 'Authorised' ? 'Ordered'
+            : order.status === 'Printed' ? (etaDays <= 0 ? 'Warehouse Receiving' : 'In Transit')
+              : order.status === 'Part Received' ? 'Partial Receipt'
+                : order.status === 'Received' ? 'Invoice Match'
+                  : 'Awaiting GRN';
+      const risk: ShipmentRisk =
+        customsFlagged || etaDays < -1 || value >= 70000000 ? 'High'
+          : etaDays < 0 || order.status === 'Part Received' || value >= 25000000 ? 'Medium'
+            : 'Low';
+      const progress =
+        status === 'Ordered' ? 18
+          : status === 'In Transit' ? 42
+            : status === 'Customs Hold' ? 54
+              : status === 'Warehouse Receiving' ? 72
+                : status === 'Partial Receipt' ? 82
+                  : status === 'Awaiting GRN' ? 88
+                    : 96;
+      const etaLabel = etaDays < 0 ? `${Math.abs(etaDays)}d late` : etaDays === 0 ? 'Today' : etaDays === 1 ? 'Tomorrow' : `${etaDays}d`;
+      return {
+        id: `SHP-${2044 + index}`,
+        order,
+        supplierCode: order.supplierCode,
+        supplierName: order.supplierName,
+        etaLabel,
+        etaDays,
+        status,
+        risk,
+        value,
+        progress,
+        containerCount: Math.max(1, Math.ceil(order.lines.length / 2)),
+        issue: customsFlagged ? 'Customs documents pending' : etaDays < 0 ? 'ETA missed' : order.status === 'Part Received' ? 'Open balance remains' : 'On workflow',
+        priority: (risk === 'High' ? 100 : risk === 'Medium' ? 50 : 10) + Math.max(0, 5 - etaDays) + Math.ceil(value / 10000000),
+      };
+    })
+    .sort((a, b) => b.priority - a.priority);
+
+  const scopedShipments = selectedSupplier ? shipments.filter((shipment) => shipment.supplierCode === selectedSupplier.value) : shipments;
+  const visibleShipments = scopedShipments.filter((shipment) => {
+    if (shipmentFilter === 'All') return true;
+    if (shipmentFilter === 'Today') return shipment.etaDays <= 0;
+    if (shipmentFilter === 'Delayed') return shipment.etaDays < 0 || shipment.status === 'Customs Hold';
+    if (shipmentFilter === 'Awaiting GRN') return ['Warehouse Receiving', 'Awaiting GRN'].includes(shipment.status);
+    if (shipmentFilter === 'Partial') return shipment.status === 'Partial Receipt';
+    if (shipmentFilter === 'Customs') return shipment.status === 'Customs Hold';
+    return true;
+  });
+  const priorityShipment = visibleShipments[0] ?? scopedShipments[0] ?? shipments[0] ?? null;
+  const activeSupplier = selectedSupplier ?? supplierOptions.find((supplier) => supplier.value === priorityShipment?.supplierCode) ?? null;
+  const activeSupplierParam = encodeURIComponent(activeSupplier?.value ?? '');
+  const exposure = shipments.reduce((sum, shipment) => sum + shipment.value, 0);
+  const awaitingGrnCount = shipments.filter((shipment) => ['Warehouse Receiving', 'Awaiting GRN'].includes(shipment.status)).length;
+  const delayedCount = shipments.filter((shipment) => shipment.etaDays < 0 || shipment.status === 'Customs Hold').length;
+  const partialCount = shipments.filter((shipment) => shipment.status === 'Partial Receipt').length;
+  const customsCount = shipments.filter((shipment) => shipment.status === 'Customs Hold').length;
+  const highRiskCount = shipments.filter((shipment) => shipment.risk === 'High').length;
+  const containerCount = shipments.reduce((sum, shipment) => sum + shipment.containerCount, 0);
+  const filterOptions = ['All', 'Today', 'Delayed', 'Awaiting GRN', 'Partial', 'Customs'];
+
+  const shipmentActions = [
+    {
+      label: 'Receive priority shipment',
+      detail: priorityShipment ? `${priorityShipment.id} is next in queue.` : 'No shipment is ready to receive.',
+      icon: PackageCheck,
+      primary: true,
+      disabled: !priorityShipment,
+      onClick: () => priorityShipment && onViewPurchaseOrders(
+        supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
+        'outstanding'
+      ),
+    },
+    {
+      label: 'Create GRN',
+      detail: 'Post goods received into warehouse stock.',
+      icon: FileCheck2,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/transactions/po-selectospurchorder?SelectedSupplier=${activeSupplierParam}`),
+    },
+    {
+      label: 'Record damages',
+      detail: 'Log receiving discrepancy or damaged goods.',
+      icon: AlertTriangle,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/transactions/suppliercredit?SupplierID=${activeSupplierParam}`),
+    },
+    {
+      label: 'Match invoice',
+      detail: 'Clear received shipment against supplier bill.',
+      icon: ClipboardCheck,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/transactions/supplierinvoice?SupplierID=${activeSupplierParam}`),
+    },
+    {
+      label: 'Reverse GRN',
+      detail: 'Undo an incorrect receiving event.',
+      icon: RefreshCw,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/transactions/reversegrn?SupplierID=${activeSupplierParam}`),
+    },
+  ];
+
+  const monitoringActions = [
+    {
+      label: 'Track shipment',
+      detail: 'Open shipment tracking and ETA details.',
+      icon: Search,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/transactions/shipt-select?SelectedSupplier=${activeSupplierParam}`),
+    },
+    {
+      label: 'Shipment documents',
+      detail: 'Review delivery notes, GRNs, and invoice evidence.',
+      icon: FileText,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/inquiries-and-reports/suppliergrnandinvoiceinquiry?SelectedSupplier=${activeSupplierParam}`),
+    },
+    {
+      label: 'Delivery exceptions',
+      detail: 'Focus delayed, customs, and partial receipt issues.',
+      icon: AlertTriangle,
+      disabled: delayedCount === 0,
+      onClick: () => setShipmentFilter('Delayed'),
+    },
+    {
+      label: 'Container status',
+      detail: `${containerCount} container equivalent${containerCount === 1 ? '' : 's'} across inbound queue.`,
+      icon: Truck,
+      disabled: shipments.length === 0,
+      onClick: () => setShipmentFilter('All'),
+    },
+  ];
+
+  const supplierActions = [
+    {
+      label: 'Supplier account',
+      detail: 'Balances, invoices, credits, and allocations.',
+      icon: FileText,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/inquiries-and-reports/supplierinquiry?SupplierID=${activeSupplierParam}`),
+    },
+    {
+      label: 'Create purchase order',
+      detail: 'Start a new replenishment order.',
+      icon: Plus,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNewPurchaseOrder(activeSupplier.value),
+    },
+    {
+      label: 'Supplier contacts',
+      detail: 'Escalate logistics or document issues.',
+      icon: MessageSquare,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/maintenance/suppliercontacts?SupplierID=${activeSupplierParam}`),
+    },
+    {
+      label: 'Supplier maintenance',
+      detail: 'Update terms, address, and supplier controls.',
+      icon: SlidersHorizontal,
+      disabled: !activeSupplier,
+      onClick: () => activeSupplier && onNavigate(`/purchases/maintenance/supplier-maintenance?SupplierID=${activeSupplierParam}`),
+    },
+  ];
+
+  const aiInsights = [
+    {
+      label: 'Receiving priority',
+      value: priorityShipment ? `${priorityShipment.id} - ${priorityShipment.status}` : 'No inbound priority',
+      detail: priorityShipment ? `${priorityShipment.issue}. Risk ${priorityShipment.risk.toLowerCase()}, ETA ${priorityShipment.etaLabel}.` : 'No shipment is currently blocking operations.',
+      tone: priorityShipment?.risk === 'High' ? 'critical' : priorityShipment?.risk === 'Medium' ? 'warning' : 'neutral',
+    },
+    {
+      label: 'Delay prediction',
+      value: delayedCount > 0 ? `${delayedCount} shipment${delayedCount === 1 ? '' : 's'} need escalation` : 'Low delay risk',
+      detail: delayedCount > 0 ? 'Late ETA, customs hold, or missed warehouse receiving target detected.' : 'Current inbound queue is inside expected receiving tolerances.',
+      tone: delayedCount > 0 ? 'warning' : 'neutral',
+    },
+    {
+      label: 'Invoice mismatch probability',
+      value: partialCount > 0 ? 'Elevated' : 'Controlled',
+      detail: partialCount > 0 ? 'Partial receipts increase invoice variance risk during bill matching.' : 'No partial receipts are currently driving mismatch risk.',
+      tone: partialCount > 0 ? 'warning' : 'neutral',
+    },
+  ];
+  const topInsight = aiInsights[0];
+  const workspaceTabs: OperationalWorkspaceTab[] = ['Overview', 'Workflow', 'Actions', 'Intelligence', 'Tracking'];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 xl:grid-cols-[1.15fr_1fr_0.85fr]">
+        <ShipmentKpiSection
+          title="Critical risks"
+          tone={delayedCount > 0 || customsCount > 0 || awaitingGrnCount > 0 ? 'critical' : 'neutral'}
+          items={[
+            ['Delayed', String(delayedCount)],
+            ['Customs', String(customsCount)],
+            ['Awaiting GRN', String(awaitingGrnCount)],
+          ]}
+        />
+        <ShipmentKpiSection
+          title="Operational throughput"
+          tone="info"
+          items={[
+            ['Incoming', String(shipments.length)],
+            ['Containers', String(containerCount)],
+            ['Partial', String(partialCount)],
+          ]}
+        />
+        <ShipmentKpiSection
+          title="Financial exposure"
+          tone={highRiskCount > 0 ? 'warning' : 'neutral'}
+          items={[
+            ['Exposure', money(exposure, 'TZS')],
+            ['Supplier risk', String(highRiskCount)],
+          ]}
+        />
+      </div>
+
+      <div className="grid gap-4 2xl:grid-cols-[300px_minmax(0,1fr)_360px]">
+        <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-akiva-text">Operational filters</h2>
+              <p className="mt-1 text-sm leading-6 text-akiva-text-muted">Filter inbound work by supplier, ETA, GRN state, or exception type.</p>
+            </div>
+            {loading ? <RefreshCw className="h-4 w-4 animate-spin text-akiva-text-muted" /> : <Filter className="h-4 w-4 text-akiva-text-muted" />}
+          </div>
+
+          <div className="relative mt-4">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+            <input
+              value={supplierSearch}
+              onChange={(event) => setSupplierSearch(event.target.value)}
+              className={`${inputClass} pl-10`}
+              placeholder="Filter supplier"
+            />
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {filterOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setShipmentFilter(option)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${
+                  shipmentFilter === option
+                    ? 'bg-akiva-accent text-white ring-akiva-accent'
+                    : 'bg-akiva-surface text-akiva-text-muted ring-akiva-border hover:bg-akiva-surface-muted hover:text-akiva-text'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onSelect('')}
+            className={`mt-4 flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition ${
+              !selectedSupplier ? 'border-akiva-accent bg-akiva-accent-soft text-akiva-accent-text' : 'border-akiva-border bg-akiva-surface text-akiva-text hover:bg-akiva-surface-muted'
+            }`}
+          >
+            <span>All suppliers</span>
+            <span className="text-xs">{shipments.length}</span>
+          </button>
+
+          <div className="mt-3 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+            <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_3rem] gap-2 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-akiva-text-muted">
+              <span>Supplier</span>
+              <span className="text-center">Risk</span>
+              <span className="text-right">Open</span>
+            </div>
+            {filteredSuppliers.map((supplier) => {
+              const selected = supplier.value === selectedSupplier?.value;
+              const supplierShipments = shipments.filter((shipment) => shipment.supplierCode === supplier.value);
+              const supplierHighRisk = supplierShipments.filter((shipment) => shipment.risk === 'High').length;
+              const supplierMediumRisk = supplierShipments.filter((shipment) => shipment.risk === 'Medium').length;
+              const supplierRiskLabel = supplierHighRisk > 0 ? 'High' : supplierMediumRisk > 0 ? 'Med' : 'Low';
+              return (
+                <button
+                  key={supplier.value}
+                  type="button"
+                  onClick={() => onSelect(supplier.value)}
+                  className={`grid w-full grid-cols-[minmax(0,1fr)_3.5rem_3rem] items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                    selected
+                      ? 'bg-akiva-accent-soft text-akiva-accent-text ring-1 ring-akiva-accent/70'
+                      : 'text-akiva-text hover:bg-akiva-surface-muted'
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-akiva-text">{supplier.label}</span>
+                    <span className="block truncate font-mono text-[11px] text-akiva-text-muted">{supplier.value}</span>
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-center text-[11px] font-semibold ring-1 ${
+                    supplierHighRisk > 0 ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900'
+                      : supplierMediumRisk > 0 ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900'
+                        : 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900'
+                  }`}>
+                    {supplierRiskLabel}
+                  </span>
+                  <span className="text-right text-xs font-semibold text-akiva-text-muted">{supplierShipments.length}</span>
+                </button>
+              );
+            })}
+            {filteredSuppliers.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-akiva-border bg-akiva-surface px-3 py-8 text-center text-sm text-akiva-text-muted">
+                No supplier matches this filter.
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
+          <div className="border-b border-akiva-border px-4 py-3">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Inbound logistics queue</p>
+                <h2 className="mt-1 text-lg font-semibold text-akiva-text">Shipment and receiving priorities</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => priorityShipment && onViewPurchaseOrders(
+                    supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
+                    'outstanding'
+                  )}
+                  disabled={!priorityShipment}
+                >
+                  <PackageCheck className="mr-2 h-4 w-4" />
+                  Receive priority
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => setShipmentFilter('Delayed')}>
+                  <AlertTriangle className="mr-2 h-4 w-4" />
+                  Exceptions
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {visibleShipments.length === 0 ? (
+            <div className="p-8 text-center">
+              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
+              <h3 className="mt-3 text-base font-semibold text-akiva-text">No shipments match these filters</h3>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-akiva-text-muted">Clear supplier or exception filters to return to the active inbound queue.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] table-fixed">
+                <thead className="bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-table-header-text">
+                  <tr>
+                    <th className="w-32 px-3 py-2 text-left">Shipment</th>
+                    <th className="w-24 px-3 py-2 text-left">ETA</th>
+                    <th className="w-60 px-3 py-2 text-left">Supplier</th>
+                    <th className="w-44 px-3 py-2 text-left">Status</th>
+                    <th className="w-24 px-3 py-2 text-left">Risk</th>
+                    <th className="w-36 px-3 py-2 text-right">Value</th>
+                    <th className="w-32 px-3 py-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleShipments.map((shipment) => (
+                    <tr key={shipment.id} className="border-t border-akiva-border align-top">
+                      <td className="px-3 py-2">
+                        <p className="font-mono text-sm font-semibold text-akiva-text">{shipment.id}</p>
+                        <p className="text-[11px] text-akiva-text-muted">PO {shipment.order.orderNumber}</p>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${shipment.etaDays < 0 ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900' : shipment.etaDays <= 1 ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900' : 'bg-akiva-surface text-akiva-text-muted ring-akiva-border'}`}>
+                          {shipment.etaLabel}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <button type="button" onClick={() => onSelect(shipment.supplierCode)} className="max-w-full text-left">
+                          <span className="block truncate text-sm font-semibold text-akiva-text hover:text-akiva-accent">{shipment.supplierName}</span>
+                          <span className="block truncate font-mono text-[11px] text-akiva-text-muted">{shipment.supplierCode}</span>
+                        </button>
+                      </td>
+                      <td className="px-3 py-2">
+                        <ShipmentStatusBadge status={shipment.status} />
+                        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-akiva-surface-muted">
+                          <div className="h-full rounded-full bg-akiva-accent" style={{ width: `${shipment.progress}%` }} />
+                        </div>
+                      </td>
+                      <td className="px-3 py-2"><ShipmentRiskBadge risk={shipment.risk} /></td>
+                      <td className="px-3 py-2 text-right text-sm font-semibold text-akiva-text">{money(shipment.value, shipment.order.currency)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <Button
+                          size="sm"
+                          variant={shipment.status === 'Warehouse Receiving' || shipment.status === 'Partial Receipt' ? 'success' : shipment.risk === 'High' ? 'danger' : 'secondary'}
+                          onClick={() => onViewPurchaseOrders(
+                            supplierOptions.find((supplier) => supplier.value === shipment.supplierCode) ?? { value: shipment.supplierCode, label: shipment.supplierName },
+                            'outstanding'
+                          )}
+                        >
+                          {shipment.status === 'Warehouse Receiving' || shipment.status === 'Partial Receipt' ? 'Receive' : shipment.risk === 'High' ? 'Escalate' : 'Track'}
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <aside className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-akiva-text">Operational workspace</h2>
+              <p className="mt-1 truncate text-sm text-akiva-text-muted">
+                {priorityShipment ? `${priorityShipment.id} · ${priorityShipment.supplierName}` : 'No priority shipment'}
+              </p>
+            </div>
+            {priorityShipment ? <ShipmentRiskBadge risk={priorityShipment.risk} /> : null}
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-akiva-surface p-1 text-xs font-semibold min-[1500px]:grid-cols-5">
+            {workspaceTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setWorkspaceTab(tab)}
+                className={`rounded-lg px-2 py-1.5 transition ${
+                  workspaceTab === tab ? 'bg-akiva-surface-raised text-akiva-text shadow-sm' : 'text-akiva-text-muted hover:text-akiva-text'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            {workspaceTab === 'Overview' ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-akiva-text">
+                    {priorityShipment ? `${priorityShipment.status}: ${priorityShipment.issue}` : 'Inbound queue is clear'}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-akiva-text-muted">
+                    {priorityShipment ? `ETA ${priorityShipment.etaLabel}. ${priorityShipment.containerCount} container equivalent${priorityShipment.containerCount === 1 ? '' : 's'} linked to PO ${priorityShipment.order.orderNumber}.` : 'No open shipment currently requires warehouse intervention.'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <InfoTile label="ETA" value={priorityShipment?.etaLabel ?? 'Clear'} />
+                  <InfoTile label="Value" value={priorityShipment ? money(priorityShipment.value, priorityShipment.order.currency) : money(0, 'TZS')} />
+                </div>
+                <OperationalInsight {...topInsight} />
+                <Button
+                  className="w-full"
+                  onClick={() => priorityShipment && onViewPurchaseOrders(
+                    supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
+                    'outstanding'
+                  )}
+                  disabled={!priorityShipment}
+                >
+                  <PackageCheck className="mr-2 h-4 w-4" />
+                  {priorityShipment?.status === 'Warehouse Receiving' || priorityShipment?.status === 'Partial Receipt' ? 'Receive shipment' : 'Open priority shipment'}
+                </Button>
+              </div>
+            ) : null}
+
+            {workspaceTab === 'Workflow' ? (
+              <div className="space-y-4">
+                {priorityShipment ? <ShipmentLifecycle status={priorityShipment.status} /> : (
+                  <p className="text-sm text-akiva-text-muted">No shipment selected for workflow tracking.</p>
+                )}
+                {priorityShipment ? (
+                  <div className="rounded-xl bg-akiva-surface px-3 py-3 text-sm text-akiva-text-muted">
+                    Current blocker: <span className="font-semibold text-akiva-text">{priorityShipment.issue}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {workspaceTab === 'Actions' ? (
+              <div className="space-y-3">
+                <PrimaryOperationalAction action={shipmentActions[0]} />
+                <div className="grid gap-2">
+                  {shipmentActions.slice(1).map((action) => <CompactOperationalAction key={action.label} action={action} />)}
+                </div>
+              </div>
+            ) : null}
+
+            {workspaceTab === 'Intelligence' ? (
+              <div className="space-y-2">
+                {aiInsights.map((insight) => <OperationalInsight key={insight.label} {...insight} />)}
+              </div>
+            ) : null}
+
+            {workspaceTab === 'Tracking' ? (
+              <div className="space-y-3">
+                <div className="rounded-xl bg-akiva-surface px-3 py-3">
+                  <p className="text-sm font-semibold text-akiva-text">{priorityShipment?.etaLabel ?? 'No ETA risk'}</p>
+                  <p className="mt-1 text-xs leading-5 text-akiva-text-muted">
+                    {priorityShipment ? `${priorityShipment.status}. ${priorityShipment.issue}. Progress ${priorityShipment.progress}%.` : 'No shipment is currently active in the tracking workspace.'}
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  {monitoringActions.map((action) => <CompactOperationalAction key={action.label} action={action} />)}
+                </div>
+                <div className="border-t border-akiva-border pt-3">
+                  <p className="mb-2 text-sm font-semibold text-akiva-text">Supplier operations</p>
+                  <div className="grid gap-2">
+                    {supplierActions.map((action) => <CompactOperationalAction key={action.label} action={action} />)}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function ShipmentKpiSection({
+  title,
+  items,
+  tone,
+}: {
+  title: string;
+  items: Array<[string, string]>;
+  tone: 'neutral' | 'info' | 'warning' | 'critical';
+}) {
+  const toneClass =
+    tone === 'critical' ? 'border-rose-200/80 bg-rose-50/50 dark:border-rose-900/60 dark:bg-rose-950/20'
+      : tone === 'warning' ? 'border-amber-200/80 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/20'
+        : tone === 'info' ? 'border-sky-200/80 bg-sky-50/50 dark:border-sky-900/60 dark:bg-sky-950/20'
+          : 'border-akiva-border bg-akiva-surface-raised';
+  return (
+    <section className={`rounded-xl border px-3 py-3 shadow-sm ${toneClass}`}>
+      <p className="text-sm font-semibold text-akiva-text">{title}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {items.map(([label, value]) => (
+          <div key={label} className="min-w-0">
+            <p className="truncate text-xs text-akiva-text-muted">{label}</p>
+            <p className="mt-1 truncate text-lg font-semibold text-akiva-text">{value}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {
+  const tone =
+    status === 'Customs Hold' ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100'
+      : status === 'Warehouse Receiving' || status === 'Awaiting GRN' ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
+        : status === 'Partial Receipt' ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/70 dark:bg-violet-950/40 dark:text-violet-100'
+          : status === 'Invoice Match' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100'
+            : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/70 dark:bg-sky-950/40 dark:text-sky-100';
+  return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{status}</span>;
+}
+
+function ShipmentRiskBadge({ risk }: { risk: ShipmentRisk }) {
+  const tone =
+    risk === 'High' ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100'
+      : risk === 'Medium' ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
+        : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100';
+  return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{risk}</span>;
+}
+
+function ShipmentLifecycle({ status }: { status: ShipmentStatus }) {
+  const steps = [
+    { label: 'Ordered', detail: 'PO released' },
+    { label: 'Transit', detail: 'Supplier shipped' },
+    { label: 'Customs', detail: 'Clearance' },
+    { label: 'Warehouse', detail: 'Dock receiving' },
+    { label: 'GRN', detail: 'Receipt posted' },
+    { label: 'Invoice', detail: 'Bill match' },
+    { label: 'Closed', detail: 'Complete' },
+  ];
+  const activeIndex =
+    status === 'Ordered' ? 0
+      : status === 'In Transit' ? 1
+        : status === 'Customs Hold' ? 2
+          : status === 'Warehouse Receiving' ? 3
+            : status === 'Awaiting GRN' || status === 'Partial Receipt' ? 4
+              : status === 'Invoice Match' ? 5
+                : 0;
+
+  return (
+    <div className="rounded-xl bg-akiva-surface px-3 py-3">
+      <div className="flex items-start">
+        {steps.map((step, index) => {
+          const complete = index < activeIndex;
+          const current = index === activeIndex;
+          return (
+            <div key={step.label} className="flex min-w-0 flex-1 items-start">
+              <div className="flex min-w-0 flex-1 flex-col items-center text-center">
+                <span
+                  className={`flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-bold ${
+                    complete || current
+                      ? 'border-akiva-accent bg-akiva-accent text-white'
+                      : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted'
+                  }`}
+                >
+                  {complete ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                </span>
+                <span className={`mt-1.5 max-w-full truncate text-[11px] font-semibold ${current ? 'text-akiva-text' : 'text-akiva-text-muted'}`}>{step.label}</span>
+                <span className="mt-0.5 hidden text-[10px] leading-4 text-akiva-text-muted min-[1500px]:block">{step.detail}</span>
+              </div>
+              {index < steps.length - 1 ? (
+                <span className={`mt-3 h-px min-w-3 flex-1 ${index < activeIndex ? 'bg-akiva-accent' : 'bg-akiva-border'}`} />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-akiva-text-muted">
+        Current stage: <span className="font-semibold text-akiva-text">{steps[activeIndex]?.label}</span>. Use the Actions tab only for the next operational step.
+      </p>
+    </div>
+  );
+}
+
+function PrimaryOperationalAction({ action }: { action: ShipmentWorkspaceAction }) {
+  const Icon = action.icon;
+  return (
+    <button
+      type="button"
+      onClick={action.onClick}
+      disabled={action.disabled}
+      className="group flex w-full items-center gap-3 rounded-xl bg-akiva-accent px-3 py-3 text-left text-white shadow-sm transition hover:bg-akiva-accent-strong disabled:cursor-not-allowed disabled:bg-akiva-surface-muted disabled:text-akiva-text-muted disabled:shadow-none"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white group-disabled:bg-akiva-surface group-disabled:text-akiva-text-muted">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold">{action.label}</span>
+        <span className="mt-0.5 block text-xs leading-5 text-white/80 group-disabled:text-akiva-text-muted">{action.detail}</span>
+      </span>
+    </button>
+  );
+}
+
+function CompactOperationalAction({ action }: { action: ShipmentWorkspaceAction }) {
+  const Icon = action.icon;
+  return (
+    <button
+      type="button"
+      onClick={action.onClick}
+      disabled={action.disabled}
+      className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-akiva-surface text-akiva-text-muted group-hover:text-akiva-text">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-akiva-text">{action.label}</span>
+        <span className="block truncate text-xs text-akiva-text-muted">{action.detail}</span>
+      </span>
+    </button>
+  );
+}
+
+function OperationalInsight({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: 'neutral' | 'warning' | 'critical' }) {
+  const iconTone = tone === 'critical' ? 'text-rose-600' : tone === 'warning' ? 'text-amber-600' : 'text-akiva-accent';
+  return (
+    <div className="rounded-lg bg-akiva-surface px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <ShieldCheck className={`mt-0.5 h-4 w-4 shrink-0 ${iconTone}`} />
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-akiva-text-muted">{label}</p>
+          <p className="mt-0.5 text-sm font-semibold text-akiva-text">{value}</p>
+          <p className="mt-0.5 text-xs leading-5 text-akiva-text-muted">{detail}</p>
+        </div>
+      </div>
     </div>
   );
 }
 
 function OffersReceivedPanel({
   tenders,
-  offers,
   selectedTender,
   selectedTenderId,
   tenderOptions,
@@ -2492,10 +3983,10 @@ function OffersReceivedPanel({
   onTenderChange,
   onDecisionChange,
   onAcceptRecommended,
+  onAddVendorResponse,
   onProcess,
 }: {
   tenders: Tender[];
-  offers: SupplierOffer[];
   selectedTender: Tender | null;
   selectedTenderId: string;
   tenderOptions: LookupOption[];
@@ -2514,9 +4005,21 @@ function OffersReceivedPanel({
   onTenderChange: (value: string) => void;
   onDecisionChange: (offerId: string, decision: OfferDecision) => void;
   onAcceptRecommended: (offerIds: string[]) => void;
+  onAddVendorResponse: (draft: VendorResponseDraftState) => void;
   onProcess: () => void;
 }) {
-  if (tenders.length === 0 || offers.length === 0) {
+  const [activeStep, setActiveStep] = useState<TenderProcessStep>('dossier');
+  const [vendorResponseOpen, setVendorResponseOpen] = useState(false);
+  const [vendorResponseDraft, setVendorResponseDraft] = useState<VendorResponseDraftState>(() => createVendorResponseDraft());
+  const [vendorResponseError, setVendorResponseError] = useState('');
+
+  useEffect(() => {
+    setActiveStep('dossier');
+    setVendorResponseOpen(false);
+    setVendorResponseError('');
+  }, [selectedTenderId]);
+
+  if (tenders.length === 0) {
     return (
       <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-6 text-center shadow-sm">
         <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
@@ -2578,6 +4081,215 @@ function OffersReceivedPanel({
         : 'Low';
   const savingsVsEstimate = selectedTender.estimatedValue - recommendedAwardValue;
   const weighted = selectedTender.evaluationWeights;
+  const acceptedOffers = selectedOffers.filter((offer) => (decisions[offer.id] ?? 'defer') === 'accept');
+  const acceptedGroups = Object.values(
+    acceptedOffers.reduce<Record<string, { supplierCode: string; supplierName: string; total: number; lines: number }>>((groups, offer) => {
+      const current = groups[offer.supplierCode] ?? {
+        supplierCode: offer.supplierCode,
+        supplierName: offer.supplierName,
+        total: 0,
+        lines: 0,
+      };
+      groups[offer.supplierCode] = {
+        ...current,
+        total: current.total + offerTotal(offer),
+        lines: current.lines + 1,
+      };
+      return groups;
+    }, {})
+  );
+  const offersBySupplier = selectedTender.suppliers.map((supplier) => {
+    const supplierOffers = selectedOffers.filter((offer) => offer.supplierCode === supplier.supplierCode);
+    const supplierEvaluations = evaluatedOffers.filter((entry) => entry.offer.supplierCode === supplier.supplierCode);
+    const bestScore = supplierEvaluations.length > 0 ? Math.max(...supplierEvaluations.map((entry) => entry.evaluation.score)) : 0;
+    return {
+      supplier,
+      offerCount: supplierOffers.length,
+      total: supplierOffers.reduce((sum, offer) => sum + offerTotal(offer), 0),
+      clarificationCount: supplierOffers.filter((offer) => offer.complianceStatus === 'Clarification').length,
+      bestScore,
+    };
+  });
+  const processStepStats: Record<TenderProcessStep, string> = {
+    dossier: selectedTender.status,
+    responses: `${respondedSuppliers}/${selectedTender.suppliers.length} responded`,
+    evaluation: `${recommendedConfidence}/100 confidence`,
+    award: `${summary.acceptedCount} accepted`,
+    conversion: acceptedOffers.length > 0 ? `${acceptedOffers.length} line${acceptedOffers.length === 1 ? '' : 's'} ready` : 'Awaiting award',
+  };
+
+  function openVendorResponseDialog(supplierCode?: string) {
+    setVendorResponseDraft(createVendorResponseDraft(selectedTender, supplierCode));
+    setVendorResponseError('');
+    setVendorResponseOpen(true);
+  }
+
+  function submitVendorResponse() {
+    const duplicate = selectedOffers.some((offer) => offer.supplierCode === vendorResponseDraft.supplierCode && offer.lineId === vendorResponseDraft.lineId);
+
+    if (!vendorResponseDraft.supplierCode || !vendorResponseDraft.lineId) {
+      setVendorResponseError('Select the supplier and tender line for this vendor application.');
+      return;
+    }
+
+    if (duplicate) {
+      setVendorResponseError('This supplier already has a response for the selected tender line.');
+      return;
+    }
+
+    if (vendorResponseDraft.price <= 0 || vendorResponseDraft.leadTimeDays <= 0) {
+      setVendorResponseError('Enter a valid unit price and lead time.');
+      return;
+    }
+
+    if (
+      vendorResponseDraft.technicalScore < 0 ||
+      vendorResponseDraft.technicalScore > 100 ||
+      vendorResponseDraft.supplierRating < 0 ||
+      vendorResponseDraft.supplierRating > 100
+    ) {
+      setVendorResponseError('Technical score and supplier rating must be between 0 and 100.');
+      return;
+    }
+
+    onAddVendorResponse(vendorResponseDraft);
+    setVendorResponseOpen(false);
+    setActiveStep('responses');
+  }
+
+  const offerComparisonTable = (showDecision: boolean) => (
+    <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
+      <div className="border-b border-akiva-border px-4 py-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-akiva-text">
+              {showDecision ? 'Offer comparison and award decision' : 'Commercial and technical evaluation'}
+            </h2>
+            <p className="mt-1 text-sm text-akiva-text-muted">
+              {showDecision
+                ? 'Accept, reject, or defer supplier lines after reviewing score, compliance, delivery, and price variance.'
+                : 'Score combines price, lead time, compliance, and supplier performance before the award decision is made.'}
+            </p>
+          </div>
+          {showDecision ? (
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900">Accept</span>
+              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900">Reject</span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">Defer</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="max-h-[560px] overflow-auto">
+        <table className="w-full min-w-[1180px] table-fixed">
+          <thead className="sticky top-0 z-10 bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-text-muted">
+            <tr>
+              <th className="w-28 px-4 py-3 text-left">Offer ID</th>
+              <th className="w-56 px-4 py-3 text-left">Supplier</th>
+              <th className="w-64 px-4 py-3 text-left">Tender line</th>
+              <th className="w-28 px-4 py-3 text-right">Quantity</th>
+              <th className="w-32 px-4 py-3 text-right">Price</th>
+              <th className="w-32 px-4 py-3 text-right">Total</th>
+              <th className="w-32 px-4 py-3 text-left">Compliance</th>
+              <th className="w-32 px-4 py-3 text-right">Score</th>
+              <th className="w-32 px-4 py-3 text-left">Expires</th>
+              {showDecision ? <th className="w-72 px-4 py-3 text-left">Decision</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {evaluatedOffers.map(({ offer, tenderLine, evaluation }) => {
+              const decision = decisions[offer.id] ?? 'defer';
+              const days = daysUntil(offer.expiryDate);
+              const lineOffers = selectedOffers.filter((candidate) => candidate.lineId === offer.lineId);
+              const lowestLinePrice = Math.min(...lineOffers.map((candidate) => candidate.price));
+              const priceVariance = offer.price - lowestLinePrice;
+              const recommended = recommendedOfferIds.includes(offer.id);
+              return (
+                <tr
+                  key={offer.id}
+                  className={`border-t border-akiva-border align-top ${
+                    decision === 'accept'
+                      ? 'bg-emerald-50/60 dark:bg-emerald-950/20'
+                      : recommended
+                        ? 'bg-akiva-accent-soft/30 dark:bg-akiva-accent-soft/10'
+                        : ''
+                  }`}
+                >
+                  <td className="px-4 py-3 font-mono text-sm font-semibold text-akiva-text">{offer.id}</td>
+                  <td className="px-4 py-3">
+                    <p className="truncate text-sm font-semibold text-akiva-text">{offer.supplierName}</p>
+                    <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.paymentTerms} · lead {offer.leadTimeDays} days</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="truncate text-sm font-semibold text-akiva-text">{offer.description}</p>
+                    <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.itemCode} · {tenderLine?.technicalRequirement ?? offer.category}</p>
+                    <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.notes}</p>
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm">{offer.quantity} {offer.units}</td>
+                  <td className="px-4 py-3 text-right text-sm">
+                    <span className="block">{money(offer.price, offer.currency)}</span>
+                    <span className="mt-1 block text-xs text-akiva-text-muted">
+                      {priceVariance === 0 ? 'Best price' : `+${money(priceVariance, offer.currency)}`}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm font-semibold">{money(offerTotal(offer), offer.currency)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${complianceTone(offer.complianceStatus)}`}>
+                      {offer.complianceStatus}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <p className={`text-sm font-semibold ${scoreTone(evaluation.score)}`}>{evaluation.score}/100</p>
+                    <p className="mt-1 text-xs text-akiva-text-muted">Rank {evaluation.rank} · {evaluation.recommendation}</p>
+                    {recommended ? (
+                      <span className="mt-1 inline-flex rounded-full bg-akiva-accent px-2 py-0.5 text-[11px] font-semibold text-white">
+                        Recommended
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${
+                      days <= 3
+                        ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-100 dark:ring-rose-900'
+                        : 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-900'
+                    }`}>
+                      {formatDate(offer.expiryDate)}
+                    </span>
+                  </td>
+                  {showDecision ? (
+                    <td className="px-4 py-3">
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(['accept', 'reject', 'defer'] as OfferDecision[]).map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => onDecisionChange(offer.id, option)}
+                            aria-pressed={decision === option}
+                            className={`h-9 rounded-md border px-2 text-xs font-semibold capitalize transition ${
+                              decision === option
+                                ? option === 'accept'
+                                  ? 'border-emerald-500 bg-emerald-600 text-white'
+                                  : option === 'reject'
+                                    ? 'border-rose-500 bg-rose-600 text-white'
+                                    : 'border-slate-500 bg-slate-700 text-white'
+                                : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 
   return (
     <div className="space-y-4">
@@ -2587,7 +4299,7 @@ function OffersReceivedPanel({
         </div>
       ) : null}
 
-      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-akiva-surface-raised/85 p-3 shadow-sm lg:grid-cols-[minmax(280px,420px)_1fr_auto] lg:items-center">
+      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-akiva-surface-raised/85 p-3 shadow-sm lg:grid-cols-[minmax(280px,420px)_1fr] lg:items-center">
         <Field label="Tender dossier">
           <SearchableSelect
             value={selectedTenderId}
@@ -2603,60 +4315,47 @@ function OffersReceivedPanel({
           <InfoTile label="Offer value" value={money(summary.totalValue, summary.currency)} />
           <InfoTile label="Award value" value={money(acceptedValue, summary.currency)} />
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
-          <Button variant="secondary" onClick={() => onAcceptRecommended(recommendedOfferIds)} disabled={recommendedOfferIds.length === 0}>
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            Accept recommended
-          </Button>
-          <Button onClick={onProcess} disabled={selectedOffers.length === 0}>
-            <Check className="mr-2 h-4 w-4" />
-            Process award
-          </Button>
+      </section>
+
+      <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-2 shadow-sm">
+        <div className="grid gap-2 md:grid-cols-5">
+          {tenderProcessSteps.map((step, index) => {
+            const active = activeStep === step.id;
+            return (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => setActiveStep(step.id)}
+                aria-pressed={active}
+                className={`flex min-h-[4.5rem] items-start gap-3 rounded-xl border px-3 py-3 text-left transition ${
+                  active
+                    ? 'border-akiva-accent bg-akiva-accent text-white shadow-sm'
+                    : 'border-akiva-border bg-akiva-surface text-akiva-text hover:border-akiva-accent/60 hover:bg-akiva-surface-muted'
+                }`}
+              >
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                  active ? 'bg-white/20 text-white' : 'bg-akiva-surface-muted text-akiva-text-muted'
+                }`}>
+                  {index + 1}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{step.label}</span>
+                  <span className={`mt-1 block text-xs leading-4 ${active ? 'text-white/80' : 'text-akiva-text-muted'}`}>{step.detail}</span>
+                  <span className={`mt-2 inline-flex max-w-full rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    active ? 'bg-white/15 text-white' : 'bg-akiva-surface-raised text-akiva-text-muted ring-1 ring-akiva-border'
+                  }`}>
+                    {processStepStats[step.id]}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[1.35fr_.65fr]">
-        <div className="rounded-2xl border border-akiva-border bg-gradient-to-r from-akiva-surface-raised via-akiva-surface-raised to-akiva-surface-muted/70 p-4 shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Award recommendation</p>
-              <h2 className="mt-1 text-base font-semibold text-akiva-text">
-                {recommendedAwards.length > 0
-                  ? `${recommendedAwards.length} line award ready for procurement review`
-                  : 'No award recommendation available'}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-akiva-text-muted">
-                The scorecard ranks each supplier by price, lead time, technical compliance, and supplier performance before a PO is generated.
-              </p>
-            </div>
-            <span className={`inline-flex shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${tenderRiskTone(tenderRiskLevel)}`}>
-              {tenderRiskLevel} award risk
-            </span>
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-4">
-            <InfoTile label="Recommended" value={money(recommendedAwardValue, selectedTender.currency)} />
-            <InfoTile label="Confidence" value={`${recommendedConfidence}/100`} />
-            <InfoTile label="Response rate" value={`${responseCoverage}%`} />
-            <InfoTile label="Estimate variance" value={money(savingsVsEstimate, selectedTender.currency)} />
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-          <h2 className="text-base font-semibold text-akiva-text">Award controls</h2>
-          <div className="mt-3 space-y-2 text-sm">
-            <div className="flex items-start gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-              <p className="text-akiva-text-muted">One awarded supplier is allowed per tender line before PO conversion.</p>
-            </div>
-            <div className="flex items-start gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-akiva-accent" />
-              <p className="text-akiva-text-muted">Non-compliant offers are blocked from award unless a future override workflow is configured.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+      {activeStep === 'dossier' ? (
+        <>
+          <section className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
         <div className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -2689,45 +4388,24 @@ function OffersReceivedPanel({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-akiva-text">Supplier invitation control</h2>
-              <p className="mt-1 text-sm text-akiva-text-muted">Invitation status and audit-ready response tracking.</p>
-            </div>
-            <InfoTile label="Suppliers" value={String(summary.supplierCount)} />
-          </div>
-          <div className="mt-3 space-y-2">
-            {selectedTender.suppliers.map((supplier) => (
-              <div key={supplier.supplierCode} className="flex items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-akiva-text">{supplier.supplierName}</span>
-                  <span className="mt-0.5 block text-xs text-akiva-text-muted">Invited {supplier.invitedAt}{supplier.respondedAt ? ` · responded ${supplier.respondedAt}` : ''}</span>
-                </span>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${invitationTone(supplier.status)}`}>
-                  {supplier.status}
-                </span>
+            <div className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+              <h2 className="text-base font-semibold text-akiva-text">Tender audit trace</h2>
+              <p className="mt-1 text-sm text-akiva-text-muted">Status changes and sourcing events tied to this dossier.</p>
+              <div className="mt-4 space-y-2">
+                {selectedTender.auditEvents.slice(0, 4).map((event) => (
+                  <div key={`${event.label}-${event.at}`} className="flex gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2 text-xs leading-5">
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-akiva-accent" />
+                    <span className="min-w-0 text-akiva-text-muted">
+                      <span className="font-semibold text-akiva-text">{event.label}</span>
+                      <span className="block">{event.by} · {event.at}</span>
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="mt-4 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Tender audit trace</p>
-            <div className="mt-2 space-y-2">
-              {selectedTender.auditEvents.slice(0, 3).map((event) => (
-                <div key={`${event.label}-${event.at}`} className="flex gap-2 text-xs leading-5">
-                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-akiva-accent" />
-                  <span className="min-w-0 text-akiva-text-muted">
-                    <span className="font-semibold text-akiva-text">{event.label}</span>
-                    <span className="block">{event.by} · {event.at}</span>
-                  </span>
-                </div>
-              ))}
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+          <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-base font-semibold text-akiva-text">Tender lines</h2>
@@ -2768,129 +4446,201 @@ function OffersReceivedPanel({
             </tbody>
           </table>
         </div>
-      </section>
+          </section>
+        </>
+      ) : null}
 
-      <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
-        <div className="border-b border-akiva-border px-4 py-3">
+      {activeStep === 'responses' ? (
+        <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-akiva-text">Offer comparison and award decision</h2>
-              <p className="mt-1 text-sm text-akiva-text-muted">Score combines price, lead time, compliance, and supplier performance. Accepted awards create pending-review POs grouped by supplier.</p>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-akiva-text">Supplier response control</h2>
+              <p className="mt-1 text-sm text-akiva-text-muted">Add vendor applications before evaluation, then track submitted lines, value, and compliance exceptions.</p>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold">
-              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900">Accept</span>
-              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900">Reject</span>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">Defer</span>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <InfoTile label="Response rate" value={`${responseCoverage}%`} />
+              <Button onClick={() => openVendorResponseDialog()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add vendor response
+              </Button>
             </div>
           </div>
-        </div>
+          <div className="mt-4 grid gap-3 xl:grid-cols-3">
+            {offersBySupplier.map((entry) => (
+              <article key={entry.supplier.supplierCode} className="rounded-xl border border-akiva-border bg-akiva-surface p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-akiva-text">{entry.supplier.supplierName}</p>
+                    <p className="mt-1 text-xs text-akiva-text-muted">Invited {entry.supplier.invitedAt}</p>
+                    {entry.supplier.respondedAt ? <p className="mt-0.5 text-xs text-akiva-text-muted">Responded {entry.supplier.respondedAt}</p> : null}
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${invitationTone(entry.supplier.status)}`}>
+                    {entry.supplier.status}
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <InfoTile label="Lines" value={String(entry.offerCount)} />
+                  <InfoTile label="Best score" value={entry.bestScore ? `${entry.bestScore}` : 'None'} />
+                  <InfoTile label="Clarify" value={String(entry.clarificationCount)} />
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => openVendorResponseDialog(entry.supplier.supplierCode)}>
+                    Add response
+                  </Button>
+                  <p className="text-right text-sm font-semibold text-akiva-text">{money(entry.total, selectedTender.currency)}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
-        <div className="max-h-[560px] overflow-auto">
-          <table className="w-full min-w-[1180px] table-fixed">
-            <thead className="sticky top-0 z-10 bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-text-muted">
-              <tr>
-                <th className="w-28 px-4 py-3 text-left">Offer ID</th>
-                <th className="w-56 px-4 py-3 text-left">Supplier</th>
-                <th className="w-64 px-4 py-3 text-left">Tender line</th>
-                <th className="w-28 px-4 py-3 text-right">Quantity</th>
-                <th className="w-32 px-4 py-3 text-right">Price</th>
-                <th className="w-32 px-4 py-3 text-right">Total</th>
-                <th className="w-32 px-4 py-3 text-left">Compliance</th>
-                <th className="w-32 px-4 py-3 text-right">Score</th>
-                <th className="w-32 px-4 py-3 text-left">Expires</th>
-                <th className="w-72 px-4 py-3 text-left">Decision</th>
-              </tr>
-            </thead>
-            <tbody>
-              {evaluatedOffers.map(({ offer, tenderLine, evaluation }) => {
-                const decision = decisions[offer.id] ?? 'defer';
-                const days = daysUntil(offer.expiryDate);
-                const lineOffers = selectedOffers.filter((candidate) => candidate.lineId === offer.lineId);
-                const lowestLinePrice = Math.min(...lineOffers.map((candidate) => candidate.price));
-                const priceVariance = offer.price - lowestLinePrice;
-                const recommended = recommendedOfferIds.includes(offer.id);
-                return (
-                  <tr
-                    key={offer.id}
-                    className={`border-t border-akiva-border align-top ${
-                      decision === 'accept'
-                        ? 'bg-emerald-50/60 dark:bg-emerald-950/20'
-                        : recommended
-                          ? 'bg-akiva-accent-soft/30 dark:bg-akiva-accent-soft/10'
-                          : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3 font-mono text-sm font-semibold text-akiva-text">{offer.id}</td>
-                    <td className="px-4 py-3">
-                      <p className="truncate text-sm font-semibold text-akiva-text">{offer.supplierName}</p>
-                      <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.paymentTerms} · lead {offer.leadTimeDays} days</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="truncate text-sm font-semibold text-akiva-text">{offer.description}</p>
-                      <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.itemCode} · {tenderLine?.technicalRequirement ?? offer.category}</p>
-                      <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.notes}</p>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm">{offer.quantity} {offer.units}</td>
-                    <td className="px-4 py-3 text-right text-sm">
-                      <span className="block">{money(offer.price, offer.currency)}</span>
-                      <span className="mt-1 block text-xs text-akiva-text-muted">
-                        {priceVariance === 0 ? 'Best price' : `+${money(priceVariance, offer.currency)}`}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm font-semibold">{money(offerTotal(offer), offer.currency)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${complianceTone(offer.complianceStatus)}`}>
-                        {offer.complianceStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <p className={`text-sm font-semibold ${scoreTone(evaluation.score)}`}>{evaluation.score}/100</p>
-                      <p className="mt-1 text-xs text-akiva-text-muted">Rank {evaluation.rank} · {evaluation.recommendation}</p>
-                      {recommended ? (
-                        <span className="mt-1 inline-flex rounded-full bg-akiva-accent px-2 py-0.5 text-[11px] font-semibold text-white">
-                          Recommended
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${
-                        days <= 3
-                          ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-100 dark:ring-rose-900'
-                          : 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-900'
-                      }`}>
-                        {formatDate(offer.expiryDate)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {(['accept', 'reject', 'defer'] as OfferDecision[]).map((option) => (
-                          <button
-                            key={option}
-                            type="button"
-                            onClick={() => onDecisionChange(offer.id, option)}
-                            aria-pressed={decision === option}
-                            className={`h-9 rounded-md border px-2 text-xs font-semibold capitalize transition ${
-                              decision === option
-                                ? option === 'accept'
-                                  ? 'border-emerald-500 bg-emerald-600 text-white'
-                                  : option === 'reject'
-                                    ? 'border-rose-500 bg-rose-600 text-white'
-                                    : 'border-slate-500 bg-slate-700 text-white'
-                                : 'border-akiva-border bg-akiva-surface-raised text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
-                            }`}
-                          >
-                            {option}
-                          </button>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {activeStep === 'evaluation' ? (
+        <div className="space-y-4">
+          <section className="grid gap-3 xl:grid-cols-[1.35fr_.65fr]">
+            <div className="rounded-2xl border border-akiva-border bg-gradient-to-r from-akiva-surface-raised via-akiva-surface-raised to-akiva-surface-muted/70 p-4 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Award recommendation</p>
+                  <h2 className="mt-1 text-base font-semibold text-akiva-text">
+                    {recommendedAwards.length > 0
+                      ? `${recommendedAwards.length} line award ready for procurement review`
+                      : 'No award recommendation available'}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-akiva-text-muted">
+                    The scorecard ranks each supplier by price, lead time, technical compliance, and supplier performance before a PO is generated.
+                  </p>
+                </div>
+                <span className={`inline-flex shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${tenderRiskTone(tenderRiskLevel)}`}>
+                  {tenderRiskLevel} award risk
+                </span>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                <InfoTile label="Recommended" value={money(recommendedAwardValue, selectedTender.currency)} />
+                <InfoTile label="Confidence" value={`${recommendedConfidence}/100`} />
+                <InfoTile label="Response rate" value={`${responseCoverage}%`} />
+                <InfoTile label="Estimate variance" value={money(savingsVsEstimate, selectedTender.currency)} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+              <h2 className="text-base font-semibold text-akiva-text">Evaluation method</h2>
+              <div className="mt-3 grid gap-2 text-xs font-semibold text-akiva-text-muted">
+                <span>Price {weighted.price}%</span>
+                <span>Delivery {weighted.delivery}%</span>
+                <span>Compliance {weighted.compliance}%</span>
+                <span>Performance {weighted.performance}%</span>
+              </div>
+            </div>
+          </section>
+          {offerComparisonTable(false)}
         </div>
-      </section>
+      ) : null}
+
+      {activeStep === 'award' ? (
+        <div className="space-y-4">
+          <section className="grid gap-3 rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-akiva-text">Award decision</h2>
+              <p className="mt-1 text-sm text-akiva-text-muted">
+                Select winning supplier lines, reject unsuitable responses, or defer unresolved offers before converting to purchase orders.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900">{summary.acceptedCount} accepted</span>
+                <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900">{summary.rejectedCount} rejected</span>
+                <span className={`rounded-full border px-2.5 py-1 ${tenderRiskTone(tenderRiskLevel)}`}>{tenderRiskLevel} risk</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="secondary" onClick={() => onAcceptRecommended(recommendedOfferIds)} disabled={recommendedOfferIds.length === 0}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Accept recommended
+              </Button>
+              <Button onClick={onProcess} disabled={selectedOffers.length === 0}>
+                <Check className="mr-2 h-4 w-4" />
+                Process award
+              </Button>
+            </div>
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-2">
+            <div className="flex items-start gap-2 rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-3 text-sm shadow-sm">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <p className="text-akiva-text-muted">One awarded supplier is allowed per tender line before PO conversion.</p>
+            </div>
+            <div className="flex items-start gap-2 rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-3 text-sm shadow-sm">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-akiva-accent" />
+              <p className="text-akiva-text-muted">Non-compliant offers are blocked from award unless a future override workflow is configured.</p>
+            </div>
+          </section>
+          {offerComparisonTable(true)}
+        </div>
+      ) : null}
+
+      {activeStep === 'conversion' ? (
+        <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+          <div className="grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start">
+            <div>
+              <h2 className="text-base font-semibold text-akiva-text">Purchase order conversion</h2>
+              <p className="mt-1 text-sm leading-6 text-akiva-text-muted">
+                Accepted awards create pending-review purchase orders grouped by supplier, preserving tender reference, delivery date, GL code, and award audit trail.
+              </p>
+              <div className="mt-4 space-y-2">
+                {acceptedGroups.length > 0 ? acceptedGroups.map((group) => (
+                  <div key={group.supplierCode} className="flex items-center justify-between gap-3 rounded-xl border border-akiva-border bg-akiva-surface px-3 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-akiva-text">{group.supplierName}</p>
+                      <p className="mt-1 text-xs text-akiva-text-muted">{group.lines} awarded line{group.lines === 1 ? '' : 's'} · pending-review PO will be created</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-akiva-text">{money(group.total, selectedTender.currency)}</span>
+                  </div>
+                )) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100">
+                    No accepted awards yet. Go to the Award step and accept at least one supplier line before creating POs.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="rounded-xl border border-akiva-border bg-akiva-surface px-3 py-3 shadow-sm">
+              <div className="grid gap-2">
+                <InfoTile label="Award value" value={money(acceptedValue, selectedTender.currency)} />
+                <InfoTile label="PO groups" value={String(acceptedGroups.length)} />
+                <InfoTile label="Tender ref" value={selectedTender.reference} />
+              </div>
+              <Button className="mt-3 w-full" onClick={onProcess} disabled={acceptedOffers.length === 0}>
+                <Check className="mr-2 h-4 w-4" />
+                Create pending-review POs
+              </Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <Modal
+        isOpen={vendorResponseOpen}
+        onClose={() => setVendorResponseOpen(false)}
+        title="Add Vendor Application"
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setVendorResponseOpen(false)}>Cancel</Button>
+            <Button onClick={submitVendorResponse}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add response
+            </Button>
+          </>
+        }
+      >
+        <VendorResponsePanel
+          tender={selectedTender}
+          draft={vendorResponseDraft}
+          error={vendorResponseError}
+          onChange={(patch) => {
+            setVendorResponseError('');
+            setVendorResponseDraft((current) => ({ ...current, ...patch }));
+          }}
+        />
+      </Modal>
     </div>
   );
 }
@@ -2898,45 +4648,53 @@ function OffersReceivedPanel({
 function AuthorisePurchaseOrdersPanel({
   orders,
   authLevels,
-  selectedAuthId,
   selectedAuthLevel,
   loading,
   error,
   message,
-  currencies,
-  authorisableCount,
   notificationSettings,
   notificationOptions,
-  onAuthChange,
   onOpen,
   onReview,
   onAuthorise,
   onReject,
   onNotificationChange,
   onSetupLevels,
+  onOpenNotificationSettings,
 }: {
   orders: PurchaseOrder[];
   authLevels: PoAuthorisationLevel[];
-  selectedAuthId: string;
   selectedAuthLevel: PoAuthorisationLevel | null;
   loading: boolean;
   error: string;
   message: string;
-  currencies: string[];
-  authorisableCount: number;
   notificationSettings: PoNotificationSettings;
   notificationOptions: PoNotificationOptions;
-  onAuthChange: (value: string) => void;
   onOpen: (order: PurchaseOrder) => void;
   onReview: (order: PurchaseOrder) => void;
   onAuthorise: (order: PurchaseOrder) => void;
   onReject: (order: PurchaseOrder) => void;
   onNotificationChange: (patch: Partial<PoNotificationOptions>) => void;
   onSetupLevels: () => void;
+  onOpenNotificationSettings: () => void;
 }) {
-  const profileOptions = authLevels.map((level) => ({ value: level.id, label: authProfileLabel(level) }));
-  const reviewCount = orders.filter((order) => order.status === 'Pending Review').length;
-  const finalCount = orders.filter((order) => order.status === 'Reviewed').length;
+  const reviewOrders = orders.filter((order) => order.status === 'Pending Review');
+  const finalApprovalOrders = orders.filter((order) => order.status === 'Reviewed');
+  const reviewCount = reviewOrders.length;
+  const finalCount = finalApprovalOrders.length;
+  const nextReviewOrder = reviewOrders[0] ?? null;
+  const nextAuthoriseOrder = finalApprovalOrders[0] ?? null;
+  const reviewValue = reviewOrders.reduce((sum, order) => sum + orderTotal(order), 0);
+  const finalApprovalValue = finalApprovalOrders.reduce((sum, order) => sum + orderTotal(order), 0);
+  const limitCurrency = (selectedAuthLevel?.currencyCode ?? 'TZS') as PurchaseOrder['currency'];
+  const authorisationLimit = selectedAuthLevel?.authLevel ?? 0;
+  const overLimitOrders = selectedAuthLevel
+    ? finalApprovalOrders.filter((order) => order.currency === selectedAuthLevel.currencyCode && orderTotal(order) > selectedAuthLevel.authLevel)
+    : [];
+  const notificationReady =
+    (notificationOptions.user && notificationSettings.userEnabled) ||
+    (notificationOptions.email && notificationSettings.emailEnabled) ||
+    (notificationOptions.sms && notificationSettings.smsEnabled);
 
   if (!loading && authLevels.length === 0) {
     return (
@@ -2972,38 +4730,80 @@ function AuthorisePurchaseOrdersPanel({
         </div>
       ) : null}
 
-      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-emerald-50/60 to-violet-50/70 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 xl:grid-cols-[minmax(280px,520px)_1fr_auto] xl:items-end">
-        <Field label="Authorising profile">
-          <SearchableSelect
-            value={selectedAuthId}
-            onChange={onAuthChange}
-            options={profileOptions}
-            inputClassName={inputClass}
-            placeholder={loading ? 'Loading authorisation levels...' : 'Select configured level'}
-          />
-        </Field>
-        <div className="grid gap-2 sm:grid-cols-4">
+      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-emerald-50/60 to-violet-50/70 p-4 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <InfoTile label="Review queue" value={String(reviewCount)} />
           <InfoTile label="Final approval" value={String(finalCount)} />
-          <InfoTile label="Ready to authorise" value={String(authorisableCount)} />
-          <InfoTile label="Currencies" value={currencies.length > 0 ? currencies.join(', ') : 'None'} />
+          <InfoTile label="Limit" value={selectedAuthLevel ? money(authorisationLimit, limitCurrency) : 'Not configured'} />
+          <InfoTile label="Exceptions" value={String(overLimitOrders.length)} />
         </div>
-        <Button variant="secondary" onClick={onSetupLevels}>
-          <ShieldCheck className="mr-2 h-4 w-4" />
-          Levels
-        </Button>
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={onSetupLevels}>
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Levels
+          </Button>
+        </div>
       </section>
 
       {selectedAuthLevel ? (
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Action user" value={selectedAuthLevel.userName || selectedAuthLevel.userId} detail="Admin is assumed for now; user validation will be added later." icon={ClipboardCheck} />
-          <MetricCard label="Review action" value="Approve / reject" detail="Pending-review orders can be approved to final authorisation or rejected with a comment." icon={FileText} />
-          <MetricCard label="Authorise action" value={money(selectedAuthLevel.authLevel, selectedAuthLevel.currencyCode as PurchaseOrder['currency'])} detail="Reviewed orders can be authorised or rejected with a comment." icon={ShieldCheck} />
-          <MetricCard
-            label="Currency"
-            value={selectedAuthLevel.currencyCode}
-            detail={selectedAuthLevel.currencyName || 'Purchase order currency context.'}
-            icon={CheckCircle2}
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ActionTaskCard
+            label="Needs review"
+            value={`${reviewCount} PO${reviewCount === 1 ? '' : 's'}`}
+            detail={
+              nextReviewOrder
+                ? `Next: PO ${nextReviewOrder.orderNumber} from ${nextReviewOrder.supplierName} · ${money(orderTotal(nextReviewOrder), nextReviewOrder.currency)}. Queue value ${money(reviewValue, 'TZS')}.`
+                : 'No pending-review purchase orders are waiting for review.'
+            }
+            icon={ClipboardCheck}
+            actionLabel="Approve next"
+            disabled={!nextReviewOrder}
+            secondaryLabel="Reject next"
+            secondaryVariant="danger"
+            onAction={() => nextReviewOrder && onReview(nextReviewOrder)}
+            onSecondaryAction={() => nextReviewOrder && onReject(nextReviewOrder)}
+          />
+          <ActionTaskCard
+            label="Ready to authorise"
+            value={`${finalCount} PO${finalCount === 1 ? '' : 's'}`}
+            detail={
+              nextAuthoriseOrder
+                ? `Next: PO ${nextAuthoriseOrder.orderNumber} from ${nextAuthoriseOrder.supplierName} · ${money(orderTotal(nextAuthoriseOrder), nextAuthoriseOrder.currency)}. Ready value ${money(finalApprovalValue, 'TZS')}.`
+                : 'No reviewed purchase orders are ready for final authorisation.'
+            }
+            icon={ShieldCheck}
+            actionLabel="Authorise next"
+            disabled={!nextAuthoriseOrder}
+            secondaryLabel="Reject next"
+            secondaryVariant="danger"
+            onAction={() => nextAuthoriseOrder && onAuthorise(nextAuthoriseOrder)}
+            onSecondaryAction={() => nextAuthoriseOrder && onReject(nextAuthoriseOrder)}
+          />
+          <ActionTaskCard
+            label="Limit exceptions"
+            value={overLimitOrders.length > 0 ? `${overLimitOrders.length} over limit` : 'Clear'}
+            detail={
+              overLimitOrders.length > 0
+                ? `Review setup before authorising. Approval limit is ${money(authorisationLimit, limitCurrency)}.`
+                : `Approval limit ${money(authorisationLimit, limitCurrency)} covers the current final-authorisation queue.`
+            }
+            icon={AlertTriangle}
+            actionLabel="Check levels"
+            tone={overLimitOrders.length > 0 ? 'warning' : 'neutral'}
+            onAction={onSetupLevels}
+          />
+          <ActionTaskCard
+            label="Send action updates"
+            value={notificationReady ? 'Ready' : 'Off'}
+            detail={
+              notificationReady
+                ? 'Enabled email or SMS updates will be queued when an approval action is posted.'
+                : 'No email or SMS notifications are enabled for approval actions.'
+            }
+            icon={MessageSquare}
+            actionLabel="Notification settings"
+            tone={notificationReady ? 'neutral' : 'warning'}
+            onAction={onOpenNotificationSettings}
           />
         </section>
       ) : null}
@@ -3012,10 +4812,18 @@ function AuthorisePurchaseOrdersPanel({
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-akiva-text">Action notifications</h2>
           <p className="mt-1 text-sm leading-6 text-akiva-text-muted">
-            Email and SMS queueing follows the purchase order notification settings in System Parameters.
+            User, email, and SMS queueing follows the purchase order notification settings in System Parameters.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ToggleChip
+            icon={Bell}
+            label="User"
+            checked={notificationOptions.user && notificationSettings.userEnabled}
+            disabled={!notificationSettings.userEnabled}
+            note={notificationSettings.userEnabled ? 'Enabled' : notificationSettings.loaded ? 'Off in settings' : 'Loading'}
+            onChange={(checked) => onNotificationChange({ user: checked })}
+          />
           <ToggleChip
             icon={Mail}
             label="Email"
@@ -3032,6 +4840,10 @@ function AuthorisePurchaseOrdersPanel({
             note={notificationSettings.smsEnabled ? 'Enabled' : notificationSettings.loaded ? 'Off in settings' : 'Loading'}
             onChange={(checked) => onNotificationChange({ sms: checked })}
           />
+          <Button variant="secondary" size="sm" onClick={onOpenNotificationSettings}>
+            <SlidersHorizontal className="mr-2 h-4 w-4" />
+            Settings
+          </Button>
         </div>
       </section>
 
@@ -3116,7 +4928,7 @@ function AuthorisePurchaseOrdersPanel({
                           {isPendingReview ? (
                             <Button size="sm" onClick={() => onReview(order)} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
                               <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />
-                              Approve
+                              Approve review
                             </Button>
                           ) : (
                             <Button size="sm" onClick={() => onAuthorise(order)} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
@@ -3125,7 +4937,7 @@ function AuthorisePurchaseOrdersPanel({
                             </Button>
                           )}
                           <Button variant="danger" size="sm" onClick={() => onReject(order)} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
-                            Reject
+                            {isPendingReview ? 'Reject review' : 'Reject authorisation'}
                           </Button>
                         </div>
                       </td>
@@ -3684,6 +5496,78 @@ function MetricCard({ label, value, detail, icon: Icon }: { label: string; value
         </span>
       </div>
       <p className="mt-4 text-sm leading-5 text-akiva-text-muted">{detail}</p>
+    </article>
+  );
+}
+
+function ActionTaskCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  actionLabel,
+  secondaryLabel,
+  secondaryVariant = 'secondary',
+  disabled = false,
+  secondaryDisabled,
+  tone = 'neutral',
+  onAction,
+  onSecondaryAction,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  actionLabel: string;
+  secondaryLabel?: string;
+  secondaryVariant?: 'secondary' | 'danger';
+  disabled?: boolean;
+  secondaryDisabled?: boolean;
+  tone?: 'neutral' | 'warning';
+  onAction: () => void;
+  onSecondaryAction?: () => void;
+}) {
+  const warning = tone === 'warning';
+  const secondaryButtonDisabled = secondaryDisabled ?? disabled;
+
+  return (
+    <article
+      className={`rounded-lg border p-4 shadow-sm ${
+        warning
+          ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/70 dark:bg-amber-950/30'
+          : 'border-akiva-border bg-akiva-surface-raised'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{label}</p>
+          <p className="mt-2 truncate text-2xl font-semibold text-akiva-text">{value}</p>
+        </div>
+        <span
+          className={`flex h-10 w-10 flex-none items-center justify-center rounded-full ${
+            warning ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-100' : 'bg-akiva-surface-muted text-akiva-text'
+          }`}
+        >
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="mt-4 min-h-[3.75rem] text-sm leading-5 text-akiva-text-muted">{detail}</p>
+      <div className={`mt-4 grid gap-2 ${secondaryLabel && onSecondaryAction ? 'sm:grid-cols-2' : ''}`}>
+        <Button variant={warning ? 'secondary' : 'primary'} size="sm" className="w-full" onClick={onAction} disabled={disabled}>
+          {actionLabel}
+        </Button>
+        {secondaryLabel && onSecondaryAction ? (
+          <Button
+            variant={secondaryVariant}
+            size="sm"
+            className="w-full"
+            onClick={onSecondaryAction}
+            disabled={secondaryButtonDisabled}
+          >
+            {secondaryLabel}
+          </Button>
+        ) : null}
+      </div>
     </article>
   );
 }

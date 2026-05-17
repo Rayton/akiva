@@ -510,7 +510,15 @@ export const SYSTEM_PARAMETER_DEFINITIONS: SystemParameterDefinition[] = [
     category: 'Purchasing',
     type: 'select',
     options: yesNo,
-    note: 'Sends email notifications to reviewers when purchase orders are submitted.',
+    note: 'Queues email notifications when purchase orders are submitted, approved, authorised, or rejected.',
+  },
+  {
+    name: 'SendPOUserNotification',
+    label: 'Send purchase order user notifications',
+    category: 'Purchasing',
+    type: 'select',
+    options: yesNo,
+    note: 'Queues in-app user notifications for purchase order review, authorisation, and rejection actions.',
   },
   {
     name: 'SendPOSMSNotification',
@@ -518,7 +526,7 @@ export const SYSTEM_PARAMETER_DEFINITIONS: SystemParameterDefinition[] = [
     category: 'Purchasing',
     type: 'select',
     options: yesNo,
-    note: 'Sends SMS notifications to reviewers when purchase orders are submitted.',
+    note: 'Queues SMS notifications when purchase orders are submitted, approved, authorised, or rejected.',
   },
   {
     name: 'PaymentVoucherSignatoryLevel',

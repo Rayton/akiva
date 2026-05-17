@@ -57,6 +57,7 @@ class SystemParametersController extends Controller
         'PO_AllowSameItemMultipleTimes',
         'AutoAuthorisePO',
         'SendPOEmailNotification',
+        'SendPOUserNotification',
         'SendPOSMSNotification',
         'YearEnd',
         'PageLength',

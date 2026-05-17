@@ -20,6 +20,18 @@ const MENU_DISPLAY_LABELS: Record<string, string> = {
   stockquantitybydate: 'Qty by Date',
   pdfstocknegatives: 'Negative Stock',
   pdfstocktranslisting: 'Stock Txns',
+  selectproduct: 'Inventory Items',
+  stocks: 'Inventory Items',
+  pricesbasedonmarkup: 'Cost-Based Prices',
+  pricesbycost: 'Cost-Based Prices',
+  salescategories: 'Sales Categories',
+  locationusers: 'Location Users',
+  userlocations: 'User Locations',
+  departments: 'Departments',
+  internalstockcategoriesbyrole: 'Category Roles',
+  labels: 'Label Templates',
+  mrpcalendar: 'MRP Calendar',
+  mrpdemandtypes: 'MRP Demand Types',
 };
 
 function normalizedMenuKey(value: string): string {
@@ -37,4 +49,3 @@ export function menuDisplayCaption(caption: string, href = ''): string {
   const key = hrefKey(href);
   return MENU_DISPLAY_LABELS[key] ?? caption;
 }
-

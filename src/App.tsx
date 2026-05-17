@@ -591,7 +591,11 @@ function isInventorySetupMenuSlug(slug: string): boolean {
     key.includes('inventorylocations') ||
     key.includes('discountcategories') ||
     key.includes('unitsofmeasure') ||
-    key.includes('unitsofmeasurement')
+    key.includes('unitsofmeasurement') ||
+    key.includes('locationusers') ||
+    key.includes('userlocations') ||
+    key.includes('departments') ||
+    key.includes('internalstockcategoriesbyrole')
   );
 }
 
@@ -631,7 +635,7 @@ function resolvePurchasesPayablesSetupTab(slug: string) {
 
 function resolveInventorySetupTab(slug: string) {
   const key = normalizedSlugKey(slug);
-  if (key.includes('locations')) return 'locations' as const;
+  if (key.includes('locations') || key.includes('locationusers') || key.includes('userlocations') || key.includes('departments')) return 'locations' as const;
   if (key.includes('discountcategories')) return 'discount-categories' as const;
   if (key.includes('unitsofmeasure') || key.includes('unitsofmeasurement')) return 'units-of-measure' as const;
   return 'stock-categories' as const;
@@ -836,6 +840,13 @@ function getMobileMenuIcon(node: MenuNode, hasChildren: boolean): LucideIcon {
   if (captionKey === 'transactions') return ArrowLeftRight;
   if (captionKey === 'inquiriesandreports') return BarChart3;
   if (captionKey === 'maintenance') return Settings;
+  if (key.includes('selectproduct') || key.includes('stocks')) return Package;
+  if (key.includes('pricesbasedonmarkup') || key.includes('pricesbycost')) return DollarSign;
+  if (key.includes('salescategories')) return Tags;
+  if (key.includes('locationusers') || key.includes('userlocations')) return MapPin;
+  if (key.includes('departments')) return FolderOpen;
+  if (key.includes('internalstockcategoriesbyrole')) return ShieldAlert;
+  if (key.includes('labels')) return Tags;
   if (key.includes('pdfprintlabel') || key.includes('pricelabel')) return Tags;
   if (key.includes('stockserialitemresearch') || key.includes('stockstatus')) return Search;
   if (key.includes('stocklocmovements') || key.includes('stocklocstatus') || key.includes('reorderlevellocation')) return MapPin;
@@ -971,6 +982,14 @@ function AppContent() {
         isPurchasesPayablesSetupMenuSlug(menuSlug)
       ) {
         return <PurchasesPayablesSetup initialTab={resolvePurchasesPayablesSetupTab(menuSlug)} />;
+      }
+
+      if (isManufacturingSetupMenuSlug(menuSlug)) {
+        return <ManufacturingSetup initialTab={resolveManufacturingSetupTab(menuSlug)} />;
+      }
+
+      if (isInventorySetupMenuSlug(menuSlug)) {
+        return <InventorySetup initialTab={resolveInventorySetupTab(menuSlug)} />;
       }
 
       if (

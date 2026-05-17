@@ -297,6 +297,14 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean, href = ''):
   const key = normalizedSlugKey(`${href} ${caption}`);
   if (lower === 'transactions' || lower.includes('stock operations')) return ArrowsLeftRight;
   if (lower === 'inquiries and reports') return ChartBar;
+  if (key.includes('selectproduct') || key.includes('stocks')) return Package;
+  if (key.includes('pricesbasedonmarkup') || key.includes('pricesbycost')) return CurrencyCircleDollar;
+  if (key.includes('salescategories')) return Tag;
+  if (key.includes('locationusers')) return MapPinArea;
+  if (key.includes('userlocations')) return UserGear;
+  if (key.includes('departments')) return Buildings;
+  if (key.includes('internalstockcategoriesbyrole')) return ShieldCheck;
+  if (key.includes('labels')) return TagSimple;
   if (key.includes('pdfprintlabel') || key.includes('pricelabel')) return Tag;
   if (key.includes('stockserialitemresearch') || key.includes('serialitemresearch')) return MagnifyingGlass;
   if (key.includes('stocklocmovements') || key.includes('stocklocationmovements')) return MapPinArea;

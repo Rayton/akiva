@@ -214,15 +214,20 @@ class PurchaseOrderController extends Controller
             })->all();
             $linesByOrder = $this->linesByOrder($orderNumbers);
             $grnsByOrder = $this->grnStatsByOrder($orderNumbers);
+            $legacyShipments = $this->legacyShipmentPayloads($limit, $search);
 
-            $shipments = $headers
+            $receivingShipments = $headers
                 ->map(function ($row) use ($linesByOrder, $grnsByOrder) {
                     return $this->shipmentPayload($row, $linesByOrder[(int) $row->orderno] ?? [], $grnsByOrder[(int) $row->orderno] ?? null);
                 })
                 ->filter(function ($shipment) {
                     return $shipment !== null;
-                })
+                });
+
+            $shipments = collect($legacyShipments)
+                ->merge($receivingShipments)
                 ->sortByDesc('priority')
+                ->take($limit)
                 ->values();
 
             return response()->json([
@@ -301,6 +306,20 @@ class PurchaseOrderController extends Controller
 
     private function shipmentPayload(object $row, array $lines, ?object $grnStats): ?array
     {
+        if (Schema::hasTable('shipments') && Schema::hasColumn('purchorderdetails', 'shiptref')) {
+            $unassignedLines = array_values(array_filter($lines, function ($line) {
+                return (int) ($line['shipmentReference'] ?? 0) <= 0;
+            }));
+
+            if (count($lines) > 0 && count($unassignedLines) === 0) {
+                return null;
+            }
+
+            if (count($unassignedLines) > 0) {
+                $lines = $unassignedLines;
+            }
+        }
+
         $order = $this->orderPayload($row, $lines);
         $orderedQty = array_reduce($lines, fn ($sum, $line) => $sum + (float) ($line['quantityOrdered'] ?? 0), 0.0);
         $receivedQty = array_reduce($lines, fn ($sum, $line) => $sum + (float) ($line['quantityReceived'] ?? 0), 0.0);
@@ -314,7 +333,12 @@ class PurchaseOrderController extends Controller
         $etaDate = $this->safeDate((string) ($row->deliverydate ?? ''), $order['orderDate']);
         $etaDays = $this->signedDaysUntil($etaDate);
         $status = $this->shipmentStatus((string) $row->status, $etaDays, $openQty, $receivedQty, $invoicedQty, $row, $grnStats);
-        $value = (float) ($row->order_total ?? 0);
+        $value = array_reduce($lines, function ($sum, $line) {
+            return $sum + ((float) ($line['quantityOrdered'] ?? 0) * (float) ($line['unitPrice'] ?? 0));
+        }, 0.0);
+        if ($value <= 0) {
+            $value = (float) ($row->order_total ?? 0);
+        }
         $risk = $this->shipmentRisk($status, $etaDays, $value, $openQty, $receivedQty, $invoicedQty);
         $issue = $this->shipmentIssue($status, $etaDays, $openQty, $receivedQty, $invoicedQty);
         $grnCount = (int) ($grnStats->grn_count ?? 0);
@@ -350,6 +374,355 @@ class PurchaseOrderController extends Controller
         ];
     }
 
+    private function legacyShipmentPayloads(int $limit, string $search): array
+    {
+        if (
+            !Schema::hasTable('shipments') ||
+            !Schema::hasTable('purchorders') ||
+            !Schema::hasTable('purchorderdetails') ||
+            !Schema::hasColumn('purchorderdetails', 'shiptref')
+        ) {
+            return [];
+        }
+
+        $query = DB::table('shipments as sh')
+            ->leftJoin('suppliers as s', 's.supplierid', '=', 'sh.supplierid')
+            ->leftJoin('purchorderdetails as pod', 'pod.shiptref', '=', 'sh.shiptref')
+            ->leftJoin('purchorders as po', 'po.orderno', '=', 'pod.orderno')
+            ->leftJoin('locations as l', 'l.loccode', '=', 'po.intostocklocation')
+            ->select(
+                'sh.shiptref',
+                'sh.voyageref',
+                'sh.vessel',
+                'sh.eta',
+                'sh.accumvalue',
+                'sh.supplierid',
+                'sh.closed',
+                DB::raw('COALESCE(NULLIF(MAX(s.suppname), ""), sh.supplierid) as supplier_name'),
+                DB::raw('COALESCE(NULLIF(MAX(s.currcode), ""), "TZS") as currency_code'),
+                DB::raw('CONCAT_WS(", ", NULLIF(MAX(s.address1), ""), NULLIF(MAX(s.address2), ""), NULLIF(MAX(s.address3), ""), NULLIF(MAX(s.address4), "")) as supplier_address'),
+                DB::raw('MIN(po.orderno) as first_order_no'),
+                DB::raw('MIN(po.orddate) as first_order_date'),
+                DB::raw('COALESCE(NULLIF(MIN(po.intostocklocation), ""), "") as intostocklocation'),
+                DB::raw('COALESCE(NULLIF(MIN(l.locationname), ""), NULLIF(MIN(po.intostocklocation), ""), "") as location_name'),
+                DB::raw('COALESCE(NULLIF(MAX(po.deliveryby), ""), "") as deliveryby'),
+                DB::raw('COALESCE(NULLIF(MAX(po.comments), ""), "") as comments'),
+                DB::raw('COUNT(DISTINCT po.orderno) as order_count'),
+                DB::raw('COUNT(DISTINCT pod.podetailitem) as line_count'),
+                DB::raw('COALESCE(SUM(pod.quantityord * pod.unitprice), 0) as order_total'),
+                DB::raw('COALESCE(SUM(pod.quantityord), 0) as ordered_qty'),
+                DB::raw('COALESCE(SUM(pod.quantityrecd), 0) as received_qty'),
+                DB::raw('COALESCE(SUM(pod.qtyinvoiced), 0) as invoiced_qty')
+            )
+            ->groupBy(
+                'sh.shiptref',
+                'sh.voyageref',
+                'sh.vessel',
+                'sh.eta',
+                'sh.accumvalue',
+                'sh.supplierid',
+                'sh.closed'
+            )
+            ->orderBy('sh.closed')
+            ->orderByRaw('COALESCE(sh.eta, NOW()) asc')
+            ->limit($limit);
+
+        if ($search !== '') {
+            $query->where(function ($inner) use ($search) {
+                $inner
+                    ->where('sh.shiptref', 'like', "%{$search}%")
+                    ->orWhere('sh.vessel', 'like', "%{$search}%")
+                    ->orWhere('sh.voyageref', 'like', "%{$search}%")
+                    ->orWhere('sh.supplierid', 'like', "%{$search}%")
+                    ->orWhere('s.suppname', 'like', "%{$search}%")
+                    ->orWhere('pod.itemcode', 'like', "%{$search}%")
+                    ->orWhere('pod.itemdescription', 'like', "%{$search}%");
+            });
+        }
+
+        $rows = $query->get();
+        $shipmentRefs = $rows->pluck('shiptref')->map(function ($value) {
+            return (int) $value;
+        })->filter()->values()->all();
+
+        $linesByShipment = $this->shipmentLinesByReference($shipmentRefs);
+        $chargesByShipment = $this->shipmentChargesByReference($shipmentRefs);
+
+        return $rows
+            ->map(function ($row) use ($linesByShipment, $chargesByShipment) {
+                return $this->legacyShipmentPayload(
+                    $row,
+                    $linesByShipment[(int) $row->shiptref] ?? [],
+                    $chargesByShipment[(int) $row->shiptref] ?? null
+                );
+            })
+            ->filter(function ($shipment) {
+                return $shipment !== null;
+            })
+            ->values()
+            ->all();
+    }
+
+    private function shipmentLinesByReference(array $shipmentRefs): array
+    {
+        if (count($shipmentRefs) === 0 || !Schema::hasColumn('purchorderdetails', 'shiptref')) {
+            return [];
+        }
+
+        $rows = DB::table('purchorderdetails as pod')
+            ->leftJoin('stockmaster as sm', 'sm.stockid', '=', 'pod.itemcode')
+            ->leftJoin('stockcategory as sc', 'sc.categoryid', '=', 'sm.categoryid')
+            ->whereIn('pod.shiptref', $shipmentRefs)
+            ->select(
+                'pod.*',
+                DB::raw('COALESCE(NULLIF(sm.description, ""), pod.itemdescription) as stock_description'),
+                DB::raw('COALESCE(NULLIF(sc.categorydescription, ""), sm.categoryid, "Uncategorised") as category_name'),
+                DB::raw('COALESCE(NULLIF(sm.units, ""), NULLIF(pod.uom, ""), "each") as stock_units'),
+                DB::raw('COALESCE(sm.controlled, 0) as controlled_item')
+            )
+            ->orderBy('pod.shiptref')
+            ->orderBy('pod.orderno')
+            ->orderBy('pod.podetailitem')
+            ->get();
+
+        return $rows
+            ->groupBy('shiptref')
+            ->map(function ($lines) {
+                return $lines->map(function ($line) {
+                    return $this->linePayload($line);
+                })->values()->all();
+            })
+            ->all();
+    }
+
+    private function shipmentChargesByReference(array $shipmentRefs): array
+    {
+        if (count($shipmentRefs) === 0 || !Schema::hasTable('shipmentcharges')) {
+            return [];
+        }
+
+        return DB::table('shipmentcharges')
+            ->whereIn('shiptref', $shipmentRefs)
+            ->select(
+                'shiptref',
+                DB::raw('COUNT(*) as charge_count'),
+                DB::raw('COUNT(DISTINCT transno) as transaction_count'),
+                DB::raw('COALESCE(SUM(value), 0) as charge_total')
+            )
+            ->groupBy('shiptref')
+            ->get()
+            ->keyBy(function ($row) {
+                return (int) $row->shiptref;
+            })
+            ->all();
+    }
+
+    private function legacyShipmentPayload(object $row, array $lines, ?object $charges): ?array
+    {
+        $shipmentRef = (int) $row->shiptref;
+        if ($shipmentRef <= 0) {
+            return null;
+        }
+
+        $orderedQty = array_reduce($lines, fn ($sum, $line) => $sum + (float) ($line['quantityOrdered'] ?? 0), 0.0);
+        $receivedQty = array_reduce($lines, fn ($sum, $line) => $sum + (float) ($line['quantityReceived'] ?? 0), 0.0);
+        $invoicedQty = array_reduce($lines, fn ($sum, $line) => $sum + (float) ($line['quantityInvoiced'] ?? 0), 0.0);
+        $openQty = max(0, $orderedQty - $receivedQty);
+        $chargeValue = (float) ($charges->charge_total ?? 0);
+        $closed = (bool) $row->closed;
+        $etaDate = $this->safeDate((string) ($row->eta ?? ''), Carbon::today()->toDateString());
+        $etaDays = $this->signedDaysUntil($etaDate);
+        $status = $this->legacyShipmentStatus($row, $etaDays, $openQty, $receivedQty, $invoicedQty, $closed);
+        $baseValue = max((float) ($row->accumvalue ?? 0), (float) ($row->order_total ?? 0) + $chargeValue);
+        $risk = $this->shipmentRisk($status, $etaDays, $baseValue, $openQty, $receivedQty, $invoicedQty);
+        $issue = $this->legacyShipmentIssue($row, $status, $etaDays, $openQty, $receivedQty, $invoicedQty, $chargeValue, $closed);
+        $supplierName = html_entity_decode((string) $row->supplier_name);
+        $supplierCode = (string) $row->supplierid;
+        $orderDate = $this->safeDate((string) ($row->first_order_date ?? ''), $etaDate);
+        $orderNumber = (string) ($row->first_order_no ?: $shipmentRef);
+        $currency = $this->currency((string) $row->currency_code);
+
+        $order = [
+            'id' => 'shipment-' . $shipmentRef,
+            'orderNumber' => $orderNumber,
+            'realOrderNumber' => 'Shipment ' . $shipmentRef,
+            'supplierCode' => $supplierCode,
+            'supplierName' => $supplierName,
+            'supplierAddress' => html_entity_decode((string) ($row->supplier_address ?? '')),
+            'currency' => $currency,
+            'exchangeRate' => 1,
+            'orderDate' => $orderDate,
+            'deliveryDate' => $etaDate,
+            'initiatedBy' => 'Legacy shipment register',
+            'reviewer' => 'Receiving team',
+            'location' => (string) ($row->location_name ?: $row->intostocklocation ?: 'Warehouse'),
+            'requisitionNo' => '',
+            'paymentTerms' => '',
+            'deliveryBy' => trim((string) ($row->vessel ?? '') . ' ' . (string) ($row->voyageref ?? '')),
+            'comments' => trim(strip_tags(html_entity_decode((string) ($row->comments ?? '')))),
+            'status' => $closed ? 'Completed' : 'Printed',
+            'allowPrint' => true,
+            'lines' => $lines,
+            'events' => [[
+                'label' => 'Shipment registered',
+                'by' => 'Legacy ERP',
+                'at' => $orderDate,
+            ]],
+            'source' => 'legacy_shipment',
+        ];
+
+        return [
+            'id' => 'SHP-' . $shipmentRef,
+            'legacyShipmentRef' => $shipmentRef,
+            'vessel' => (string) ($row->vessel ?? ''),
+            'voyageRef' => (string) ($row->voyageref ?? ''),
+            'closed' => $closed,
+            'order' => $order,
+            'orderId' => $order['id'],
+            'orderNumber' => $order['orderNumber'],
+            'realOrderNumber' => $order['realOrderNumber'],
+            'supplierCode' => $supplierCode,
+            'supplierName' => $supplierName,
+            'location' => $order['location'],
+            'currency' => $currency,
+            'etaDate' => $etaDate,
+            'etaLabel' => $this->etaLabel($etaDays),
+            'etaDays' => $etaDays,
+            'status' => $status,
+            'risk' => $risk,
+            'value' => $baseValue,
+            'progress' => $this->shipmentProgress($status),
+            'containerCount' => 0,
+            'issue' => $issue,
+            'priority' => $this->shipmentPriority($risk, $etaDays, $baseValue, $openQty, $receivedQty, $invoicedQty, $status),
+            'orderedQuantity' => $orderedQty,
+            'receivedQuantity' => $receivedQty,
+            'invoicedQuantity' => $invoicedQty,
+            'openQuantity' => $openQty,
+            'shipmentCharges' => $chargeValue,
+            'shipmentChargeCount' => (int) ($charges->charge_count ?? 0),
+            'orderCount' => (int) ($row->order_count ?? 0),
+            'lineCount' => (int) ($row->line_count ?? 0),
+            'timeline' => $this->legacyShipmentTimeline($row, $order, $status, $issue, $charges, $closed),
+            'source' => 'legacy_shipment',
+        ];
+    }
+
+    private function legacyShipmentStatus(object $row, int $etaDays, float $openQty, float $receivedQty, float $invoicedQty, bool $closed): string
+    {
+        if ($closed) {
+            return 'Closed';
+        }
+
+        if ($this->containsCustomsHold($row)) {
+            return 'Customs Hold';
+        }
+
+        if ($receivedQty > 0 && $openQty > 0) {
+            return 'Partial Receipt';
+        }
+
+        if ($receivedQty > 0 && $receivedQty > $invoicedQty) {
+            return 'Invoice Match';
+        }
+
+        if ($openQty <= 0 && $receivedQty > 0) {
+            return 'Invoice Match';
+        }
+
+        if ($etaDays <= 0) {
+            return 'Warehouse Receiving';
+        }
+
+        return 'In Transit';
+    }
+
+    private function legacyShipmentIssue(object $row, string $status, int $etaDays, float $openQty, float $receivedQty, float $invoicedQty, float $chargeValue, bool $closed): string
+    {
+        if ($closed) {
+            return 'Shipment closed after receiving and costing workflow';
+        }
+
+        if ($status === 'Customs Hold') {
+            return 'Customs or clearance reference found on shipment record';
+        }
+
+        if ($etaDays < 0 && $openQty > 0) {
+            $days = abs($etaDays);
+            return 'Shipment ETA missed by ' . $days . ' day' . ($days === 1 ? '' : 's');
+        }
+
+        if ($status === 'Partial Receipt') {
+            return 'Shipment has received quantity with open purchase order balance';
+        }
+
+        if ($receivedQty > $invoicedQty && $receivedQty > 0) {
+            return 'Received shipment quantity is awaiting supplier invoice match';
+        }
+
+        if ($chargeValue > 0) {
+            return 'Shipment charges recorded; confirm landed-cost allocation before close';
+        }
+
+        if ($status === 'Warehouse Receiving') {
+            return 'Shipment is due for warehouse receiving and GRN posting';
+        }
+
+        return 'Shipment is in transit toward receiving operations';
+    }
+
+    private function legacyShipmentTimeline(object $row, array $order, string $status, string $issue, ?object $charges, bool $closed): array
+    {
+        $events = [[
+            'time' => $order['orderDate'],
+            'label' => 'Shipment registered',
+            'detail' => 'Shipment ' . (string) $row->shiptref . ' opened for ' . $order['supplierName'] . '.',
+            'tone' => 'neutral',
+        ]];
+
+        $vessel = trim((string) ($row->vessel ?? ''));
+        $voyage = trim((string) ($row->voyageref ?? ''));
+        if ($vessel !== '' || $voyage !== '') {
+            $events[] = [
+                'time' => $order['orderDate'],
+                'label' => 'Carrier details recorded',
+                'detail' => trim(($vessel ?: 'Vessel pending') . ($voyage !== '' ? ' / ' . $voyage : '')),
+                'tone' => 'neutral',
+            ];
+        }
+
+        $events[] = [
+            'time' => $order['deliveryDate'],
+            'label' => 'Shipment ETA',
+            'detail' => $issue,
+            'tone' => in_array($status, ['Customs Hold', 'Warehouse Receiving', 'Partial Receipt'], true) ? 'warning' : 'neutral',
+        ];
+
+        if ((int) ($charges->charge_count ?? 0) > 0) {
+            $events[] = [
+                'time' => $order['deliveryDate'],
+                'label' => 'Shipment charges captured',
+                'detail' => (int) ($charges->charge_count ?? 0) . ' charge record' . ((int) ($charges->charge_count ?? 0) === 1 ? '' : 's') . ' linked for landed-cost review.',
+                'tone' => 'success',
+            ];
+        }
+
+        if ($closed) {
+            $events[] = [
+                'time' => $order['deliveryDate'],
+                'label' => 'Shipment closed',
+                'detail' => 'Legacy shipment register marks this shipment as closed.',
+                'tone' => 'success',
+            ];
+        }
+
+        usort($events, function ($a, $b) {
+            return strcmp((string) $b['time'], (string) $a['time']);
+        });
+
+        return array_slice($events, 0, 8);
+    }
+
     private function shipmentStatus(string $rawStatus, int $etaDays, float $openQty, float $receivedQty, float $invoicedQty, object $row, ?object $grnStats): string
     {
         if ($this->containsCustomsHold($row)) {
@@ -382,6 +755,10 @@ class PurchaseOrderController extends Controller
 
     private function shipmentRisk(string $status, int $etaDays, float $value, float $openQty, float $receivedQty, float $invoicedQty): string
     {
+        if ($status === 'Closed') {
+            return 'Low';
+        }
+
         if ($status === 'Customs Hold' || ($etaDays < -1 && $openQty > 0)) {
             return 'High';
         }
@@ -399,6 +776,10 @@ class PurchaseOrderController extends Controller
 
     private function shipmentIssue(string $status, int $etaDays, float $openQty, float $receivedQty, float $invoicedQty): string
     {
+        if ($status === 'Closed') {
+            return 'Shipment workflow is closed';
+        }
+
         if ($status === 'Customs Hold') {
             return 'Customs or clearance note found on purchase order';
         }
@@ -437,6 +818,7 @@ class PurchaseOrderController extends Controller
             'Partial Receipt' => 82,
             'Awaiting GRN' => 88,
             'Invoice Match' => 96,
+            'Closed' => 100,
             default => 18,
         };
     }
@@ -451,6 +833,7 @@ class PurchaseOrderController extends Controller
         if ($status === 'Partial Receipt') $score += 15;
         if ($receivedQty > $invoicedQty && $receivedQty > 0) $score += 10;
         if ($openQty <= 0) $score -= 25;
+        if ($status === 'Closed') $score -= 70;
         return max(0, $score);
     }
 
@@ -512,12 +895,13 @@ class PurchaseOrderController extends Controller
     private function shipmentSummary(array $shipments): array
     {
         return [
-            'incoming' => count($shipments),
+            'incoming' => count(array_filter($shipments, fn ($shipment) => ($shipment['status'] ?? '') !== 'Closed')),
             'awaitingGrn' => count(array_filter($shipments, fn ($shipment) => in_array($shipment['status'] ?? '', ['Warehouse Receiving', 'Awaiting GRN'], true))),
             'delayed' => count(array_filter($shipments, fn ($shipment) => (int) ($shipment['etaDays'] ?? 0) < 0 || ($shipment['status'] ?? '') === 'Customs Hold')),
             'partialReceipts' => count(array_filter($shipments, fn ($shipment) => ($shipment['status'] ?? '') === 'Partial Receipt')),
             'customsFlagged' => count(array_filter($shipments, fn ($shipment) => ($shipment['status'] ?? '') === 'Customs Hold')),
             'highRisk' => count(array_filter($shipments, fn ($shipment) => ($shipment['risk'] ?? '') === 'High')),
+            'registeredShipments' => count(array_filter($shipments, fn ($shipment) => ($shipment['source'] ?? '') === 'legacy_shipment')),
             'exposure' => array_reduce($shipments, fn ($sum, $shipment) => $sum + (float) ($shipment['value'] ?? 0), 0.0),
         ];
     }
@@ -525,10 +909,11 @@ class PurchaseOrderController extends Controller
     private function shipmentMeta(): array
     {
         return [
-            'source' => 'purchase_order_receiving',
-            'dedicatedShipmentTable' => false,
+            'source' => Schema::hasTable('shipments') ? 'legacy_shipments_and_purchase_order_receiving' : 'purchase_order_receiving',
+            'dedicatedShipmentTable' => Schema::hasTable('shipments'),
             'usesPurchaseOrders' => true,
             'usesGoodsReceivedNotes' => Schema::hasTable('grns'),
+            'usesShipmentCharges' => Schema::hasTable('shipmentcharges'),
             'generatedAt' => Carbon::now()->toIso8601String(),
         ];
     }
@@ -585,6 +970,7 @@ class PurchaseOrderController extends Controller
             'unitPrice' => (float) $line->unitprice,
             'taxRate' => 0,
             'glCode' => (string) $line->glcode,
+            'shipmentReference' => (int) ($line->shiptref ?? 0),
             'controlled' => (bool) $line->controlled_item,
             'completed' => (bool) $line->completed || $quantityReceived >= $quantityOrdered,
         ];
@@ -717,6 +1103,8 @@ class PurchaseOrderController extends Controller
             (string) ($row->comments ?? ''),
             (string) ($row->stat_comment ?? ''),
             (string) ($row->deliveryby ?? ''),
+            (string) ($row->vessel ?? ''),
+            (string) ($row->voyageref ?? ''),
         ]));
 
         return str_contains($text, 'customs')

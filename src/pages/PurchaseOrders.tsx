@@ -103,6 +103,7 @@ interface PoLine {
   unitPrice: number;
   taxRate: number;
   glCode: string;
+  shipmentReference?: number;
   controlled?: boolean;
   completed?: boolean;
 }
@@ -174,6 +175,7 @@ interface PurchaseShipmentsApiResponse {
     dedicatedShipmentTable?: boolean;
     usesPurchaseOrders?: boolean;
     usesGoodsReceivedNotes?: boolean;
+    usesShipmentCharges?: boolean;
     generatedAt?: string;
   };
 }
@@ -1193,9 +1195,14 @@ function initialTabForRoute(pathname: string): WorkbenchTab {
   return 'outstanding';
 }
 
+function isShipmentOperationsRoute(pathname: string) {
+  const key = pathname.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return key.includes('selectsupplier') || key.includes('shiptselect') || key.includes('shipments');
+}
+
 function titleForRoute(pathname: string) {
   if (pathname.includes('offersreceived')) return 'Supplier Tenders and Offers';
-  if (pathname.includes('selectsupplier')) return 'Shipment Operations Workspace';
+  if (isShipmentOperationsRoute(pathname)) return 'Shipment Operations Workspace';
   if (pathname.includes('po-header')) return 'New Purchase Order';
   if (pathname.includes('po-selectospurchorder')) return 'Select Purchase Order';
   if (pathname.includes('po-authorisemyorders')) return 'Purchase Order Approvals';
@@ -1207,8 +1214,8 @@ function descriptionForRoute(pathname: string) {
   if (pathname.includes('offersreceived')) {
     return 'Control tender dossiers, compare supplier responses, score commercial and technical risk, and convert approved award decisions into purchase orders.';
   }
-  if (pathname.includes('selectsupplier')) {
-    return 'Monitor inbound shipments, receiving priorities, delayed deliveries, GRN queues, supplier risks, and operational actions from one logistics control surface.';
+  if (isShipmentOperationsRoute(pathname)) {
+    return 'Monitor live shipment records, receiving priorities, delayed deliveries, GRN queues, supplier risks, and shipment costing actions from one logistics workspace.';
   }
   if (pathname.includes('po-header')) {
     return 'Start a supplier purchase order with delivery details, stock location, item lines, GL coding, and review-ready totals on one page.';
@@ -1379,7 +1386,7 @@ export function PurchaseOrders() {
   const pageTitle = titleForRoute(routePath);
   const pageDescription = descriptionForRoute(routePath);
   const isCreatePoRoute = routePath.includes('po-header');
-  const isSelectSupplierRoute = routePath.includes('selectsupplier');
+  const isSelectSupplierRoute = isShipmentOperationsRoute(routePath);
   const isOffersRoute = routePath.includes('offersreceived');
   const isAuthoriseRoute = routePath.includes('po-authorisemyorders');
 
@@ -3294,7 +3301,7 @@ function VendorResponsePanel({
 }
 
 type ShipmentRisk = 'Low' | 'Medium' | 'High';
-type ShipmentStatus = 'Ordered' | 'In Transit' | 'Customs Hold' | 'Warehouse Receiving' | 'Awaiting GRN' | 'Partial Receipt' | 'Invoice Match';
+type ShipmentStatus = 'Ordered' | 'In Transit' | 'Customs Hold' | 'Warehouse Receiving' | 'Awaiting GRN' | 'Partial Receipt' | 'Invoice Match' | 'Closed';
 type OperationalWorkspaceTab = 'Overview' | 'Workflow' | 'Actions' | 'Intelligence' | 'Tracking';
 type QueueDensity = 'Compact' | 'Comfortable';
 
@@ -3310,6 +3317,10 @@ interface ShipmentWorkspaceAction {
 interface ShipmentRecord {
   id: string;
   order: PurchaseOrder;
+  legacyShipmentRef?: number;
+  vessel?: string;
+  voyageRef?: string;
+  closed?: boolean;
   supplierCode: string;
   supplierName: string;
   etaLabel: string;
@@ -3327,6 +3338,10 @@ interface ShipmentRecord {
   openQuantity?: number;
   grnCount?: number;
   lastGrnDate?: string;
+  shipmentCharges?: number;
+  shipmentChargeCount?: number;
+  orderCount?: number;
+  lineCount?: number;
   timeline?: ShipmentTimelineEvent[];
   source?: string;
 }
@@ -3338,7 +3353,7 @@ interface ShipmentTimelineEvent {
   tone: 'neutral' | 'warning' | 'critical' | 'success';
 }
 
-const shipmentStatuses: ShipmentStatus[] = ['Ordered', 'In Transit', 'Customs Hold', 'Warehouse Receiving', 'Awaiting GRN', 'Partial Receipt', 'Invoice Match'];
+const shipmentStatuses: ShipmentStatus[] = ['Ordered', 'In Transit', 'Customs Hold', 'Warehouse Receiving', 'Awaiting GRN', 'Partial Receipt', 'Invoice Match', 'Closed'];
 const shipmentRisks: ShipmentRisk[] = ['Low', 'Medium', 'High'];
 
 function normalizeShipmentRecord(record: Partial<ShipmentRecord> | null | undefined): ShipmentRecord | null {
@@ -3354,6 +3369,10 @@ function normalizeShipmentRecord(record: Partial<ShipmentRecord> | null | undefi
   return {
     id: String(record.id ?? `PO-${order.orderNumber}`),
     order,
+    legacyShipmentRef: Number.isFinite(Number(record.legacyShipmentRef)) ? Number(record.legacyShipmentRef) : undefined,
+    vessel: record.vessel ? String(record.vessel) : undefined,
+    voyageRef: record.voyageRef ? String(record.voyageRef) : undefined,
+    closed: Boolean(record.closed),
     supplierCode: String(record.supplierCode ?? order.supplierCode),
     supplierName: String(record.supplierName ?? order.supplierName),
     etaLabel: String(record.etaLabel ?? etaLabel(etaDays)),
@@ -3371,6 +3390,10 @@ function normalizeShipmentRecord(record: Partial<ShipmentRecord> | null | undefi
     openQuantity: Number.isFinite(Number(record.openQuantity)) ? Number(record.openQuantity) : undefined,
     grnCount: Number.isFinite(Number(record.grnCount)) ? Number(record.grnCount) : undefined,
     lastGrnDate: record.lastGrnDate,
+    shipmentCharges: Number.isFinite(Number(record.shipmentCharges)) ? Number(record.shipmentCharges) : undefined,
+    shipmentChargeCount: Number.isFinite(Number(record.shipmentChargeCount)) ? Number(record.shipmentChargeCount) : undefined,
+    orderCount: Number.isFinite(Number(record.orderCount)) ? Number(record.orderCount) : undefined,
+    lineCount: Number.isFinite(Number(record.lineCount)) ? Number(record.lineCount) : undefined,
     timeline: Array.isArray(record.timeline) && record.timeline.length > 0 ? record.timeline : shipmentTimelineFromOrder(order, status, record.issue),
     source: record.source ?? 'purchase_order_receiving',
   };
@@ -3407,6 +3430,7 @@ function shipmentStatusFromOrder(order: PurchaseOrder): ShipmentStatus {
 }
 
 function shipmentRiskFromOrder(order: PurchaseOrder, status: ShipmentStatus, etaDays: number): ShipmentRisk {
+  if (status === 'Closed') return 'Low';
   const openQuantity = order.lines.reduce((sum, line) => sum + Math.max(0, line.quantityOrdered - line.quantityReceived), 0);
   const value = orderTotal(order);
   if (status === 'Customs Hold' || (etaDays < -1 && openQuantity > 0) || (value >= 70000000 && openQuantity > 0)) return 'High';
@@ -3415,6 +3439,7 @@ function shipmentRiskFromOrder(order: PurchaseOrder, status: ShipmentStatus, eta
 }
 
 function shipmentIssueFromOrder(order: PurchaseOrder, status: ShipmentStatus, etaDays: number) {
+  if (status === 'Closed') return 'Shipment workflow is closed';
   if (status === 'Customs Hold') return 'Customs or clearance note found on purchase order';
   if (etaDays < 0) return `Delivery date missed by ${Math.abs(etaDays)} day${Math.abs(etaDays) === 1 ? '' : 's'}`;
   if (status === 'Partial Receipt') return 'Open balance remains after receiving';
@@ -3431,6 +3456,7 @@ function shipmentProgressFromStatus(status: ShipmentStatus) {
   if (status === 'Warehouse Receiving') return 72;
   if (status === 'Partial Receipt') return 82;
   if (status === 'Awaiting GRN') return 88;
+  if (status === 'Closed') return 100;
   return 96;
 }
 
@@ -3443,6 +3469,7 @@ function shipmentPriorityFromOrder(order: PurchaseOrder, status: ShipmentStatus,
   if (status === 'Warehouse Receiving') score += 20;
   if (status === 'Partial Receipt') score += 15;
   if (openQuantity <= 0) score -= 25;
+  if (status === 'Closed') score -= 70;
   return Math.max(0, score);
 }
 
@@ -3514,6 +3541,14 @@ function SelectSupplierPanel({
   const [queueDensity, setQueueDensity] = useState<QueueDensity>('Compact');
   const [timelineExpanded, setTimelineExpanded] = useState(false);
   const [advancedInsightsOpen, setAdvancedInsightsOpen] = useState(false);
+  const [selectedShipmentId, setSelectedShipmentId] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    const selectedShipment = params.get('SelectedShipment') || params.get('ShiptRef') || params.get('Shipment');
+    const shipmentRef = selectedShipment ? selectedShipment.replace(/^SHP-/i, '') : '';
+    const numericRef = Number(shipmentRef);
+    return shipmentRef ? `SHP-${Number.isFinite(numericRef) ? numericRef : shipmentRef}` : '';
+  });
   const selectedSupplier = supplierOptions.find((supplier) => supplier.value === selectedSupplierCode) ?? null;
   const supplierNeedle = supplierSearch.trim().toLowerCase();
   const filteredSuppliers = supplierNeedle
@@ -3524,7 +3559,13 @@ function SelectSupplierPanel({
 
   const derivedShipments = useMemo(() => deriveShipmentRecords(orders), [orders]);
   const shipments = shipmentsReady ? apiShipments : derivedShipments;
-  const shipmentSourceLabel = shipmentsReady ? 'Live ERP receiving data' : 'PO fallback data';
+  const legacyShipmentCount = shipments.filter((shipment) => shipment.source === 'legacy_shipment').length;
+  const activeShipmentCount = shipments.filter((shipment) => shipment.status !== 'Closed').length;
+  const shipmentSourceLabel = shipmentsReady
+    ? legacyShipmentCount > 0
+      ? 'Live ERP shipment register and receiving data'
+      : 'Live ERP receiving data'
+    : 'PO fallback data';
 
   const scopedShipments = selectedSupplier ? shipments.filter((shipment) => shipment.supplierCode === selectedSupplier.value) : shipments;
   const visibleShipments = scopedShipments.filter((shipment) => {
@@ -3534,9 +3575,16 @@ function SelectSupplierPanel({
     if (shipmentFilter === 'Awaiting GRN') return ['Warehouse Receiving', 'Awaiting GRN'].includes(shipment.status);
     if (shipmentFilter === 'Partial') return shipment.status === 'Partial Receipt';
     if (shipmentFilter === 'Customs') return shipment.status === 'Customs Hold';
+    if (shipmentFilter === 'Closed') return shipment.status === 'Closed';
     return true;
   });
-  const priorityShipment = visibleShipments[0] ?? scopedShipments[0] ?? shipments[0] ?? null;
+  const selectedShipment = (
+    selectedShipmentId
+      ? visibleShipments.find((shipment) => shipment.id === selectedShipmentId)
+        ?? scopedShipments.find((shipment) => shipment.id === selectedShipmentId)
+      : null
+  ) ?? null;
+  const priorityShipment = selectedShipment ?? visibleShipments[0] ?? scopedShipments[0] ?? shipments[0] ?? null;
   const activeSupplier = selectedSupplier ?? supplierOptions.find((supplier) => supplier.value === priorityShipment?.supplierCode) ?? null;
   const activeSupplierParam = encodeURIComponent(activeSupplier?.value ?? '');
   const exposure = shipments.reduce((sum, shipment) => sum + shipment.value, 0);
@@ -3546,7 +3594,7 @@ function SelectSupplierPanel({
   const customsCount = shipments.filter((shipment) => shipment.status === 'Customs Hold').length;
   const highRiskCount = shipments.filter((shipment) => shipment.risk === 'High').length;
   const containerCount = shipments.reduce((sum, shipment) => sum + shipment.containerCount, 0);
-  const filterOptions = ['All', 'Today', 'Delayed', 'Awaiting GRN', 'Partial', 'Customs'];
+  const filterOptions = ['All', 'Today', 'Delayed', 'Awaiting GRN', 'Partial', 'Customs', 'Closed'];
   const filterPresets = [
     { label: 'Delayed only', value: 'Delayed', count: delayedCount },
     { label: 'Customs hold', value: 'Customs', count: customsCount },
@@ -3556,18 +3604,39 @@ function SelectSupplierPanel({
   const compactQueue = queueDensity === 'Compact';
   const queueCellClass = compactQueue ? 'px-3 py-1.5' : 'px-3 py-2.5';
   const visibleTimelineEvents = priorityShipment?.timeline?.length ? priorityShipment.timeline : [];
+  const priorityCarrierLabel = priorityShipment ? [priorityShipment.vessel, priorityShipment.voyageRef].filter(Boolean).join(' / ') : '';
+  const priorityShipmentContext = priorityShipment?.source === 'legacy_shipment'
+    ? `${priorityShipment.orderCount ?? 0} linked PO${(priorityShipment.orderCount ?? 0) === 1 ? '' : 's'}, ${priorityShipment.lineCount ?? 0} shipment line${(priorityShipment.lineCount ?? 0) === 1 ? '' : 's'}.`
+    : `Linked to PO ${priorityShipment?.order.orderNumber ?? ''}.`;
+  const prioritySupplierLookup = priorityShipment
+    ? supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName }
+    : null;
+  const priorityShipmentRefParam = priorityShipment?.legacyShipmentRef ? encodeURIComponent(String(priorityShipment.legacyShipmentRef)) : '';
+  const openPriorityShipment = () => {
+    if (!priorityShipment || !prioritySupplierLookup) return;
+
+    if (priorityShipment.legacyShipmentRef) {
+      const supplierParam = encodeURIComponent(priorityShipment.supplierCode);
+      onNavigate(`/purchases/transactions/shipt-select?SelectedShipment=${priorityShipmentRefParam}&SelectedSupplier=${supplierParam}`);
+      return;
+    }
+
+    onViewPurchaseOrders(prioritySupplierLookup, 'outstanding');
+  };
+  const priorityActionLabel = priorityShipment?.status === 'Closed'
+    ? 'Review shipment costing'
+    : priorityShipment?.status === 'Warehouse Receiving' || priorityShipment?.status === 'Partial Receipt'
+      ? 'Receive shipment'
+      : 'Open priority shipment';
 
   const shipmentActions = [
     {
-      label: 'Receive priority shipment',
+      label: priorityActionLabel,
       detail: priorityShipment ? `${priorityShipment.id} is next in queue.` : 'No shipment is ready to receive.',
       icon: PackageCheck,
       primary: true,
       disabled: !priorityShipment,
-      onClick: () => priorityShipment && onViewPurchaseOrders(
-        supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
-        'outstanding'
-      ),
+      onClick: openPriorityShipment,
     },
     {
       label: 'Create GRN',
@@ -3604,8 +3673,10 @@ function SelectSupplierPanel({
       label: 'Track shipment',
       detail: 'Open shipment tracking and ETA details.',
       icon: Search,
-      disabled: !activeSupplier,
-      onClick: () => activeSupplier && onNavigate(`/purchases/transactions/shipt-select?SelectedSupplier=${activeSupplierParam}`),
+      disabled: !activeSupplier && !priorityShipment,
+      onClick: () => priorityShipment?.legacyShipmentRef
+        ? onNavigate(`/purchases/transactions/shipt-select?SelectedShipment=${encodeURIComponent(String(priorityShipment.legacyShipmentRef))}&SelectedSupplier=${encodeURIComponent(priorityShipment.supplierCode)}`)
+        : activeSupplier && onNavigate(`/purchases/transactions/shipt-select?SelectedSupplier=${activeSupplierParam}`),
     },
     {
       label: 'Shipment documents',
@@ -3622,8 +3693,10 @@ function SelectSupplierPanel({
       onClick: () => setShipmentFilter('Delayed'),
     },
     {
-      label: 'Container status',
-      detail: `${containerCount} container equivalent${containerCount === 1 ? '' : 's'} across inbound queue.`,
+      label: legacyShipmentCount > 0 ? 'Shipment register' : 'Container status',
+      detail: legacyShipmentCount > 0
+        ? `${legacyShipmentCount} registered shipment${legacyShipmentCount === 1 ? '' : 's'} from legacy ERP records.`
+        : `${containerCount} container equivalent${containerCount === 1 ? '' : 's'} across inbound queue.`,
       icon: Truck,
       disabled: shipments.length === 0,
       onClick: () => setShipmentFilter('All'),
@@ -3700,8 +3773,8 @@ function SelectSupplierPanel({
           title="Operational throughput"
           tone="info"
           items={[
-            ['Incoming', String(shipments.length)],
-            ['Containers', String(containerCount)],
+            ['Incoming', String(activeShipmentCount)],
+            ['Registered', String(legacyShipmentCount)],
             ['Partial', String(partialCount)],
           ]}
         />
@@ -3855,14 +3928,11 @@ function SelectSupplierPanel({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => priorityShipment && onViewPurchaseOrders(
-                    supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
-                    'outstanding'
-                  )}
+                  onClick={openPriorityShipment}
                   disabled={!priorityShipment}
                 >
                   <PackageCheck className="mr-2 h-4 w-4" />
-                  Receive priority
+                  {priorityShipment?.status === 'Closed' ? 'Review costing' : 'Receive priority'}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => setShipmentFilter('Delayed')}>
                   <AlertTriangle className="mr-2 h-4 w-4" />
@@ -3907,11 +3977,28 @@ function SelectSupplierPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleShipments.map((shipment) => (
-                    <tr key={shipment.id} tabIndex={0} className={`border-t border-akiva-border align-top outline-none transition focus-within:bg-akiva-accent-soft/50 focus:bg-akiva-accent-soft/50 ${shipmentRowTone(shipment)}`}>
+                  {visibleShipments.map((shipment) => {
+                    const selected = shipment.id === priorityShipment?.id;
+                    const carrierLabel = [shipment.vessel, shipment.voyageRef].filter(Boolean).join(' / ');
+                    return (
+                    <tr
+                      key={shipment.id}
+                      tabIndex={0}
+                      onClick={() => setSelectedShipmentId(shipment.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') setSelectedShipmentId(shipment.id);
+                      }}
+                      className={`cursor-pointer border-t border-akiva-border align-top outline-none transition focus-within:bg-akiva-accent-soft/50 focus:bg-akiva-accent-soft/50 ${
+                        selected ? 'bg-akiva-accent-soft/45 ring-1 ring-inset ring-akiva-accent/40' : shipmentRowTone(shipment)
+                      }`}
+                    >
                       <td className={`${queueCellClass} border-l-4 ${shipmentSeverityBorder(shipment)}`}>
                         <p className="font-mono text-sm font-semibold text-akiva-text">{shipment.id}</p>
-                        <p className="text-[11px] text-akiva-text-muted">PO {shipment.order.orderNumber}</p>
+                        <p className="text-[11px] text-akiva-text-muted">
+                          {shipment.source === 'legacy_shipment'
+                            ? `${shipment.orderCount ?? 0} PO${(shipment.orderCount ?? 0) === 1 ? '' : 's'} · register`
+                            : `PO ${shipment.order.orderNumber}`}
+                        </p>
                       </td>
                       <td className={queueCellClass}>
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${shipment.etaDays < 0 ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900' : shipment.etaDays <= 1 ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900' : 'bg-akiva-surface text-akiva-text-muted ring-akiva-border'}`}>
@@ -3922,6 +4009,7 @@ function SelectSupplierPanel({
                         <button type="button" onClick={() => onSelect(shipment.supplierCode)} className="max-w-full text-left">
                           <span className="block truncate text-sm font-semibold text-akiva-text hover:text-akiva-accent">{shipment.supplierName}</span>
                           <span className="block truncate font-mono text-[11px] text-akiva-text-muted">{shipment.supplierCode}</span>
+                          {carrierLabel ? <span className="block truncate text-[11px] text-akiva-text-muted">{carrierLabel}</span> : null}
                           {!compactQueue ? <span className="block truncate text-[11px] text-akiva-text-muted">{shipment.issue}</span> : null}
                         </button>
                       </td>
@@ -3937,16 +4025,25 @@ function SelectSupplierPanel({
                         <Button
                           size="sm"
                           variant={shipment.status === 'Warehouse Receiving' || shipment.status === 'Partial Receipt' ? 'success' : shipment.risk === 'High' ? 'danger' : 'secondary'}
-                          onClick={() => onViewPurchaseOrders(
-                            supplierOptions.find((supplier) => supplier.value === shipment.supplierCode) ?? { value: shipment.supplierCode, label: shipment.supplierName },
-                            'outstanding'
-                          )}
+                          onClick={() => {
+                            setSelectedShipmentId(shipment.id);
+                            if (shipment.legacyShipmentRef) {
+                              onNavigate(`/purchases/transactions/shipt-select?SelectedShipment=${encodeURIComponent(String(shipment.legacyShipmentRef))}&SelectedSupplier=${encodeURIComponent(shipment.supplierCode)}`);
+                              return;
+                            }
+
+                            onViewPurchaseOrders(
+                              supplierOptions.find((supplier) => supplier.value === shipment.supplierCode) ?? { value: shipment.supplierCode, label: shipment.supplierName },
+                              'outstanding'
+                            );
+                          }}
                         >
-                          {shipment.status === 'Warehouse Receiving' || shipment.status === 'Partial Receipt' ? 'Receive' : shipment.risk === 'High' ? 'Escalate' : 'Track'}
+                          {shipment.status === 'Closed' ? 'Costing' : shipment.status === 'Warehouse Receiving' || shipment.status === 'Partial Receipt' ? 'Receive' : shipment.risk === 'High' ? 'Escalate' : 'Track'}
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -3975,13 +4072,10 @@ function SelectSupplierPanel({
               <Button
                 variant={workspaceTab === 'Actions' ? 'secondary' : 'primary'}
                 size="sm"
-                onClick={() => priorityShipment && onViewPurchaseOrders(
-                  supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
-                  'outstanding'
-                )}
+                onClick={openPriorityShipment}
                 disabled={!priorityShipment}
               >
-                {priorityShipment?.status === 'Warehouse Receiving' || priorityShipment?.status === 'Partial Receipt' ? 'Receive' : 'Open'}
+                {priorityShipment?.status === 'Closed' ? 'Costing' : priorityShipment?.status === 'Warehouse Receiving' || priorityShipment?.status === 'Partial Receipt' ? 'Receive' : 'Open'}
               </Button>
             </div>
           </div>
@@ -4010,26 +4104,25 @@ function SelectSupplierPanel({
                   </p>
                   <p className="mt-2 text-sm leading-6 text-akiva-text-muted">
                     {priorityShipment
-                      ? `ETA ${priorityShipment.etaLabel}. ${priorityShipment.containerCount > 0 ? `${priorityShipment.containerCount} container${priorityShipment.containerCount === 1 ? '' : 's'}` : 'No container record'} linked to PO ${priorityShipment.order.orderNumber}.`
+                      ? `ETA ${priorityShipment.etaLabel}. ${priorityCarrierLabel ? `${priorityCarrierLabel}. ` : ''}${priorityShipmentContext}`
                       : 'No open shipment currently requires warehouse intervention.'}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <InfoTile label="ETA" value={priorityShipment?.etaLabel ?? 'Clear'} />
                   <InfoTile label="Value" value={priorityShipment ? money(priorityShipment.value, priorityShipment.order.currency) : money(0, 'TZS')} />
+                  <InfoTile label="Carrier" value={priorityCarrierLabel || 'Not recorded'} />
+                  <InfoTile label="Charges" value={priorityShipment ? money(priorityShipment.shipmentCharges ?? 0, priorityShipment.order.currency) : money(0, 'TZS')} />
                 </div>
                 <OperationalInsight {...topInsight} />
                 <Button
                   variant="secondary"
                   className="w-full"
-                  onClick={() => priorityShipment && onViewPurchaseOrders(
-                    supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
-                    'outstanding'
-                  )}
+                  onClick={openPriorityShipment}
                   disabled={!priorityShipment}
                 >
                   <PackageCheck className="mr-2 h-4 w-4" />
-                  {priorityShipment?.status === 'Warehouse Receiving' || priorityShipment?.status === 'Partial Receipt' ? 'Receive shipment' : 'Open priority shipment'}
+                  {priorityActionLabel}
                 </Button>
               </div>
             ) : null}
@@ -4086,7 +4179,9 @@ function SelectSupplierPanel({
                 <div className="rounded-xl bg-akiva-surface px-3 py-3">
                   <p className="text-sm font-semibold text-akiva-text">{priorityShipment?.etaLabel ?? 'No ETA risk'}</p>
                   <p className="mt-1 text-xs leading-5 text-akiva-text-muted">
-                    {priorityShipment ? `${priorityShipment.status}. ${priorityShipment.issue}. Progress ${priorityShipment.progress}%.` : 'No shipment is currently active in the tracking workspace.'}
+                    {priorityShipment
+                      ? `${priorityShipment.status}. ${priorityCarrierLabel ? `${priorityCarrierLabel}. ` : ''}${priorityShipment.issue}. Charges ${money(priorityShipment.shipmentCharges ?? 0, priorityShipment.order.currency)}. Progress ${priorityShipment.progress}%.`
+                      : 'No shipment is currently active in the tracking workspace.'}
                   </p>
                 </div>
                 <ShipmentTimeline
@@ -4147,13 +4242,15 @@ function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {
       : status === 'Warehouse Receiving' || status === 'Awaiting GRN' ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/45 dark:text-amber-100'
         : status === 'Partial Receipt' ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/70 dark:bg-violet-950/40 dark:text-violet-100'
           : status === 'Invoice Match' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100'
-            : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/70 dark:bg-sky-950/40 dark:text-sky-100';
+            : status === 'Closed' ? 'border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200'
+              : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/70 dark:bg-sky-950/40 dark:text-sky-100';
   const dotTone =
     status === 'Customs Hold' ? 'bg-rose-600'
       : status === 'Warehouse Receiving' || status === 'Awaiting GRN' ? 'bg-amber-600'
         : status === 'Partial Receipt' ? 'bg-violet-600'
           : status === 'Invoice Match' ? 'bg-emerald-600'
-            : 'bg-sky-600';
+            : status === 'Closed' ? 'bg-slate-500'
+              : 'bg-sky-600';
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${dotTone}`} />
@@ -4171,6 +4268,7 @@ function ShipmentRiskBadge({ risk }: { risk: ShipmentRisk }) {
 }
 
 function shipmentStageLabel(status: ShipmentStatus) {
+  if (status === 'Closed') return 'Shipment closed';
   if (status === 'Customs Hold') return 'Blocked at customs';
   if (status === 'Warehouse Receiving') return 'Ready for receiving';
   if (status === 'Awaiting GRN') return 'GRN required';
@@ -4184,6 +4282,7 @@ function shipmentSeverityBorder(shipment: ShipmentRecord) {
   if (shipment.status === 'Customs Hold' || shipment.risk === 'High' || shipment.etaDays < 0) return 'border-l-rose-500';
   if (shipment.status === 'Warehouse Receiving' || shipment.status === 'Awaiting GRN' || shipment.status === 'Partial Receipt') return 'border-l-amber-500';
   if (shipment.status === 'Invoice Match') return 'border-l-emerald-500';
+  if (shipment.status === 'Closed') return 'border-l-slate-400';
   return 'border-l-transparent';
 }
 
@@ -4191,6 +4290,7 @@ function shipmentRowTone(shipment: ShipmentRecord) {
   if (shipment.status === 'Customs Hold' || shipment.risk === 'High' || shipment.etaDays < 0) return 'bg-rose-50/30 dark:bg-rose-950/10';
   if (shipment.status === 'Warehouse Receiving' || shipment.status === 'Awaiting GRN') return 'bg-amber-50/25 dark:bg-amber-950/10';
   if (shipment.status === 'Partial Receipt') return 'bg-violet-50/20 dark:bg-violet-950/10';
+  if (shipment.status === 'Closed') return 'bg-slate-50/30 text-akiva-text-muted dark:bg-slate-900/15';
   return 'hover:bg-akiva-surface-muted/70';
 }
 
@@ -4208,10 +4308,11 @@ function ShipmentLifecycle({ status }: { status: ShipmentStatus }) {
     status === 'Ordered' ? 0
       : status === 'In Transit' ? 1
         : status === 'Customs Hold' ? 2
-          : status === 'Warehouse Receiving' ? 3
-            : status === 'Awaiting GRN' || status === 'Partial Receipt' ? 4
-              : status === 'Invoice Match' ? 5
-                : 0;
+              : status === 'Warehouse Receiving' ? 3
+                : status === 'Awaiting GRN' || status === 'Partial Receipt' ? 4
+                  : status === 'Invoice Match' ? 5
+                    : status === 'Closed' ? 6
+                      : 0;
 
   return (
     <div className="rounded-xl bg-akiva-surface px-3 py-3">

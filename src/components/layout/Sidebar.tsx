@@ -92,6 +92,11 @@ function isConfigurationMenu(caption: string): boolean {
   return caption.toLowerCase().trim() === 'configuration';
 }
 
+function isDashboardLinkedMainMenu(caption: string): boolean {
+  const key = normalizedSlugKey(caption);
+  return key === 'inventory' || key === 'purchases';
+}
+
 function isHiddenMenuNode(node: MenuCategory | MenuItem): boolean {
   const captionKey = node.caption.toLowerCase().replace(/[^a-z0-9]/g, '');
   const slugKey = hrefToSlug(node.href ?? '').replace(/[^a-z0-9]/g, '');
@@ -761,7 +766,7 @@ function Sidebar() {
 
   const handleDisplayedMainMenuTitleClick = () => {
     if (!displayedMainMenu) return;
-    if (normalizedSlugKey(displayedMainMenu.caption) !== 'inventory') return;
+    if (!isDashboardLinkedMainMenu(displayedMainMenu.caption)) return;
     handleMainMenuClick(mainMenuPageId(displayedMainMenu.id));
   };
 
@@ -1121,11 +1126,11 @@ function Sidebar() {
               {!menuLoading && displayedMainMenu && (
                 <>
                   <div className="mb-3 flex-shrink-0 border-b border-white/70 pb-3 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
-                    {normalizedSlugKey(displayedMainMenu.caption) === 'inventory' ? (
+                    {isDashboardLinkedMainMenu(displayedMainMenu.caption) ? (
                       <button
                         type="button"
                         onClick={handleDisplayedMainMenuTitleClick}
-                        className={`rounded text-left font-semibold transition focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950 ${
+                        className={`rounded text-left font-semibold no-underline transition hover:no-underline focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950 ${
                           isDisplayedMainMenuDashboardActive
                             ? 'text-rose-600 hover:text-rose-700 dark:text-rose-300 dark:hover:text-rose-200'
                             : 'text-inherit hover:text-slate-700 dark:hover:text-slate-200'

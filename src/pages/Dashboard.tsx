@@ -1,20 +1,20 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 import {
   Area,
   AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import {
-  ArrowDownRight,
-  ArrowUpRight,
+  AlertTriangle,
+  ArrowRight,
   Banknote,
   Boxes,
   Building2,
@@ -22,19 +22,20 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
-  Download,
-  FileBarChart2,
-  Filter,
-  Landmark,
+  FileCheck2,
+  FileSearch,
   PackageCheck,
   ReceiptText,
+  RefreshCw,
   ShieldCheck,
   ShoppingCart,
-  SlidersHorizontal,
-  TrendingUp,
+  Sparkles,
+  Truck,
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
+
+type RiskTone = 'danger' | 'warning' | 'success' | 'info' | 'neutral';
 
 const currency = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -52,7 +53,7 @@ const compactCurrency = new Intl.NumberFormat('en-US', {
 const chartTooltipContentStyle = {
   backgroundColor: 'var(--akiva-chart-tooltip-bg)',
   border: '1px solid var(--akiva-chart-tooltip-border)',
-  borderRadius: '12px',
+  borderRadius: '8px',
   color: 'var(--akiva-chart-tooltip-text)',
   boxShadow: '0 18px 38px rgba(0, 0, 0, 0.22)',
 };
@@ -62,185 +63,156 @@ const chartTooltipTextStyle = {
   fontWeight: 600,
 };
 
-const summaryMetrics = [
+const executiveMetrics = [
   {
-    label: 'Net sales',
-    value: '$528,976',
-    detail: '276 posted invoices',
-    change: '+7.9%',
-    trend: 'up',
-    icon: ReceiptText,
+    label: 'Cash at risk',
+    value: '$84,200',
+    detail: 'Supplier payments due in 14 days',
+    status: 'High',
+    tone: 'danger' as const,
+    icon: Banknote,
   },
   {
-    label: 'Cash position',
-    value: '$214,870',
-    detail: '4 bank accounts',
-    change: '+3.4%',
-    trend: 'up',
-    icon: Landmark,
-  },
-  {
-    label: 'Receivables',
-    value: '$156,841',
-    detail: '$38.2k overdue',
-    change: '-4.1%',
-    trend: 'down',
+    label: 'Overdue receivables',
+    value: '$38,240',
+    detail: '21 invoices beyond credit terms',
+    status: 'Collect',
+    tone: 'warning' as const,
     icon: WalletCards,
   },
   {
-    label: 'Inventory value',
-    value: '$342,118',
-    detail: '18 low-stock items',
-    change: '+2.6%',
-    trend: 'up',
+    label: 'Approval backlog',
+    value: '27',
+    detail: 'POs and supplier bills awaiting decision',
+    status: 'Aging',
+    tone: 'warning' as const,
+    icon: ShieldCheck,
+  },
+  {
+    label: 'Stock exposure',
+    value: '18',
+    detail: 'Low or negative balances affecting sales',
+    status: 'Review',
+    tone: 'info' as const,
     icon: Boxes,
   },
 ];
 
-const kpiTiles = [
-  { label: 'Open sales orders', value: '128', subvalue: '+12 today', tone: 'dark' },
-  { label: 'Purchase orders', value: '42', subvalue: '9 awaiting GRN', tone: 'light' },
-  { label: 'Payables due', value: '$84k', subvalue: 'next 14 days', tone: 'rose' },
-  { label: 'Fulfilment', value: '91%', subvalue: '+4.8%', tone: 'light' },
+const operatingFlow = [
+  { label: 'PO approval', count: 18, value: 126000, target: 12, icon: ShoppingCart, tone: 'warning' as const },
+  { label: 'GRN posting', count: 9, value: 48300, target: 8, icon: Truck, tone: 'info' as const },
+  { label: 'Invoice match', count: 14, value: 62700, target: 10, icon: FileCheck2, tone: 'warning' as const },
+  { label: 'Payment run', count: 7, value: 84200, target: 6, icon: CreditCard, tone: 'danger' as const },
 ];
 
-const revenueTrend = [
-  { month: 'Jan', revenue: 318000, expenses: 242000, cash: 96000 },
-  { month: 'Feb', revenue: 351000, expenses: 260000, cash: 106000 },
-  { month: 'Mar', revenue: 336000, expenses: 248000, cash: 99000 },
-  { month: 'Apr', revenue: 389000, expenses: 284000, cash: 119000 },
-  { month: 'May', revenue: 411000, expenses: 302000, cash: 132000 },
-  { month: 'Jun', revenue: 452000, expenses: 319000, cash: 151000 },
-  { month: 'Jul', revenue: 438000, expenses: 312000, cash: 146000 },
-  { month: 'Aug', revenue: 501000, expenses: 356000, cash: 176000 },
-  { month: 'Sep', revenue: 528976, expenses: 369000, cash: 214870 },
+const cashTrend = [
+  { month: 'Jan', cash: 96000, receivables: 128000, payables: 82000 },
+  { month: 'Feb', cash: 106000, receivables: 135000, payables: 89000 },
+  { month: 'Mar', cash: 99000, receivables: 149000, payables: 93000 },
+  { month: 'Apr', cash: 119000, receivables: 141000, payables: 102000 },
+  { month: 'May', cash: 132000, receivables: 153000, payables: 110000 },
+  { month: 'Jun', cash: 151000, receivables: 160000, payables: 116000 },
+  { month: 'Jul', cash: 146000, receivables: 158000, payables: 106000 },
+  { month: 'Aug', cash: 176000, receivables: 166000, payables: 122000 },
+  { month: 'Sep', cash: 214870, receivables: 156841, payables: 84200 },
 ];
 
-const stockFlow = [
-  { item: 'Raw', onHand: 72, committed: 38 },
-  { item: 'WIP', onHand: 46, committed: 28 },
-  { item: 'FG', onHand: 89, committed: 51 },
-  { item: 'Spare', onHand: 34, committed: 18 },
-  { item: 'Transit', onHand: 57, committed: 42 },
+const supplierExposure = [
+  { supplier: 'MSD Medical Store', value: 98200, orders: 8, color: 'var(--akiva-chart-danger)' },
+  { supplier: 'Primecare Equipment', value: 74300, orders: 6, color: 'var(--akiva-chart-warning)' },
+  { supplier: 'Afri Dental Products', value: 51100, orders: 9, color: 'var(--akiva-chart-ink)' },
+  { supplier: 'Anudha Ltd', value: 38600, orders: 4, color: 'var(--akiva-chart-brand)' },
+  { supplier: 'Action Medeor', value: 24200, orders: 3, color: 'var(--akiva-chart-success)' },
 ];
 
-const moduleHealth = [
+const exceptionQueue = [
   {
-    module: 'Sales orders',
-    owner: 'Amina K.',
-    value: '$209,633',
-    status: 'On track',
-    first: 41,
-    second: 118,
-    score: '0.84',
-    rate: '31%',
-    badge: 12,
-    closing: 29,
-    tone: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    area: 'Receivables',
+    issue: 'Kijani Hospitals credit hold recommended',
+    value: '$16,086',
+    age: '67 days',
+    owner: 'Credit Control',
+    tone: 'danger' as const,
+    action: 'Open AR',
   },
   {
-    module: 'Receivables',
-    owner: 'Finance',
-    value: '$156,841',
-    status: 'Watch',
-    first: 54,
-    second: 103,
-    score: '0.89',
-    rate: '39%',
-    badge: 21,
-    closing: 33,
-    tone: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
+    area: 'Purchasing',
+    issue: 'PO 501 exceeds reviewer limit',
+    value: '$44,960',
+    age: '5 hours',
+    owner: 'Procurement Lead',
+    tone: 'warning' as const,
+    action: 'Approve',
   },
   {
-    module: 'Inventory',
+    area: 'Inventory',
+    issue: 'Ceftriaxone below reorder at Central Store',
+    value: '320 vials',
+    age: 'Today',
     owner: 'Stores',
-    value: '$117,115',
-    status: 'Stable',
-    first: 22,
-    second: 84,
-    score: '0.79',
-    rate: '32%',
-    badge: 7,
-    closing: 15,
-    tone: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+    tone: 'info' as const,
+    action: 'Reorder',
+  },
+  {
+    area: 'Payables',
+    issue: 'GRN suspense needs invoice match',
+    value: '$28,540',
+    age: '2 days',
+    owner: 'Accounts Payable',
+    tone: 'warning' as const,
+    action: 'Match',
   },
 ];
 
-const operatingAreas = [
-  { label: 'Customer invoices', value: '$227,459', percentage: '43%', icon: ReceiptText },
-  { label: 'Supplier bills', value: '$142,823', percentage: '27%', icon: CreditCard },
-  { label: 'Stock movements', value: '$89,935', percentage: '17%', icon: PackageCheck },
-  { label: 'Bank transfers', value: '$37,028', percentage: '7%', icon: Banknote },
+const aiControlBrief = [
+  {
+    title: 'Defer non-critical payment batch',
+    detail: 'Preserves $31k cash until receivables follow-up clears.',
+    icon: Banknote,
+    tone: 'warning' as const,
+  },
+  {
+    title: 'Escalate supplier PO approval',
+    detail: 'Medical consumables are blocking replenishment for two locations.',
+    icon: ShieldCheck,
+    tone: 'danger' as const,
+  },
+  {
+    title: 'Create transfer before purchase',
+    detail: 'Theatre Store has surplus of two low-stock central-store items.',
+    icon: PackageCheck,
+    tone: 'info' as const,
+  },
 ];
 
-const workQueue = [
-  { label: 'Invoices pending approval', count: 18, icon: ReceiptText },
-  { label: 'Purchase orders awaiting GRN', count: 9, icon: ShoppingCart },
-  { label: 'Stock items below reorder', count: 18, icon: Boxes },
-  { label: 'Users requiring access review', count: 4, icon: ShieldCheck },
+const modulePulse = [
+  { module: 'Sales', owner: 'Revenue desk', posted: '$528,976', open: 128, risk: 12, tone: 'success' as const },
+  { module: 'Inventory', owner: 'Stores', posted: '$342,118', open: 84, risk: 18, tone: 'warning' as const },
+  { module: 'Payables', owner: 'Finance AP', posted: '$142,823', open: 43, risk: 7, tone: 'danger' as const },
+  { module: 'GL close', owner: 'Controller', posted: '92%', open: 6, risk: 2, tone: 'info' as const },
 ];
 
-interface MetricCardProps {
-  label: string;
-  value: string;
-  detail: string;
-  change: string;
-  trend: string;
-  icon: LucideIcon;
+function toneClasses(tone: RiskTone): string {
+  if (tone === 'danger') return 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100';
+  if (tone === 'warning') return 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100';
+  if (tone === 'success') return 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100';
+  if (tone === 'info') return 'border-teal-300 bg-teal-50 text-teal-800 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-100';
+  return 'border-akiva-border bg-akiva-surface-muted text-akiva-text';
 }
 
-function MetricCard({ label, value, detail, change, trend, icon: Icon }: MetricCardProps) {
-  const positive = trend === 'up';
-  return (
-    <article className="rounded-lg border border-white/70 bg-white/80 p-4 shadow-sm shadow-slate-200/60 backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-black/20">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{value}</p>
-        </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-          <Icon className="h-5 w-5" />
-        </span>
-      </div>
-      <div className="mt-4 flex items-center justify-between gap-3 text-sm">
-        <span className="text-slate-500 dark:text-slate-400">{detail}</span>
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
-            positive
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
-          }`}
-        >
-          {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-          {change}
-        </span>
-      </div>
-    </article>
-  );
+function dotClass(tone: RiskTone): string {
+  if (tone === 'danger') return 'bg-rose-600 dark:bg-rose-300';
+  if (tone === 'warning') return 'bg-amber-600 dark:bg-amber-300';
+  if (tone === 'success') return 'bg-emerald-600 dark:bg-emerald-300';
+  if (tone === 'info') return 'bg-teal-600 dark:bg-teal-300';
+  return 'bg-slate-500 dark:bg-slate-300';
 }
 
-function KpiTile({ label, value, subvalue, tone }: { label: string; value: string; subvalue: string; tone: string }) {
-  const classes =
-    tone === 'dark'
-      ? 'bg-slate-950 text-white dark:bg-[#fff7fb] dark:text-[#140a0f]'
-      : tone === 'rose'
-        ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-[#8f3d5d] dark:bg-[#351320] dark:text-[#ffd8e5]'
-        : 'border-slate-200 bg-white/80 text-slate-900 dark:border-slate-700 dark:bg-slate-900/70 dark:text-white';
-
-  return (
-    <article className={`rounded-lg border p-4 shadow-sm shadow-slate-200/50 dark:shadow-black/20 ${classes}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide opacity-85">{label}</p>
-      <p className="mt-3 text-2xl font-semibold">{value}</p>
-      <p className="mt-2 text-sm opacity-85">{subvalue}</p>
-    </article>
-  );
-}
-
-function SmallIconButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+function IconButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <button
       type="button"
-      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-700 shadow-sm shadow-slate-200/50 transition hover:bg-white hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white"
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text"
       aria-label={label}
       title={label}
     >
@@ -249,265 +221,297 @@ function SmallIconButton({ icon: Icon, label }: { icon: LucideIcon; label: strin
   );
 }
 
+function StatusBadge({ tone, children }: { tone: RiskTone; children: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClasses(tone)}`}>
+      <span className={`akiva-status-dot ${dotClass(tone)}`} />
+      {children}
+    </span>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  detail,
+  status,
+  tone,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  status: string;
+  tone: RiskTone;
+  icon: LucideIcon;
+}) {
+  return (
+    <article className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{label}</p>
+          <p className="akiva-financial-value mt-2 truncate text-2xl font-semibold text-akiva-text">{value}</p>
+        </div>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${toneClasses(tone)}`}>
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-sm leading-5 text-akiva-text-muted">{detail}</p>
+        <StatusBadge tone={tone}>{status}</StatusBadge>
+      </div>
+    </article>
+  );
+}
+
+function Panel({ title, detail, icon: Icon, children }: { title: string; detail?: string; icon: LucideIcon; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-muted text-akiva-accent-text">
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-akiva-text">{title}</h2>
+          {detail ? <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{detail}</p> : null}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function WorkflowStage({ item }: { item: (typeof operatingFlow)[number] }) {
+  const Icon = item.icon;
+  const ratio = Math.min(100, Math.round((item.count / item.target) * 100));
+
+  return (
+    <button type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-3">
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(item.tone)}`}>
+            <Icon className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-akiva-text">{item.label}</span>
+            <span className="mt-1 block text-xs text-akiva-text-muted">{compactCurrency.format(item.value)} value waiting</span>
+          </span>
+        </span>
+        <span className="akiva-financial-value text-lg font-semibold text-akiva-text">{item.count}</span>
+      </div>
+      <div className="mt-3 h-2 rounded-full bg-akiva-surface-muted">
+        <div className={`h-2 rounded-full ${dotClass(item.tone)}`} style={{ width: `${ratio}%` }} />
+      </div>
+    </button>
+  );
+}
+
+function ExceptionRow({ row }: { row: (typeof exceptionQueue)[number] }) {
+  return (
+    <button type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
+      <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone={row.tone}>{row.area}</StatusBadge>
+            <span className="text-xs font-semibold text-akiva-text-muted">{row.owner}</span>
+          </div>
+          <p className="mt-2 text-sm font-semibold text-akiva-text">{row.issue}</p>
+          <p className="mt-1 text-xs text-akiva-text-muted">Age: {row.age}</p>
+        </div>
+        <div className="flex items-center justify-between gap-3 md:block md:text-right">
+          <p className="akiva-financial-value text-sm font-semibold text-akiva-text">{row.value}</p>
+          <span className="mt-0 inline-flex items-center gap-1 text-xs font-semibold text-akiva-accent-text md:mt-2">
+            {row.action}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export function Dashboard() {
   return (
-    <div className="min-h-full bg-[#f2eeee] px-3 py-3 text-slate-950 transition-colors dark:bg-slate-950 dark:text-white sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+    <div className="akiva-page-shell px-3 py-3 sm:px-4 sm:py-4 lg:px-5 lg:py-5">
       <div className="mx-auto max-w-[1520px]">
-        <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/72 shadow-xl shadow-slate-300/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/72 dark:shadow-black/30">
-          <div className="flex flex-col gap-4 border-b border-slate-200/70 px-4 py-4 dark:border-slate-800 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white dark:bg-white dark:text-slate-950">
-                  <Building2 className="h-3.5 w-3.5" />
-                  Entice Tech Ltd
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-300">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Sep 1 - Nov 30, 2023
-                </span>
+        <section className="akiva-frame overflow-hidden rounded-[28px] backdrop-blur">
+          <header className="border-b border-akiva-border px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                    <Building2 className="h-4 w-4 text-akiva-accent-text" />
+                    Entice Tech Ltd
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                    <CalendarDays className="h-4 w-4 text-akiva-accent-text" />
+                    17 May 2026
+                  </span>
+                </div>
+                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-[1.875rem] lg:text-[2.25rem]">
+                  ERP Command Center
+                </h1>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                  Finance risk, purchase throughput, inventory exposure, and close readiness prioritized for daily operational decisions.
+                </p>
               </div>
-              <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-[1.875rem] lg:text-[2.625rem]">
-                ERP overview
-              </h1>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <IconButton icon={RefreshCw} label="Refresh dashboard" />
+                <IconButton icon={FileSearch} label="Open audit trail" />
+                <button
+                  type="button"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-full bg-akiva-accent px-4 text-sm font-semibold text-white shadow-sm shadow-rose-900/20 transition hover:bg-akiva-accent-strong"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Review Risks
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 self-start lg:self-center">
-              <SmallIconButton icon={SlidersHorizontal} label="View controls" />
-              <SmallIconButton icon={Download} label="Export dashboard" />
-              <SmallIconButton icon={Filter} label="Filter dashboard" />
-            </div>
-          </div>
+          </header>
 
           <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
-            <div className="space-y-4 lg:col-span-8">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {summaryMetrics.map((metric) => (
+            <main className="space-y-4 lg:col-span-8">
+              <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {executiveMetrics.map((metric) => (
                   <MetricCard key={metric.label} {...metric} />
                 ))}
-              </div>
+              </section>
 
-              <section className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/50 sm:p-5">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Operating margin</p>
-	                    <div className="mt-2 flex flex-wrap items-baseline gap-3">
-	                      <span className="text-3xl font-medium tracking-normal text-slate-900 dark:text-slate-100 sm:text-4xl">$159,976</span>
-	                      <span className="rounded-full bg-rose-50 px-2.5 py-1 text-sm font-semibold text-rose-700 ring-1 ring-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/60">30.2%</span>
-                    </div>
-                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                      Revenue {currency.format(528976)} vs expenses {currency.format(369000)}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[420px]">
-                    {kpiTiles.map((tile) => (
-                      <KpiTile key={tile.label} {...tile} />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-5 h-72 sm:h-80">
+              <Panel title="Cash, Receivables, And Payables" detail="Month-end liquidity view with collectable exposure and upcoming payment pressure." icon={ReceiptText}>
+                <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={revenueTrend} margin={{ top: 8, right: 10, left: -22, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="var(--akiva-chart-brand)" stopOpacity={0.22} />
-                          <stop offset="95%" stopColor="var(--akiva-chart-brand)" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="expenseFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="var(--akiva-chart-ink)" stopOpacity={0.12} />
-                          <stop offset="95%" stopColor="var(--akiva-chart-ink)" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
+                    <AreaChart data={cashTrend} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
                       <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
                       <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--akiva-chart-muted)' }} />
-                      <YAxis hide domain={['dataMin - 20000', 'dataMax + 20000']} />
+                      <YAxis tickFormatter={(value: number) => compactCurrency.format(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} width={58} />
                       <Tooltip
-                        formatter={(value: number) => compactCurrency.format(value)}
+                        formatter={(value: number) => currency.format(value)}
                         contentStyle={chartTooltipContentStyle}
                         labelStyle={chartTooltipTextStyle}
                         itemStyle={chartTooltipTextStyle}
                       />
-                      <Area type="monotone" dataKey="expenses" stroke="var(--akiva-chart-muted)" strokeWidth={2} fill="url(#expenseFill)" />
-                      <Area type="monotone" dataKey="revenue" stroke="var(--akiva-chart-brand)" strokeWidth={3} fill="url(#revenueFill)" />
+                      <Area type="monotone" dataKey="receivables" name="Receivables" stroke="var(--akiva-chart-warning)" strokeWidth={2} fill="rgba(180, 83, 9, 0.12)" />
+                      <Area type="monotone" dataKey="payables" name="Payables" stroke="var(--akiva-chart-danger)" strokeWidth={2} fill="rgba(190, 18, 60, 0.1)" />
+                      <Line type="monotone" dataKey="cash" name="Cash" stroke="var(--akiva-chart-ink)" strokeWidth={3} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
-              </section>
+              </Panel>
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                <section className="rounded-2xl border border-slate-200/80 bg-white/78 p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-black/20">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Activity by module</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Posted value this period</p>
-                    </div>
-                    <button className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                      Revenue
-                    </button>
+              <div className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
+                <Panel title="Workflow Bottlenecks" detail="Queues that slow purchasing, receiving, bill matching, and payments." icon={Clock3}>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {operatingFlow.map((item) => (
+                      <WorkflowStage key={item.label} item={item} />
+                    ))}
                   </div>
-                  <div className="space-y-3">
-                    {operatingAreas.map((area) => {
-                      const Icon = area.icon;
-                      return (
-                        <div key={area.label} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-slate-950/60">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-rose-600 shadow-sm dark:bg-slate-900 dark:text-rose-300">
-                              <Icon className="h-4 w-4" />
-                            </span>
-                            <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{area.label}</span>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold text-slate-950 dark:text-white">{area.value}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{area.percentage}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
+                </Panel>
 
-                <section className="rounded-2xl border border-slate-200/80 bg-white/78 p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-black/20">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Inventory flow</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">On hand vs committed stock</p>
-                    </div>
-                    <FileBarChart2 className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <div className="h-56">
+                <Panel title="Supplier Exposure" detail="Open commitment concentration by supplier." icon={ShoppingCart}>
+                  <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stockFlow} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
-                        <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
-                        <XAxis dataKey="item" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--akiva-chart-muted)' }} />
-                        <YAxis hide />
-                        <Tooltip contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipTextStyle} itemStyle={chartTooltipTextStyle} />
-                        <Bar dataKey="onHand" fill="var(--akiva-chart-ink)" radius={[8, 8, 8, 8]} />
-                        <Bar dataKey="committed" fill="var(--akiva-chart-brand)" radius={[8, 8, 8, 8]} />
+                      <BarChart data={supplierExposure} layout="vertical" margin={{ top: 4, right: 28, left: 8, bottom: 4 }}>
+                        <CartesianGrid horizontal={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
+                        <XAxis type="number" tickFormatter={(value: number) => compactCurrency.format(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
+                        <YAxis type="category" dataKey="supplier" width={132} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
+                        <Tooltip
+                          formatter={(value: number) => currency.format(value)}
+                          contentStyle={chartTooltipContentStyle}
+                          labelStyle={chartTooltipTextStyle}
+                          itemStyle={chartTooltipTextStyle}
+                        />
+                        <Bar dataKey="value" name="Open commitment" radius={[0, 8, 8, 0]} barSize={22}>
+                          {supplierExposure.map((row) => (
+                            <Cell key={row.supplier} fill={row.color} />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                </section>
+                </Panel>
               </div>
-            </div>
+
+              <Panel title="Module Pulse" detail="Posted value, open work, and exception pressure by operating area." icon={CheckCircle2}>
+                <div className="overflow-x-auto rounded-lg border border-akiva-border">
+                  <table className="w-full min-w-[680px] border-separate border-spacing-0 text-sm" aria-label="Module pulse">
+                    <thead className="bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-table-header-text">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold">Module</th>
+                        <th className="px-3 py-2 text-left font-semibold">Owner</th>
+                        <th className="px-3 py-2 text-right font-semibold">Posted</th>
+                        <th className="px-3 py-2 text-right font-semibold">Open</th>
+                        <th className="px-3 py-2 text-right font-semibold">Risk</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-akiva-border bg-akiva-surface-raised">
+                      {modulePulse.map((row) => (
+                        <tr key={row.module} className="hover:bg-akiva-table-row-hover">
+                          <td className="px-3 py-3">
+                            <span className="flex items-center gap-2 font-semibold text-akiva-text">
+                              <span className={`akiva-status-dot ${dotClass(row.tone)}`} />
+                              {row.module}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-akiva-text-muted">{row.owner}</td>
+                          <td className="akiva-financial-value px-3 py-3 text-right font-semibold text-akiva-text">{row.posted}</td>
+                          <td className="akiva-financial-value px-3 py-3 text-right text-akiva-text">{row.open}</td>
+                          <td className="akiva-financial-value px-3 py-3 text-right font-semibold text-akiva-text">{row.risk}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            </main>
 
             <aside className="space-y-4 lg:col-span-4">
-              <section className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/76 dark:shadow-black/20">
-                <div className="grid grid-cols-[1.3fr_1fr_.7fr_.6fr_.7fr] gap-3 px-2 pb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  <span>Module</span>
-                  <span>Value</span>
-                  <span>Open</span>
-                  <span>KPI</span>
-                  <span>W/L</span>
-                </div>
+              <Panel title="Exception Queue" detail="Highest operational risks to clear first." icon={AlertTriangle}>
                 <div className="space-y-2">
-                  {moduleHealth.map((row, index) => (
-                    <div
-                      key={row.module}
-                      className={`rounded-xl px-3 py-3 ${
-                        index === 1
-                          ? 'bg-rose-50/80 ring-1 ring-rose-100 dark:bg-rose-950/30 dark:ring-rose-900/50'
-                          : 'bg-slate-50/80 dark:bg-slate-950/50'
-                      }`}
-                    >
-                      <div className="grid grid-cols-[1.3fr_1fr_.7fr_.6fr_.7fr] items-center gap-3 text-sm">
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-900 dark:text-white">{row.module}</p>
-                          <p className="truncate text-xs text-slate-500 dark:text-slate-400">{row.owner}</p>
-                        </div>
-                        <span className="font-semibold text-slate-900 dark:text-white">{row.value}</span>
-                        <span className="flex gap-1">
-                          <b className="rounded-full bg-slate-950 px-2 py-1 text-xs text-white dark:bg-white dark:text-slate-950">{row.first}</b>
-                          <b className="rounded-full bg-slate-200 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">{row.second}</b>
-                        </span>
-                        <span className="font-medium text-slate-700 dark:text-slate-300">{row.score}</span>
-                        <span className="flex items-center gap-1">
-                          <b className="rounded-full bg-slate-950 px-2 py-1 text-xs text-white dark:bg-white dark:text-slate-950">{row.badge}</b>
-                          <span className="text-slate-700 dark:text-slate-300">{row.closing}</span>
-                        </span>
-                      </div>
-                      {index === 1 && (
-                        <div className="mt-4">
-                          <div className="mb-3 flex flex-wrap gap-2">
-                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">Overdue review</span>
-                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">Credit control</span>
-                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">Cash follow-up</span>
-                          </div>
-                          <div className="rounded-xl bg-white p-4 dark:bg-slate-900">
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-semibold text-slate-900 dark:text-white">Aged receivables</p>
-                              <span className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white">$38.2k</span>
-                            </div>
-                            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                              <div className="rounded-lg bg-rose-50 p-3 dark:bg-rose-950/30">
-                                <p className="text-slate-500 dark:text-slate-400">31-60 days</p>
-                                <p className="mt-1 font-semibold text-slate-950 dark:text-white">$22,114</p>
-                              </div>
-                              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950/60">
-                                <p className="text-slate-500 dark:text-slate-400">60+ days</p>
-                                <p className="mt-1 font-semibold text-slate-950 dark:text-white">$16,086</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                  {exceptionQueue.map((row) => (
+                    <ExceptionRow key={row.issue} row={row} />
                   ))}
                 </div>
-              </section>
+              </Panel>
 
-	              <section className="rounded-2xl border border-slate-200/80 bg-rose-50/80 p-4 shadow-sm shadow-rose-100/60 dark:border-[#6e344c] dark:bg-[#211018] dark:shadow-black/30">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Cash movement</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Inflow, outflow, and bank balance</p>
-                  </div>
-                  <TrendingUp className="h-5 w-5 text-rose-600 dark:text-rose-300" />
-                </div>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={revenueTrend} margin={{ top: 12, right: 8, left: -24, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
-                      <YAxis hide />
-                      <Tooltip
-                        formatter={(value: number) => compactCurrency.format(value)}
-                        contentStyle={chartTooltipContentStyle}
-                        labelStyle={chartTooltipTextStyle}
-                        itemStyle={chartTooltipTextStyle}
-                      />
-                      <Line type="monotone" dataKey="cash" stroke="var(--akiva-chart-brand)" strokeWidth={3} dot={false} />
-                      <Line type="monotone" dataKey="expenses" stroke="var(--akiva-chart-muted)" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/76 dark:shadow-black/20">
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Work queue</p>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Today</span>
-                </div>
+              <Panel title="AI Control Brief" detail="Recommended actions ranked by financial and workflow impact." icon={Sparkles}>
                 <div className="space-y-2">
-                  {workQueue.map((item) => {
+                  {aiControlBrief.map((item) => {
                     const Icon = item.icon;
                     return (
-                      <div key={item.label} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-3 dark:bg-slate-950/50">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Icon className="h-4 w-4 flex-none text-rose-600 dark:text-rose-300" />
-                          <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{item.label}</span>
+                      <button key={item.title} type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
+                        <div className="flex gap-3">
+                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(item.tone)}`}>
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-akiva-text">{item.title}</span>
+                            <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{item.detail}</span>
+                          </span>
                         </div>
-                        <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white dark:bg-white dark:text-slate-950">
-                          {item.count}
-                        </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
-                <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white dark:bg-white dark:text-slate-950">
-                  <CheckCircle2 className="h-4 w-4" />
-                  92% period-close checklist complete
-                  <Clock3 className="ml-auto h-4 w-4 opacity-70" />
+              </Panel>
+
+              <Panel title="Close Readiness" detail="Period close controls that need attention before management review." icon={FileCheck2}>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Bank reconciliation', value: '4/4', tone: 'success' as const },
+                    { label: 'Inventory valuation review', value: '2 open', tone: 'warning' as const },
+                    { label: 'GL suspense clearing', value: '$7.8k', tone: 'danger' as const },
+                    { label: 'Access review', value: '4 users', tone: 'info' as const },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2.5">
+                      <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-akiva-text">
+                        <span className={`akiva-status-dot ${dotClass(item.tone)}`} />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      <span className="akiva-financial-value text-sm font-semibold text-akiva-text">{item.value}</span>
+                    </div>
+                  ))}
                 </div>
-              </section>
+              </Panel>
             </aside>
           </div>
         </section>

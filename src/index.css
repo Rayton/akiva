@@ -2,38 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Smooth dark mode transitions */
 :root {
-  --transition-duration: 300ms;
-  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
-  --akiva-bg: #f2eeee;
-  --akiva-surface: #fffafb;
-  --akiva-surface-muted: #fbf4f6;
+  --transition-duration: 160ms;
+  --transition-timing: cubic-bezier(0.2, 0, 0, 1);
+  --akiva-bg: #eef2f5;
+  --akiva-surface: #f8fafc;
+  --akiva-surface-muted: #f1f5f9;
   --akiva-surface-raised: #ffffff;
-  --akiva-border: #eadfe3;
-  --akiva-border-strong: #d8c7cf;
-  --akiva-text: #22151b;
-  --akiva-text-muted: #7b626d;
-  --akiva-accent: #db2777;
-  --akiva-accent-strong: #be185d;
-  --akiva-accent-text: #be185d;
-  --akiva-accent-soft: #fce7f3;
-  --akiva-chart-grid: #eadfe3;
-  --akiva-chart-muted: #7b626d;
-  --akiva-chart-ink: #22151b;
-  --akiva-chart-brand: #db2777;
-  --akiva-chart-brand-fill: rgba(219, 39, 119, 0.22);
-  --akiva-chart-ink-fill: rgba(34, 21, 27, 0.12);
-  --akiva-chart-tooltip-bg: #fffafb;
-  --akiva-chart-tooltip-border: #eadfe3;
-  --akiva-chart-tooltip-text: #22151b;
-  --akiva-focus-ring: #db2777;
-  --akiva-table-row-hover: #fff6f9;
-  --akiva-table-header: #fbf4f6;
+  --akiva-border: #cbd5e1;
+  --akiva-border-strong: #94a3b8;
+  --akiva-text: #111827;
+  --akiva-text-muted: #475569;
+  --akiva-accent: #9f1239;
+  --akiva-accent-strong: #881337;
+  --akiva-accent-text: #9f1239;
+  --akiva-accent-soft: #fff1f2;
+  --akiva-success: #047857;
+  --akiva-success-soft: #ecfdf5;
+  --akiva-warning: #b45309;
+  --akiva-warning-soft: #fffbeb;
+  --akiva-danger: #be123c;
+  --akiva-danger-soft: #fff1f2;
+  --akiva-info: #0f766e;
+  --akiva-info-soft: #f0fdfa;
+  --akiva-chart-grid: #cbd5e1;
+  --akiva-chart-muted: #64748b;
+  --akiva-chart-ink: #0f766e;
+  --akiva-chart-brand: #9f1239;
+  --akiva-chart-success: #047857;
+  --akiva-chart-warning: #b45309;
+  --akiva-chart-danger: #be123c;
+  --akiva-chart-brand-fill: rgba(159, 18, 57, 0.2);
+  --akiva-chart-ink-fill: rgba(15, 118, 110, 0.16);
+  --akiva-chart-tooltip-bg: #ffffff;
+  --akiva-chart-tooltip-border: #cbd5e1;
+  --akiva-chart-tooltip-text: #111827;
+  --akiva-focus-ring: #0f766e;
+  --akiva-table-row-hover: #f8fafc;
+  --akiva-table-header: #e2e8f0;
+  --akiva-table-header-text: #334155;
+  --akiva-table-stripe: #f8fafc;
 }
 
-/* Base transitions for all color changes */
-* {
+:where(a, button, input, textarea, select, [role="button"], [tabindex]:not([tabindex="-1"]), .akiva-transition) {
   transition-property: background-color, border-color, color, fill, stroke;
   transition-duration: var(--transition-duration);
   transition-timing-function: var(--transition-timing);
@@ -110,63 +121,75 @@ html.dark :where(button, input, textarea, select)[aria-disabled="true"] {
 /* Dark mode specific styles */
 html.dark {
   color-scheme: dark;
-  --akiva-bg: #10090d;
-  --akiva-surface: #181014;
-  --akiva-surface-muted: #21161c;
-  --akiva-surface-raised: #241820;
-  --akiva-border: #2f1d27;
-  --akiva-border-strong: #5a3748;
-  --akiva-text: #fff7fb;
-  --akiva-text-muted: #c8aeb9;
-  --akiva-accent: #e51660;
-  --akiva-accent-strong: #c91050;
-  --akiva-accent-text: #ff74a4;
-  --akiva-accent-soft: #351320;
-  --akiva-chart-grid: rgba(255, 223, 235, 0.2);
-  --akiva-chart-muted: #c8aeb9;
-  --akiva-chart-ink: #c6a1b1;
-  --akiva-chart-brand: #ff3f7f;
-  --akiva-chart-brand-fill: rgba(255, 63, 127, 0.24);
-  --akiva-chart-ink-fill: rgba(183, 156, 168, 0.12);
-  --akiva-chart-tooltip-bg: #1c1016;
-  --akiva-chart-tooltip-border: #5a3748;
-  --akiva-chart-tooltip-text: #fff7fb;
-  --akiva-focus-ring: #ff3f7f;
-  --akiva-table-row-hover: rgba(52, 33, 43, 0.62);
-  --akiva-table-header: #21161c;
+  --akiva-bg: #0d1117;
+  --akiva-surface: #111827;
+  --akiva-surface-muted: #1f2937;
+  --akiva-surface-raised: #16202c;
+  --akiva-border: #334155;
+  --akiva-border-strong: #64748b;
+  --akiva-text: #f8fafc;
+  --akiva-text-muted: #cbd5e1;
+  --akiva-accent: #fb7185;
+  --akiva-accent-strong: #f43f5e;
+  --akiva-accent-text: #fda4af;
+  --akiva-accent-soft: #3b1620;
+  --akiva-success: #34d399;
+  --akiva-success-soft: #052e2b;
+  --akiva-warning: #fbbf24;
+  --akiva-warning-soft: #35260a;
+  --akiva-danger: #fb7185;
+  --akiva-danger-soft: #3b1620;
+  --akiva-info: #5eead4;
+  --akiva-info-soft: #083344;
+  --akiva-chart-grid: rgba(203, 213, 225, 0.24);
+  --akiva-chart-muted: #cbd5e1;
+  --akiva-chart-ink: #5eead4;
+  --akiva-chart-brand: #fb7185;
+  --akiva-chart-success: #34d399;
+  --akiva-chart-warning: #fbbf24;
+  --akiva-chart-danger: #fb7185;
+  --akiva-chart-brand-fill: rgba(251, 113, 133, 0.24);
+  --akiva-chart-ink-fill: rgba(94, 234, 212, 0.16);
+  --akiva-chart-tooltip-bg: #111827;
+  --akiva-chart-tooltip-border: #475569;
+  --akiva-chart-tooltip-text: #f8fafc;
+  --akiva-focus-ring: #5eead4;
+  --akiva-table-row-hover: rgba(30, 41, 59, 0.78);
+  --akiva-table-header: #1e293b;
+  --akiva-table-header-text: #e2e8f0;
+  --akiva-table-stripe: rgba(15, 23, 42, 0.36);
 }
 
 html.dark body {
-  background-color: #10090d;
-  color: #fff7fb;
+  background-color: #0d1117;
+  color: #f8fafc;
 }
 
-/* Akiva dark theme: warm brand neutrals instead of default blue/slate dark UI. */
 html.dark .dark\:bg-slate-950 {
-  background-color: #10090d !important;
+  background-color: #0d1117 !important;
 }
 
 html.dark .dark\:bg-slate-900 {
-  background-color: #181014 !important;
+  background-color: #111827 !important;
 }
 
 html.dark .dark\:bg-slate-800 {
-  background-color: #241820 !important;
+  background-color: #1f2937 !important;
 }
 
 html.dark .dark\:bg-slate-700 {
-  background-color: #34212b !important;
+  background-color: #334155 !important;
 }
 
 html.dark .dark\:bg-slate-950\/50,
 html.dark .dark\:bg-slate-950\/60 {
-  background-color: rgba(16, 9, 13, 0.72) !important;
+  background-color: rgba(13, 17, 23, 0.72) !important;
 }
 
 html.dark .dark\:bg-slate-950\/80,
 html.dark .dark\:bg-slate-950\/92,
 html.dark .dark\:bg-slate-950\/95 {
-  background-color: rgba(16, 9, 13, 0.94) !important;
+  background-color: rgba(13, 17, 23, 0.94) !important;
 }
 
 html.dark .dark\:bg-slate-900\/70,
@@ -175,83 +198,71 @@ html.dark .dark\:bg-slate-900\/76,
 html.dark .dark\:bg-slate-900\/78,
 html.dark .dark\:bg-slate-900\/80,
 html.dark .dark\:bg-slate-900\/92 {
-  background-color: rgba(24, 16, 20, 0.88) !important;
+  background-color: rgba(17, 24, 39, 0.9) !important;
 }
 
 html.dark .dark\:hover\:bg-slate-900:hover {
-  background-color: #181014 !important;
+  background-color: #111827 !important;
 }
 
 html.dark .dark\:hover\:bg-slate-800:hover,
 html.dark .dark\:hover\:bg-slate-800\/80:hover {
-  background-color: rgba(36, 24, 32, 0.88) !important;
+  background-color: rgba(31, 41, 55, 0.9) !important;
 }
 
 html.dark .dark\:hover\:bg-slate-700\/50:hover {
-  background-color: rgba(52, 33, 43, 0.5) !important;
+  background-color: rgba(51, 65, 85, 0.5) !important;
 }
 
 html.dark .dark\:border-slate-600 {
-  border-color: #5a3748 !important;
+  border-color: #64748b !important;
 }
 
 html.dark .dark\:border-slate-800 {
-  border-color: #2f1d27 !important;
+  border-color: #1f2937 !important;
 }
 
 html.dark .dark\:border-slate-700,
 html.dark .dark\:border-slate-700\/80 {
-  border-color: #432a36 !important;
+  border-color: #334155 !important;
 }
 
 html.dark .dark\:text-slate-600 {
-  color: #725462 !important;
+  color: #64748b !important;
 }
 
 html.dark .dark\:text-slate-500 {
-  color: #a98997 !important;
+  color: #94a3b8 !important;
 }
 
 html.dark .dark\:text-slate-400 {
-  color: #b79ca8 !important;
+  color: #cbd5e1 !important;
 }
 
 html.dark .dark\:text-slate-300,
 html.dark .dark\:text-slate-200 {
-  color: #ead8df !important;
+  color: #e2e8f0 !important;
 }
 
 html.dark .dark\:text-slate-100 {
-  color: #fff7fb !important;
+  color: #f8fafc !important;
 }
 
 html.dark .dark\:placeholder\:text-slate-500::placeholder {
-  color: #8f6f7d !important;
+  color: #94a3b8 !important;
 }
 
 html.dark .dark\:ring-slate-800 {
-  --tw-ring-color: #2f1d27 !important;
+  --tw-ring-color: #334155 !important;
 }
 
 html.dark .dark\:ring-slate-900 {
-  --tw-ring-color: #181014 !important;
+  --tw-ring-color: #111827 !important;
 }
 
 html.dark .dark\:shadow-black\/20,
 html.dark .dark\:shadow-black\/30 {
   --tw-shadow-color: rgba(0, 0, 0, 0.34) !important;
-}
-
-/* Ensure transitions work for all elements */
-html.dark *,
-html.dark *::before,
-html.dark *::after {
-  transition: background-color var(--transition-duration) var(--transition-timing),
-              border-color var(--transition-duration) var(--transition-timing),
-              color var(--transition-duration) var(--transition-timing),
-              fill var(--transition-duration) var(--transition-timing),
-              stroke var(--transition-duration) var(--transition-timing),
-              box-shadow var(--transition-duration) var(--transition-timing) !important;
 }
 
 /* Disable transitions on first load */
@@ -261,42 +272,40 @@ html.no-transitions *::after {
   transition: none !important;
 }
 
-/* Custom scrollbar - thin and pale for both light and dark mode */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--akiva-surface-muted);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: #94a3b8;
+  border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #64748b;
 }
 
-/* Dark mode scrollbar - pale thin pink */
 html.dark ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 html.dark ::-webkit-scrollbar-track {
-  background: #10090d;
+  background: #0d1117;
 }
 
 html.dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 47, 125, 0.58);
-  border-radius: 3px;
+  background: #475569;
+  border-radius: 8px;
 }
 
 html.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 47, 125, 0.78);
+  background: #64748b;
 }
 
 /* Focus ring adjustments for dark mode */
@@ -304,7 +313,7 @@ html.dark .focus-ring {
   outline: none;
   ring: 2px;
   ring-offset: 2px;
-  ring-offset-color: #181014;
+  ring-offset-color: #111827;
 }
 
 /* Card hover effects for dark mode */
@@ -321,7 +330,7 @@ html.dark table {
 
 html.dark th,
 html.dark td {
-  border-bottom: 1px solid #3a2530;
+  border-bottom: 1px solid #334155;
 }
 
 html.dark thead tr {
@@ -336,12 +345,7 @@ html.dark tbody tr:hover {
 html.dark input,
 html.dark textarea,
 html.dark select {
-  caret-color: #ec4899;
-}
-
-/* Button hover glow for dark mode */
-html.dark .btn-glow:hover {
-  box-shadow: 0 0 20px rgba(236, 72, 153, 0.35);
+  caret-color: var(--akiva-focus-ring);
 }
 
 /* Hide scrollbar but allow scrolling */
@@ -358,4 +362,47 @@ html.dark .btn-glow:hover {
 .smooth-scroll {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+}
+
+.akiva-page-shell {
+  min-height: 100%;
+  background: var(--akiva-bg);
+  color: var(--akiva-text);
+}
+
+.akiva-frame {
+  border: 1px solid color-mix(in srgb, var(--akiva-border) 70%, white 30%);
+  background: color-mix(in srgb, var(--akiva-surface-raised) 88%, transparent);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+}
+
+html.dark .akiva-frame {
+  border-color: var(--akiva-border);
+  background: color-mix(in srgb, var(--akiva-surface) 92%, transparent);
+  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.34);
+}
+
+.akiva-financial-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  letter-spacing: 0;
+}
+
+.akiva-status-dot {
+  display: inline-flex;
+  height: 0.5rem;
+  width: 0.5rem;
+  flex: none;
+  border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

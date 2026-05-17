@@ -4,16 +4,17 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 interface Column {
   key: string;
   header: string;
-  render?: (value: any, row: any) => ReactNode;
+  render?: (value: never, row: never) => ReactNode;
   className?: string;
   sortable?: boolean;
-  sortValue?: (row: any) => unknown;
+  sortValue?: (row: never) => unknown;
 }
 
 interface TableProps {
   columns: Column[];
-  data: any[];
+  data: object[];
   className?: string;
+  ariaLabel?: string;
   initialSortKey?: string;
   initialSortDirection?: SortDirection;
 }
@@ -42,7 +43,11 @@ function compareValues(a: unknown, b: unknown): number {
   return String(first).localeCompare(String(second), undefined, { numeric: true, sensitivity: 'base' });
 }
 
-export function Table({ columns, data, className = '', initialSortKey, initialSortDirection = 'asc' }: TableProps) {
+function rowValue(row: object, key: string): unknown {
+  return (row as Record<string, unknown>)[key];
+}
+
+export function Table({ columns, data, className = '', ariaLabel = 'Data table', initialSortKey, initialSortDirection = 'asc' }: TableProps) {
   const [sortKey, setSortKey] = useState(initialSortKey ?? '');
   const [sortDirection, setSortDirection] = useState<SortDirection>(initialSortDirection);
 
@@ -51,8 +56,8 @@ export function Table({ columns, data, className = '', initialSortKey, initialSo
     if (!column || column.sortable === false) return data;
 
     return [...data].sort((a, b) => {
-      const first = column.sortValue ? column.sortValue(a) : a[column.key];
-      const second = column.sortValue ? column.sortValue(b) : b[column.key];
+      const first = column.sortValue ? column.sortValue(a as never) : rowValue(a, column.key);
+      const second = column.sortValue ? column.sortValue(b as never) : rowValue(b, column.key);
       const result = compareValues(first, second);
       return sortDirection === 'asc' ? result : -result;
     });
@@ -69,10 +74,10 @@ export function Table({ columns, data, className = '', initialSortKey, initialSo
   };
 
   return (
-    <div className={`overflow-x-auto ${className}`}>
-      <table className="w-full">
+    <div className={`overflow-x-auto rounded-lg border border-akiva-border bg-akiva-surface-raised shadow-sm ${className}`}>
+      <table aria-label={ariaLabel} className="w-full border-separate border-spacing-0">
         <thead>
-          <tr className="border-b border-akiva-border bg-akiva-surface-muted">
+          <tr className="border-b border-akiva-border bg-akiva-table-header">
             {columns.map((column) => {
               const sortable = column.sortable !== false && column.key !== 'actions';
               const active = sortKey === column.key;
@@ -81,7 +86,7 @@ export function Table({ columns, data, className = '', initialSortKey, initialSo
                 <th
                   key={column.key}
                   aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                  className={`px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-akiva-text-muted ${
+                  className={`sticky top-0 z-20 border-b border-akiva-border bg-akiva-table-header px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-akiva-table-header-text ${
                     column.className || ''
                   }`}
                 >
@@ -89,7 +94,7 @@ export function Table({ columns, data, className = '', initialSortKey, initialSo
                     <button
                       type="button"
                       onClick={() => toggleSort(column)}
-                      className="inline-flex items-center gap-1.5 rounded-md text-left transition hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                      className="inline-flex min-h-6 items-center gap-1.5 rounded-md text-left transition hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
                     >
                       <span>{column.header}</span>
                       <SortIcon className={`h-3.5 w-3.5 ${active ? 'text-akiva-accent' : 'text-akiva-text-muted'}`} />
@@ -104,17 +109,17 @@ export function Table({ columns, data, className = '', initialSortKey, initialSo
         </thead>
         <tbody className="divide-y divide-akiva-border bg-akiva-surface-raised">
           {sortedData.map((row, index) => (
-            <tr key={index} className="transition-colors duration-200 hover:bg-akiva-surface-muted">
+            <tr key={index} className="odd:bg-akiva-surface-raised even:bg-akiva-table-stripe hover:bg-akiva-table-row-hover">
               {columns.map((column) => (
                 <td
                   key={column.key}
-                  className={`whitespace-nowrap px-6 py-4 text-sm text-akiva-text ${
+                  className={`whitespace-nowrap px-4 py-2.5 text-sm text-akiva-text ${
                     column.className || ''
                   }`}
                 >
                   {column.render
-                    ? column.render(row[column.key], row)
-                    : row[column.key]}
+                    ? column.render(rowValue(row, column.key) as never, row as never)
+                    : String(rowValue(row, column.key) ?? '')}
                 </td>
               ))}
             </tr>

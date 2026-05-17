@@ -18,9 +18,17 @@ import {
 } from 'recharts';
 
 interface ChartProps {
-  data: any[];
+  data: Array<Record<string, unknown>>;
   className?: string;
 }
+
+const chartTooltipStyle = {
+  backgroundColor: 'var(--akiva-chart-tooltip-bg)',
+  border: '1px solid var(--akiva-chart-tooltip-border)',
+  borderRadius: '8px',
+  color: 'var(--akiva-chart-tooltip-text)',
+  boxShadow: '0 12px 28px rgba(15, 23, 42, 0.18)',
+};
 
 export function RevenueChart({ data, className = '' }: ChartProps) {
   return (
@@ -29,25 +37,18 @@ export function RevenueChart({ data, className = '' }: ChartProps) {
         <AreaChart data={data}>
           <defs>
             <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+              <stop offset="5%" stopColor="var(--akiva-chart-ink)" stopOpacity={0.24}/>
+              <stop offset="95%" stopColor="var(--akiva-chart-ink)" stopOpacity={0}/>
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-          <XAxis dataKey="month" stroke="#6B7280" fontSize={12} />
-          <YAxis stroke="#6B7280" fontSize={12} />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: 'white', 
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-            }}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--akiva-chart-grid)" />
+          <XAxis dataKey="month" stroke="var(--akiva-chart-muted)" fontSize={12} />
+          <YAxis stroke="var(--akiva-chart-muted)" fontSize={12} />
+          <Tooltip contentStyle={chartTooltipStyle} />
           <Area
             type="monotone"
             dataKey="revenue"
-            stroke="#3B82F6"
+            stroke="var(--akiva-chart-ink)"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#colorRevenue)"
@@ -63,18 +64,11 @@ export function ExpenseChart({ data, className = '' }: ChartProps) {
     <div className={`h-80 ${className}`}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-          <XAxis dataKey="category" stroke="#6B7280" fontSize={12} />
-          <YAxis stroke="#6B7280" fontSize={12} />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: 'white', 
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-            }}
-          />
-          <Bar dataKey="amount" fill="#EF4444" radius={[4, 4, 0, 0]} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--akiva-chart-grid)" />
+          <XAxis dataKey="category" stroke="var(--akiva-chart-muted)" fontSize={12} />
+          <YAxis stroke="var(--akiva-chart-muted)" fontSize={12} />
+          <Tooltip contentStyle={chartTooltipStyle} />
+          <Bar dataKey="amount" fill="var(--akiva-chart-danger)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -86,31 +80,24 @@ export function CashFlowChart({ data, className = '' }: ChartProps) {
     <div className={`h-80 ${className}`}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-          <XAxis dataKey="month" stroke="#6B7280" fontSize={12} />
-          <YAxis stroke="#6B7280" fontSize={12} />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: 'white', 
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-            }}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--akiva-chart-grid)" />
+          <XAxis dataKey="month" stroke="var(--akiva-chart-muted)" fontSize={12} />
+          <YAxis stroke="var(--akiva-chart-muted)" fontSize={12} />
+          <Tooltip contentStyle={chartTooltipStyle} />
           <Legend />
           <Line
             type="monotone"
             dataKey="inflow"
-            stroke="#10B981"
+            stroke="var(--akiva-chart-success)"
             strokeWidth={3}
-            dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
+            dot={{ fill: 'var(--akiva-chart-success)', strokeWidth: 2, r: 4 }}
           />
           <Line
             type="monotone"
             dataKey="outflow"
-            stroke="#EF4444"
+            stroke="var(--akiva-chart-danger)"
             strokeWidth={3}
-            dot={{ fill: '#EF4444', strokeWidth: 2, r: 4 }}
+            dot={{ fill: 'var(--akiva-chart-danger)', strokeWidth: 2, r: 4 }}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -119,7 +106,13 @@ export function CashFlowChart({ data, className = '' }: ChartProps) {
 }
 
 export function AccountsBreakdownChart({ data, className = '' }: ChartProps) {
-  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+  const colors = [
+    'var(--akiva-chart-ink)',
+    'var(--akiva-chart-success)',
+    'var(--akiva-chart-warning)',
+    'var(--akiva-chart-danger)',
+    'var(--akiva-chart-brand)',
+  ];
 
   return (
     <div className={`h-80 ${className}`}>
@@ -134,18 +127,11 @@ export function AccountsBreakdownChart({ data, className = '' }: ChartProps) {
             paddingAngle={5}
             dataKey="value"
           >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            {data.map((_entry, index) => (
+              <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
             ))}
           </Pie>
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: 'white', 
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-            }}
-          />
+          <Tooltip contentStyle={chartTooltipStyle} />
           <Legend />
         </PieChart>
       </ResponsiveContainer>

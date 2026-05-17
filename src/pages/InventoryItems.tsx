@@ -404,7 +404,7 @@ export function InventoryItems() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f2eeee] p-3 text-akiva-text dark:bg-slate-950 sm:p-4 md:p-6">
+    <div className="min-h-screen bg-akiva-bg p-3 text-akiva-text dark:bg-slate-950 sm:p-4 md:p-6">
       <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4">
         <section className="rounded-xl border border-white/70 bg-akiva-surface-raised p-4 shadow-sm dark:border-slate-800">
           <div className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">

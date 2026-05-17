@@ -1775,14 +1775,14 @@ function AppContent() {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#f2eeee] transition-colors duration-300 dark:bg-slate-950">
+    <div className="flex h-screen flex-col overflow-hidden bg-akiva-bg transition-colors duration-300 dark:bg-slate-950">
       {/* Desktop: Sidebar on left - Mobile: Header on top */}
       <div className="hidden lg:flex h-full">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header />
           <OfflineStatusBar />
-          <main className="flex-1 overflow-auto bg-[#f2eeee] transition-colors duration-300 dark:bg-slate-950">
+          <main className="flex-1 overflow-auto bg-akiva-bg transition-colors duration-300 dark:bg-slate-950">
             {renderCurrentPage()}
           </main>
         </div>
@@ -1795,7 +1795,7 @@ function AppContent() {
         <OfflineStatusBar compact />
         
         {/* Main content area */}
-        <main className="flex-1 overflow-auto bg-[#f2eeee] pb-20 transition-colors duration-300 dark:bg-slate-950 lg:pb-0">
+        <main className="flex-1 overflow-auto bg-akiva-bg pb-20 transition-colors duration-300 dark:bg-slate-950 lg:pb-0">
           {renderCurrentPage()}
         </main>
         
@@ -1813,7 +1813,7 @@ function MobileHeader() {
   const { isDarkMode, toggleDarkMode, setMobileSidebarOpen } = useApp();
   
   return (
-    <header className="flex-shrink-0 border-b border-white/70 bg-[#f2eeee]/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+    <header className="flex-shrink-0 border-b border-akiva-border bg-akiva-surface/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
       <div className="flex items-center justify-between">
         {/* Left: Menu button and Logo */}
         <div className="flex items-center space-x-3">
@@ -1887,7 +1887,7 @@ function MobileNav() {
   };
   
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex-shrink-0 border-t border-white/70 bg-[#f2eeee]/95 px-2 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex-shrink-0 border-t border-akiva-border bg-akiva-surface/95 px-2 py-2 backdrop-blur dark:bg-slate-950/95">
       <div className="flex items-center justify-around">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
@@ -2015,11 +2015,11 @@ function MobileSidebarOverlay() {
       
       {/* Sidebar Panel */}
       <div 
-        className="absolute bottom-0 left-0 top-0 w-80 max-w-[85vw] overflow-y-auto bg-[#f7f4f4] shadow-xl dark:bg-slate-950"
+        className="absolute bottom-0 left-0 top-0 w-80 max-w-[85vw] overflow-y-auto bg-akiva-surface shadow-xl dark:bg-slate-950"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/70 px-4 py-4 dark:border-slate-800">
+        <div className="flex items-center justify-between border-b border-akiva-border px-4 py-4 dark:border-slate-800">
           <div className="flex items-center space-x-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 dark:bg-white">
               <span className="text-white dark:text-gray-900 font-bold text-lg">A</span>
@@ -2088,7 +2088,7 @@ function MobileSidebarOverlay() {
 function App() {
   return (
     <AppProvider>
-      <div className="h-screen bg-[#f2eeee] transition-colors duration-300 dark:bg-slate-950">
+      <div className="h-screen bg-akiva-bg transition-colors duration-300 dark:bg-slate-950">
         <AppContent />
       </div>
     </AppProvider>

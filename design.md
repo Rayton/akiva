@@ -4,7 +4,7 @@ This guide documents the dashboard design language so every migrated page feels 
 
 ## Design Goal
 
-Akiva is an operational ERP, so pages should feel calm, dense, and easy to scan. The dashboard is the reference screen: warm neutral background, soft raised surfaces, compact controls, icon-first actions, tabular numbers, and clear module status.
+Akiva is an operational ERP, so pages should feel calm, dense, and easy to scan. The dashboard is the reference screen: neutral high-contrast surfaces, compact controls, icon-first actions, tabular numbers, and clear module status.
 
 Do not build marketing-style pages, oversized empty hero sections, or decorative layouts. Every screen should support repeated daily work.
 
@@ -16,16 +16,16 @@ Do not build marketing-style pages, oversized empty hero sections, or decorative
 - Shared primitives: `src/components/common`
 - Layout shell: `src/components/layout`
 
-Prefer token classes such as `bg-akiva-bg`, `bg-akiva-surface-raised`, `border-akiva-border`, `text-akiva-text`, and `text-akiva-text-muted` when building new shared components. Use explicit dashboard classes only when matching an existing dashboard pattern exactly.
+Prefer token classes such as `bg-akiva-bg`, `bg-akiva-surface-raised`, `border-akiva-border`, `text-akiva-text`, and `text-akiva-text-muted` when building new shared components. Use semantic tokens such as `akiva-success`, `akiva-warning`, `akiva-danger`, and `akiva-info` for workflow states. Use explicit dashboard classes only when matching an existing dashboard pattern exactly.
 
 ## Page Shell
 
 Every full page should use the same outer rhythm as the dashboard.
 
 ```tsx
-<div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+<div className="akiva-page-shell px-3 py-3 sm:px-4 sm:py-4 lg:px-5 lg:py-5">
   <div className="mx-auto max-w-[1520px]">
-    <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/72 shadow-xl shadow-slate-300/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/72 dark:shadow-black/30">
+    <section className="akiva-frame overflow-hidden rounded-[28px] backdrop-blur">
       {/* page header */}
       {/* page content */}
     </section>
@@ -42,7 +42,7 @@ Page headers sit inside the main rounded frame and use a bottom divider.
 - Header padding: `px-4 py-4 sm:px-6 lg:px-8`
 - Layout: stacked on mobile, horizontal on large screens
 - Eyebrow chips: compact rounded pills with icon plus label
-- Title: `text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl`
+- Title: `text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl`
 - Supporting text: `text-sm text-akiva-text-muted`
 - Header actions: icon buttons first; text buttons only for clear creation or submission commands
 
@@ -78,7 +78,7 @@ Keep screens compact. Prefer stacked sections and useful side panels over large 
 Use surfaces consistently:
 
 - Page background: `bg-akiva-bg`
-- Main framed page surface: translucent white/dark warm surface, `rounded-[28px]`
+- Main framed page surface: `.akiva-frame`, `rounded-[28px]`
 - Repeated cards: `rounded-lg border border-akiva-border bg-akiva-surface-raised shadow-sm`
 - Larger analytical panels: `rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm`
 - Tables and controls: `rounded-lg`
@@ -94,6 +94,7 @@ Use the Akiva tokens before raw Tailwind colors:
 - Border: `akiva-border`, `akiva-border-strong`
 - Text: `akiva-text`, `akiva-text-muted`
 - Brand/accent: `akiva-accent`, `akiva-accent-strong`, `akiva-accent-soft`, `akiva-accent-text`
+- Workflow semantics: `akiva-success`, `akiva-warning`, `akiva-danger`, `akiva-info` and their `-soft` variants
 - Tables: `akiva-table-header`, `akiva-table-row-hover`
 
 Semantic colors are allowed for status:
@@ -101,9 +102,10 @@ Semantic colors are allowed for status:
 - Success: emerald
 - Warning: amber
 - Danger/overdue: rose or red
-- Neutral: slate through existing dark-mode overrides
+- Info/in-progress: teal/cyan
+- Neutral: Akiva surface and text tokens
 
-Do not introduce blue as a primary action or focus color. The brand accent is rose/pink.
+Do not use a one-note palette. Primary actions use the Akiva accent. Status and chart colors must remain distinguishable without relying on color alone, usually by adding labels, icons, dots, or queue counts.
 
 ## Typography
 
@@ -137,7 +139,25 @@ Controls should be familiar:
 - Dates use `DatePicker`
 - Single booleans use toggles or checkboxes
 - Grouped booleans use themed checklist rows
-- Tables use `AdvancedTable` when filtering, pagination, column visibility, or export is needed
+- Tables use `AdvancedTable` when filtering, pagination, column visibility, sticky headers, column resizing, or export is needed
+
+### Data Grid Standards
+
+Use dense rows by default for accounting, inventory, and procurement lists. Table headers must be sticky, filter inputs must be labelled, and row focus must remain visible for keyboard users. Numeric columns should be right-aligned and use tabular figures. Status cells must include text plus a visual marker, not color alone.
+
+Recommended advanced table:
+
+```tsx
+<AdvancedTable
+  tableId="purchase-order-queue"
+  ariaLabel="Purchase order approval queue"
+  columns={columns}
+  rows={rows}
+  rowKey={(row) => row.id}
+  density="compact"
+  initialPageSize={25}
+/>
+```
 
 ### Themed Checklists
 
@@ -238,6 +258,7 @@ Toast conventions:
 - Layout: icon, message text, dismiss button
 - Success: emerald tones with `CheckCircle2`
 - Error: rose tones with `AlertTriangle`
+
 - Accessibility: `role="status"` for success and `role="alert"` for errors
 - Behavior: allow manual dismissal and auto-dismiss after about 7 seconds
 - Copy: short user-facing outcome, such as `Transfer 949951 is ready for receiving.`
@@ -256,6 +277,10 @@ Recommended toast:
   </button>
 </div>
 ```
+
+## AI-Ready ERP Patterns
+
+Use AI surfaces as operational work queues, not decorative chat widgets. AI panels should show recommended actions, affected document numbers, financial impact, confidence or risk language, and a clear human approval path. Keep them adjacent to the workflow they affect, such as approval queues, supplier exposure, reorder decisions, reconciliations, and anomaly reviews.
 
 ## Cards And KPIs
 
@@ -388,9 +413,9 @@ import { Button } from '../components/common/Button';
 
 export function ModulePage() {
   return (
-    <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+    <div className="akiva-page-shell px-3 py-3 sm:px-4 sm:py-4 lg:px-5 lg:py-5">
       <div className="mx-auto max-w-[1520px]">
-        <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/72 shadow-xl shadow-slate-300/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/72 dark:shadow-black/30">
+        <section className="akiva-frame overflow-hidden rounded-[28px] backdrop-blur">
           <div className="flex flex-col gap-4 border-b border-akiva-border px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -401,7 +426,7 @@ export function ModulePage() {
                   Current period
                 </span>
               </div>
-              <h1 className="mt-4 text-2xl font-semibold tracking-normal text-slate-300 dark:text-slate-600 sm:text-3xl lg:text-4xl">
+              <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl">
                 Page title
               </h1>
               <p className="mt-2 text-sm text-akiva-text-muted">Short operational context for this page.</p>

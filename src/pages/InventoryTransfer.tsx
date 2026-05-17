@@ -586,7 +586,7 @@ export function InventoryTransfer() {
   return (
     <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
       <div className="mx-auto max-w-[1520px]">
-        <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/72 shadow-xl shadow-slate-300/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/72 dark:shadow-black/30">
+        <section className="akiva-frame overflow-hidden rounded-[28px] backdrop-blur">
           <header className="border-b border-akiva-border px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
@@ -719,7 +719,7 @@ export function InventoryTransfer() {
 
       {sidePanelOpen ? (
         <div className="fixed inset-0 z-40">
-          <button type="button" aria-label="Close transfer panel" className="absolute inset-0 bg-[#10090d]/25 backdrop-blur-[1px]" onClick={() => setSidePanelOpen(false)} />
+          <button type="button" aria-label="Close transfer panel" className="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" onClick={() => setSidePanelOpen(false)} />
           <aside className="absolute inset-y-0 right-0 flex w-screen max-w-md flex-col border-l border-akiva-border bg-akiva-surface-raised text-akiva-text shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-akiva-border px-4 py-3">
               <div>

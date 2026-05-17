@@ -22,12 +22,16 @@ export interface AdvancedTableColumn<T> {
 
 interface AdvancedTableProps<T> {
   tableId: string;
+  ariaLabel?: string;
   columns: AdvancedTableColumn<T>[];
   rows: T[];
   rowKey?: (row: T, index: number) => string;
+  rowAriaLabel?: (row: T, index: number) => string;
   emptyMessage?: string;
   loading?: boolean;
   loadingMessage?: string;
+  density?: 'compact' | 'comfortable';
+  maxTableHeight?: string;
   initialPageSize?: number;
   pageSizeOptions?: number[];
   initialScroll?: 'left' | 'right';
@@ -83,12 +87,16 @@ function compareValues(first: unknown, second: unknown): number {
 
 export function AdvancedTable<T>({
   tableId,
+  ariaLabel,
   columns,
   rows,
   rowKey,
+  rowAriaLabel,
   emptyMessage = 'No rows found.',
   loading = false,
   loadingMessage = 'Loading...',
+  density = 'compact',
+  maxTableHeight = 'min(70vh, 760px)',
   initialPageSize = 25,
   pageSizeOptions = DEFAULT_PAGE_SIZES,
   initialScroll = 'left',
@@ -163,7 +171,7 @@ export function AdvancedTable<T>({
       if (next.length === 0) return columns.map((column) => column.id);
       return next;
     });
-  }, [columns]);
+  }, [columns, tableId]);
 
   useEffect(() => {
     const onMouseMove = (event: MouseEvent) => {
@@ -278,12 +286,12 @@ export function AdvancedTable<T>({
 
   const stickyHeaderClass = (column: AdvancedTableColumn<T>) =>
     isStickyRightColumn(column)
-      ? 'sticky right-0 z-30 border-l border-akiva-border bg-akiva-table-header shadow-[-10px_0_18px_rgba(15,23,42,0.08)]'
+      ? 'sticky right-0 top-0 z-40 border-l border-akiva-border bg-akiva-table-header shadow-[-10px_0_18px_rgba(15,23,42,0.08)]'
       : '';
 
   const stickyFilterClass = (column: AdvancedTableColumn<T>) =>
     isStickyRightColumn(column)
-      ? 'sticky right-0 z-20 border-l border-akiva-border bg-akiva-surface-raised shadow-[-10px_0_18px_rgba(15,23,42,0.08)]'
+      ? 'sticky right-0 top-[37px] z-30 border-l border-akiva-border bg-akiva-surface-raised shadow-[-10px_0_18px_rgba(15,23,42,0.08)]'
       : '';
 
   const stickyCellClass = (column: AdvancedTableColumn<T>) =>
@@ -294,6 +302,10 @@ export function AdvancedTable<T>({
   useEffect(() => {
     setPageIndex(0);
   }, [activeSearch, filters, sort]);
+
+  const headerCellClass = density === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
+  const filterCellClass = density === 'compact' ? 'px-3 py-2' : 'px-4 py-2.5';
+  const bodyCellClass = density === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
 
   const onExportExcel = () => {
     const exportRows = sortedRows.map((row) => {
@@ -338,7 +350,9 @@ export function AdvancedTable<T>({
           <button
             type="button"
             onClick={() => setShowColumnsPanel((previous) => !previous)}
-            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
+            aria-expanded={showColumnsPanel}
+            aria-controls={`${tableId}-columns-panel`}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-accent-text shadow-sm hover:bg-akiva-accent-soft"
           >
             <Columns3 className="h-3.5 w-3.5" />
             Columns
@@ -348,7 +362,9 @@ export function AdvancedTable<T>({
               <button
                 type="button"
                 onClick={onExportExcel}
-                className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
+                aria-label={`Export ${ariaLabel ?? tableId} to Excel`}
+                title="Export to Excel"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-accent-text shadow-sm hover:bg-akiva-accent-soft"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 Excel
@@ -356,7 +372,9 @@ export function AdvancedTable<T>({
               <button
                 type="button"
                 onClick={onExportPdf}
-                className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2.5 py-1.5 text-xs font-medium text-akiva-accent-text hover:bg-akiva-accent-soft"
+                aria-label={`Export ${ariaLabel ?? tableId} to PDF`}
+                title="Export to PDF"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-accent-text shadow-sm hover:bg-akiva-accent-soft"
               >
                 <FileText className="h-3.5 w-3.5" />
                 PDF
@@ -373,13 +391,14 @@ export function AdvancedTable<T>({
                 value={activeSearch}
                 onChange={(event) => updateSearch(event.target.value)}
                 placeholder={searchPlaceholder}
+                aria-label={`Search ${ariaLabel ?? tableId}`}
                 className="h-9 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised pl-9 pr-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
               />
             </div>
           ) : null}
 
           <div className="flex items-center gap-2 whitespace-nowrap text-xs text-akiva-text-muted">
-            <span>
+            <span aria-live="polite">
               Showing {rangeStart} to {rangeEnd} of {sortedRows.length} items
             </span>
             <span className="text-akiva-border-strong">|</span>
@@ -389,8 +408,8 @@ export function AdvancedTable<T>({
       </div>
 
       {showColumnsPanel ? (
-        <div className="rounded-lg border border-akiva-border bg-akiva-surface-muted p-3">
-          <p className="mb-2 text-xs font-medium text-akiva-text">Column Visibility</p>
+        <div id={`${tableId}-columns-panel`} className="rounded-lg border border-akiva-border bg-akiva-surface-muted p-3">
+          <p className="mb-2 text-xs font-semibold text-akiva-text">Column Visibility</p>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {columns.map((column) => {
               const checked = visibleColumnIds.includes(column.id);
@@ -407,7 +426,7 @@ export function AdvancedTable<T>({
                         return next.length === 0 ? previous : next;
                       });
                     }}
-                    className="h-3.5 w-3.5 rounded border-akiva-border-strong text-akiva-accent-text focus:ring-akiva-accent"
+                    className="h-4 w-4 rounded border-akiva-border-strong text-akiva-accent-text focus:ring-akiva-accent"
                   />
                   {column.header}
                 </label>
@@ -417,8 +436,12 @@ export function AdvancedTable<T>({
         </div>
       ) : null}
 
-      <div ref={scrollContainerRef} className="overflow-x-auto rounded-lg border border-akiva-border">
-        <table className="w-full table-fixed" style={{ minWidth: tableMinWidth }}>
+      <div
+        ref={scrollContainerRef}
+        className="overflow-auto rounded-lg border border-akiva-border bg-akiva-surface-raised shadow-sm"
+        style={{ maxHeight: maxTableHeight }}
+      >
+        <table aria-label={ariaLabel ?? tableId} className="w-full table-fixed border-separate border-spacing-0" style={{ minWidth: tableMinWidth }}>
           <thead>
             <tr className="bg-akiva-table-header text-left text-xs uppercase tracking-wide text-akiva-text-muted">
               {visibleColumns.map((column) => {
@@ -431,7 +454,7 @@ export function AdvancedTable<T>({
                     key={column.id}
                     style={{ width }}
                     aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    className={`relative px-3 py-2 align-top ${alignClass(column.align)} ${stickyHeaderClass(column)}`}
+                    className={`sticky top-0 z-30 border-b border-akiva-border bg-akiva-table-header align-top font-semibold text-akiva-table-header-text ${headerCellClass} ${alignClass(column.align)} ${stickyHeaderClass(column)}`}
                   >
                     {sortable ? (
                       <button
@@ -443,7 +466,7 @@ export function AdvancedTable<T>({
                               : { columnId: column.id, direction: 'asc' }
                           )
                         }
-                        className={`inline-flex items-center gap-1.5 rounded-md transition hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent ${
+                        className={`inline-flex min-h-6 items-center gap-1.5 rounded-md transition hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent ${
                           column.align === 'right' ? 'justify-end text-right' : column.align === 'center' ? 'justify-center text-center' : 'text-left'
                         }`}
                       >
@@ -466,9 +489,9 @@ export function AdvancedTable<T>({
                 );
               })}
             </tr>
-            <tr className="border-t border-akiva-border bg-akiva-surface-raised">
+            <tr className="bg-akiva-surface-raised">
               {visibleColumns.map((column) => (
-                <th key={`${column.id}-filter`} className={`px-3 py-2 ${alignClass(column.align)} ${stickyFilterClass(column)}`}>
+                <th key={`${column.id}-filter`} className={`sticky top-[37px] z-20 border-b border-akiva-border bg-akiva-surface-raised ${filterCellClass} ${alignClass(column.align)} ${stickyFilterClass(column)}`}>
                   {column.filterable === false ? null : (
                     <input
                       value={filters[column.id] ?? ''}
@@ -479,7 +502,8 @@ export function AdvancedTable<T>({
                         }))
                       }
                       placeholder={`Filter ${column.header}`}
-                      className="w-full rounded-md border border-akiva-border bg-akiva-surface px-2 py-1 text-xs text-akiva-text placeholder:text-akiva-text-muted"
+                      aria-label={`Filter ${column.header}`}
+                      className="h-8 w-full rounded-md border border-akiva-border bg-akiva-surface px-2 text-xs font-medium text-akiva-text placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
                     />
                   )}
                 </th>
@@ -503,12 +527,14 @@ export function AdvancedTable<T>({
               pagedRows.map((row, index) => (
                 <tr
                   key={rowKey ? rowKey(row, index) : `${tableId}-${pageIndex}-${index}`}
-                  className="group border-t border-akiva-border hover:bg-akiva-table-row-hover"
+                  tabIndex={0}
+                  aria-label={rowAriaLabel ? rowAriaLabel(row, index) : undefined}
+                  className="group border-t border-akiva-border odd:bg-akiva-surface-raised even:bg-akiva-table-stripe hover:bg-akiva-table-row-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-akiva-accent"
                 >
                   {visibleColumns.map((column) => {
                     const value = column.accessor(row);
                     return (
-                      <td key={column.id} className={`px-3 py-2 text-sm text-akiva-text ${alignClass(column.align)} ${stickyCellClass(column)}`}>
+                      <td key={column.id} className={`${bodyCellClass} text-sm text-akiva-text ${alignClass(column.align)} ${stickyCellClass(column)}`}>
                         {column.cell ? column.cell(row) : asText(value)}
                       </td>
                     );
@@ -545,7 +571,8 @@ export function AdvancedTable<T>({
             type="button"
             onClick={() => setPageIndex((previous) => Math.max(0, previous - 1))}
             disabled={pageIndex === 0}
-            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2 py-1 text-akiva-text hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-70"
+            aria-label="Go to previous page"
+            className="inline-flex min-h-9 items-center gap-1 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-akiva-text shadow-sm hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-70"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             Prev
@@ -557,7 +584,8 @@ export function AdvancedTable<T>({
             type="button"
             onClick={() => setPageIndex((previous) => Math.min(pageCount - 1, previous + 1))}
             disabled={pageIndex >= pageCount - 1}
-            className="inline-flex items-center gap-1 rounded-md border border-akiva-border px-2 py-1 text-akiva-text hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-70"
+            aria-label="Go to next page"
+            className="inline-flex min-h-9 items-center gap-1 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-akiva-text shadow-sm hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-70"
           >
             Next
             <ChevronRight className="h-3.5 w-3.5" />

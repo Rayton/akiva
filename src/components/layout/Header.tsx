@@ -6,8 +6,8 @@ import {
   Plus,
   Search,
   Settings,
-  Share2,
   SlidersHorizontal,
+  Sparkles,
   Sun,
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
@@ -40,14 +40,14 @@ export function Header() {
   const [timeframe, setTimeframe] = useState(getDefaultDateRange);
 
   return (
-    <header className="border-b border-akiva-border bg-akiva-bg px-5 py-4 text-akiva-text backdrop-blur transition-colors">
+    <header className="border-b border-akiva-border bg-akiva-surface/95 px-5 py-4 text-akiva-text backdrop-blur transition-colors">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div className="relative w-full max-w-xl">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-akiva-text-muted" />
             <input
               type="text"
-              placeholder='Try searching "inventory valuation"'
+              placeholder="Search POs, GRNs, suppliers, reports, or ask AI"
               className="h-12 w-full rounded-full border border-akiva-border bg-akiva-surface-raised pl-12 pr-4 text-sm font-medium text-akiva-text shadow-sm outline-none transition placeholder:text-akiva-text-muted focus:border-akiva-accent focus:ring-2 focus:ring-akiva-accent"
             />
           </div>
@@ -69,8 +69,8 @@ export function Header() {
           <HeaderIconButton label="Export">
             <Download className="h-4 w-4" />
           </HeaderIconButton>
-          <HeaderIconButton label="Share">
-            <Share2 className="h-4 w-4" />
+          <HeaderIconButton label="AI assistant">
+            <Sparkles className="h-4 w-4" />
           </HeaderIconButton>
           <HeaderIconButton label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={toggleDarkMode}>
             {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}

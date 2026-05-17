@@ -13,7 +13,7 @@ interface RightDrawerProps {
 export function RightDrawer({ isOpen, onClose, title, subtitle, children }: RightDrawerProps) {
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-[#10090d]/45 backdrop-blur-[1px]" aria-hidden="true" />
+      <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-[1px]" aria-hidden="true" />
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-0 sm:pl-4">

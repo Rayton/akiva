@@ -30,8 +30,18 @@ export default {
           'accent-strong': 'var(--akiva-accent-strong)',
           'accent-text': 'var(--akiva-accent-text)',
           'accent-soft': 'var(--akiva-accent-soft)',
+          success: 'var(--akiva-success)',
+          'success-soft': 'var(--akiva-success-soft)',
+          warning: 'var(--akiva-warning)',
+          'warning-soft': 'var(--akiva-warning-soft)',
+          danger: 'var(--akiva-danger)',
+          'danger-soft': 'var(--akiva-danger-soft)',
+          info: 'var(--akiva-info)',
+          'info-soft': 'var(--akiva-info-soft)',
           'table-header': 'var(--akiva-table-header)',
+          'table-header-text': 'var(--akiva-table-header-text)',
           'table-row-hover': 'var(--akiva-table-row-hover)',
+          'table-stripe': 'var(--akiva-table-stripe)',
         },
         // Brand colors - update these values to change the brand color
         brand: {
@@ -59,28 +69,28 @@ export default {
         // Dark mode specific colors with warm Akiva brand neutrals
         dark: {
           bg: {
-            primary: '#10090d',
-            secondary: '#181014',
-            tertiary: '#34212b',
+            primary: '#0d1117',
+            secondary: '#111827',
+            tertiary: '#1f2937',
           },
           text: {
-            primary: '#fff7fb',
-            secondary: '#ead8df',
-            muted: '#b79ca8',
+            primary: '#f8fafc',
+            secondary: '#e2e8f0',
+            muted: '#cbd5e1',
           },
           border: {
-            DEFAULT: '#2f1d27',
-            light: '#432a36',
+            DEFAULT: '#334155',
+            light: '#475569',
           },
         },
         
         // High contrast dark variants
-        'dark-bg': '#10090d',
-        'dark-card': '#181014',
-        'dark-border': '#2f1d27',
-        'dark-text': '#fff7fb',
-        'dark-text-secondary': '#ead8df',
-        'dark-text-muted': '#b79ca8',
+        'dark-bg': '#0d1117',
+        'dark-card': '#111827',
+        'dark-border': '#334155',
+        'dark-text': '#f8fafc',
+        'dark-text-secondary': '#e2e8f0',
+        'dark-text-muted': '#cbd5e1',
       },
       
       // Custom box shadows for dark mode

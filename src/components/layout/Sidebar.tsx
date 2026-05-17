@@ -708,7 +708,7 @@ function Sidebar() {
       if (child.children?.length) idsToExpand.push(`menu-child-${child.id}`);
     });
     setExpandedSubItems((prev) => [...new Set([...prev, ...idsToExpand])]);
-  }, [menuForExpand?.id]);
+  }, [menuForExpand]);
 
   useEffect(() => {
     const routeExpandIds = routeIndex.pageIdToExpandIds.get(currentPage) ?? [];
@@ -899,7 +899,7 @@ function Sidebar() {
 	      {/* Left Icon Sidebar */}
 	      <div 
 	        ref={iconSidebarRef}
-		        className={`relative flex h-screen min-h-screen shrink-0 flex-col overflow-visible border-r border-white/70 bg-[#f4f0f0] dark:border-slate-800 dark:bg-slate-950 ${
+		        className={`relative flex h-screen min-h-screen shrink-0 flex-col overflow-visible border-r border-akiva-border bg-akiva-surface dark:border-slate-800 dark:bg-slate-950 ${
 		          isResizingIcon ? 'transition-none' : 'transition-all duration-300 ease-in-out'
 		        }`}
 	        style={{ width: `${iconSidebarWidth}px` }}
@@ -1064,7 +1064,7 @@ function Sidebar() {
       {/* Main Navigation Sidebar - opens only after selecting a dynamic main menu */}
       <div 
         ref={mainSidebarRef}
-        className={`relative flex h-screen min-h-screen shrink-0 flex-col overflow-hidden border-r border-white/70 bg-[#f7f4f4]/92 dark:border-slate-800 dark:bg-slate-900/92 ${
+        className={`relative flex h-screen min-h-screen shrink-0 flex-col overflow-hidden border-r border-akiva-border bg-akiva-surface/95 dark:border-slate-800 dark:bg-slate-900/92 ${
           isResizingMain ? 'transition-none' : 'transition-all duration-300 ease-in-out'
         } ${
           !showSecondarySidebar ? 'w-0' : ''
@@ -1097,7 +1097,7 @@ function Sidebar() {
         {showSecondarySidebar && (
           <>
             {/* Header - Company Selector */}
-            <div className="flex-shrink-0 border-b border-white/70 p-4 dark:border-slate-800">
+            <div className="flex-shrink-0 border-b border-akiva-border p-4 dark:border-slate-800">
               <div className="relative rounded-full bg-white/78 px-3 py-2 shadow-sm shadow-slate-200/60 dark:bg-slate-950/50 dark:shadow-black/20">
                 <SearchableSelect
                   value={companyName}
@@ -1125,7 +1125,7 @@ function Sidebar() {
               )}
               {!menuLoading && displayedMainMenu && (
                 <>
-                  <div className="mb-3 flex-shrink-0 border-b border-white/70 pb-3 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
+                  <div className="mb-3 flex-shrink-0 border-b border-akiva-border pb-3 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
                     {isDashboardLinkedMainMenu(displayedMainMenu.caption) ? (
                       <button
                         type="button"
@@ -1166,7 +1166,7 @@ function Sidebar() {
             </nav>
 
             {/* System Administration - Fixed at very bottom */}
-            <div className="mt-auto flex-shrink-0 border-t border-white/70 p-4 dark:border-slate-800">
+            <div className="mt-auto flex-shrink-0 border-t border-akiva-border p-4 dark:border-slate-800">
               <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-600 transition-all duration-200 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
                 <Shield className="w-4 h-4 mr-3 flex-shrink-0" />
                 <span className="truncate">System Administration</span>

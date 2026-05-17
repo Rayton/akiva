@@ -372,7 +372,7 @@ export function Departments() {
           <div className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-akiva-accent">Inventory Maintenance</p>
-              <h1 className="mt-1 text-2xl font-bold leading-tight text-akiva-text sm:text-3xl">Departments</h1>
+              <h1 className="mt-1 text-xl font-bold leading-tight text-akiva-text sm:text-[1.625rem]">Departments</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
                 Maintain internal stock request permissions by inventory location.
               </p>

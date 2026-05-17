@@ -1926,7 +1926,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
         <section className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-slate-900 px-4 py-4 md:px-5 md:py-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white">{modeTitle}</h1>
+              <h1 className="text-sm md:text-base font-semibold text-gray-900 dark:text-white">{modeTitle}</h1>
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                 Manage sales transactions and customer order activity.
               </p>

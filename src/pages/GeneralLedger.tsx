@@ -2136,7 +2136,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{header.title}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">{header.title}</h1>
           <p className="text-gray-600 dark:text-gray-400">{header.description}</p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {glSettings.companyName} | Currency: {glSettings.currencyCode} ({glSettings.currencyDecimalPlaces} decimals)

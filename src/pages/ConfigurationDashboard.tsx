@@ -138,7 +138,7 @@ export function ConfigurationDashboard({ module, onSelectPage }: ConfigurationDa
                 <Settings2 className="h-3.5 w-3.5" />
                 Configuration
               </span>
-              <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl">
+              <h1 className="mt-4 text-xl font-semibold tracking-normal text-akiva-text sm:text-[1.625rem] lg:text-[2rem]">
                 Configuration Dashboard
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">

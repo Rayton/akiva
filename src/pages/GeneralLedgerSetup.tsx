@@ -521,7 +521,7 @@ export function GeneralLedgerSetup({ initialTab = 'bank-accounts' }: GeneralLedg
                   {definition.label}
                 </span>
               </div>
-              <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl">
+              <h1 className="mt-4 text-xl font-semibold tracking-normal text-akiva-text sm:text-[1.625rem] lg:text-[2rem]">
                 General Ledger Setup
               </h1>
               <p className="mt-2 text-sm text-akiva-text-muted">{definition.description}</p>

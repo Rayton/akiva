@@ -731,7 +731,7 @@ export function ChartOfAccounts({ sourceSlug = '' }: ChartOfAccountsProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">General Ledger Account Management</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">General Ledger Account Management</h1>
           <p className="text-gray-600 dark:text-gray-300">
             Maintain GL accounts, account groups, and account sections.
           </p>

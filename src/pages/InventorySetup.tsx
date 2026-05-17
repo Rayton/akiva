@@ -478,7 +478,7 @@ export function InventorySetup({ initialTab = 'stock-categories' }: InventorySet
           <div className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-akiva-accent">Configuration</p>
-              <h1 className="mt-1 text-2xl font-bold text-akiva-text sm:text-3xl">Inventory setup</h1>
+              <h1 className="mt-1 text-xl font-bold text-akiva-text sm:text-[1.625rem]">Inventory setup</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">{definition.description}</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row min-[900px]:shrink-0">

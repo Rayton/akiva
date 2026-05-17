@@ -317,7 +317,7 @@ export function StockSerialItemResearch() {
                     Serial trace
                   </span>
                 </div>
-                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl">
+                <h1 className="mt-4 text-xl font-semibold tracking-normal text-akiva-text sm:text-[1.625rem] lg:text-[2rem]">
                   Serial Item Research
                 </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">

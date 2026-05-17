@@ -279,7 +279,7 @@ export function MarkupPrices() {
           <div className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-akiva-accent">Inventory Maintenance</p>
-              <h1 className="mt-1 text-2xl font-bold leading-tight text-akiva-text sm:text-3xl">Cost-Based Prices</h1>
+              <h1 className="mt-1 text-xl font-bold leading-tight text-akiva-text sm:text-[1.625rem]">Cost-Based Prices</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
                 Calculate stock prices from cost, preferred supplier data, or another price list.
               </p>

@@ -292,20 +292,20 @@ export function InventorySetup({ initialTab = 'stock-categories' }: InventorySet
       cell: (row) => {
         const id = rowId(row);
         return (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => openEditDialog(row)}>
-              <span className="inline-flex items-center gap-2"><Pencil className="h-4 w-4" />Edit</span>
+          <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" variant="secondary" onClick={() => openEditDialog(row)} className="min-w-16">
+              <span className="inline-flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" />Edit</span>
             </Button>
-            <Button size="sm" variant="danger" disabled={deletingId === id} onClick={() => void deleteRow(row)}>
-              <span className="inline-flex items-center gap-2">
-                {deletingId === id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            <Button size="sm" variant="danger" disabled={deletingId === id} onClick={() => void deleteRow(row)} className="min-w-20">
+              <span className="inline-flex items-center gap-1.5">
+                {deletingId === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                 Delete
               </span>
             </Button>
           </div>
         );
       },
-      width: 210,
+      width: 172,
       sortable: false,
       filterable: false,
     };
@@ -520,7 +520,7 @@ export function InventorySetup({ initialTab = 'stock-categories' }: InventorySet
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`min-h-11 shrink-0 rounded-lg px-3 text-sm font-semibold transition ${
+                className={`min-h-9 shrink-0 rounded-lg px-3 text-sm font-semibold transition ${
                   activeTab === tab.id
                     ? 'bg-akiva-accent text-white shadow-sm'
                     : 'border border-akiva-border bg-akiva-surface text-akiva-text hover:bg-akiva-surface-muted'

@@ -15,7 +15,7 @@ export function Button({
   type = 'button',
   ...props
 }: ButtonProps) {
-  const baseClasses = 'min-h-11 font-medium rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-akiva-accent focus:ring-offset-2 focus:ring-offset-akiva-bg';
+  const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-akiva-accent focus:ring-offset-2 focus:ring-offset-akiva-bg';
   
   const variantClasses = {
     primary: 'bg-akiva-accent text-white hover:bg-akiva-accent-strong disabled:bg-akiva-accent-soft disabled:text-akiva-text-muted',
@@ -25,9 +25,9 @@ export function Button({
   };
   
   const sizeClasses = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-sm',
-    lg: 'px-6 py-3 text-base'
+    sm: 'min-h-8 px-2.5 py-1 text-xs',
+    md: 'min-h-10 px-4 py-2 text-sm',
+    lg: 'min-h-11 px-5 py-2.5 text-base'
   };
 
   return (

@@ -55,8 +55,34 @@ import { GeocodeSetup } from './pages/GeocodeSetup';
 import { FormDesigner } from './pages/FormDesigner';
 import { Labels } from './pages/Labels';
 import { SmtpServer } from './pages/SmtpServer';
-import { Home, ShoppingCart, FileBarChart, Settings, Star, Menu, Clock, X, ChevronRight } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  BarChart3,
+  CalendarDays,
+  ChevronRight,
+  ClipboardCheck,
+  ClipboardList,
+  Clock,
+  DollarSign,
+  FileSearch,
+  FileText,
+  FolderOpen,
+  Home,
+  MapPin,
+  Menu,
+  Package,
+  Search,
+  Settings,
+  ShieldAlert,
+  ShoppingCart,
+  Star,
+  Tags,
+  Truck,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { hrefToSlug } from './data/menuApi';
+import { menuDisplayCaption } from './data/menuPresentation';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { MenuCategory, MenuItem } from './types/menu';
 
@@ -801,6 +827,30 @@ function isHiddenMobileMenuNode(node: MenuNode): boolean {
   const captionKey = normalizedSlugKey(node.caption);
   const slugKey = normalizedSlugKey(hrefToSlug(node.href ?? ''));
   return captionKey.includes('pagesecurity') || slugKey === 'pagesecurity' || captionKey === 'reportbuildertool' || slugKey === 'reportcreator';
+}
+
+function getMobileMenuIcon(node: MenuNode, hasChildren: boolean): LucideIcon {
+  const captionKey = normalizedSlugKey(node.caption);
+  const key = normalizedSlugKey(`${node.href ?? ''} ${node.caption}`);
+
+  if (captionKey === 'transactions') return ArrowLeftRight;
+  if (captionKey === 'inquiriesandreports') return BarChart3;
+  if (captionKey === 'maintenance') return Settings;
+  if (key.includes('pdfprintlabel') || key.includes('pricelabel')) return Tags;
+  if (key.includes('stockserialitemresearch') || key.includes('stockstatus')) return Search;
+  if (key.includes('stocklocmovements') || key.includes('stocklocstatus') || key.includes('reorderlevellocation')) return MapPin;
+  if (key.includes('stockmovements') || key.includes('pdfstocktranslisting')) return ArrowLeftRight;
+  if (key.includes('stockusage') || key.includes('allstockusage') || key.includes('inventoryplanning')) return BarChart3;
+  if (key.includes('stockcheckcomparison')) return ClipboardCheck;
+  if (key.includes('inventoryquantities') || key.includes('stockqtiescsv') || key.includes('stockcheck')) return ClipboardList;
+  if (key.includes('stockquantitybydate')) return CalendarDays;
+  if (key.includes('pdfstocknegatives')) return ShieldAlert;
+  if (key.includes('inventoryvaluation')) return DollarSign;
+  if (key.includes('reorderlevel')) return ClipboardCheck;
+  if (key.includes('stockdispatch')) return Truck;
+  if (key.includes('stock') || key.includes('inventory')) return Package;
+  if (hasChildren) return FolderOpen;
+  return FileText;
 }
 
 function AppContent() {
@@ -1561,7 +1611,7 @@ function MobileNav() {
   const mobileNavItems = [
     { id: 'dashboard', icon: Home, label: 'Home' },
     { id: 'transactions', icon: ShoppingCart, label: 'Trans' },
-    { id: 'inquiries', icon: FileBarChart, label: 'Reports' },
+    { id: 'inquiries', icon: BarChart3, label: 'Reports' },
     { id: 'maintenance', icon: Settings, label: 'Setup' },
     { id: 'starred', icon: Star, label: 'Starred' },
     { id: 'recent', icon: Clock, label: 'Recent' },
@@ -1630,6 +1680,8 @@ function MobileSidebarOverlay() {
     const hasChildren = children.length > 0;
     const pageId = hasChildren ? `main-${node.id}` : menuNodePageId(node);
     const isActive = currentPage === pageId;
+    const nodeLabel = menuDisplayCaption(node.caption, node.href);
+    const NodeIcon = getMobileMenuIcon(node, hasChildren);
 
     if (!hasChildren) {
       return (
@@ -1644,7 +1696,10 @@ function MobileSidebarOverlay() {
           }`}
           style={{ paddingLeft: `${12 + depth * 12}px` }}
         >
-          <span className="min-w-0 text-sm font-medium leading-snug">{node.caption}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <NodeIcon className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 truncate text-sm font-medium leading-snug">{nodeLabel}</span>
+          </span>
           <ChevronRight className="h-4 w-4 shrink-0" />
         </button>
       );
@@ -1660,7 +1715,10 @@ function MobileSidebarOverlay() {
           }`}
           style={{ paddingLeft: `${12 + depth * 12}px` }}
         >
-          <span className="min-w-0 text-sm font-semibold leading-snug">{node.caption}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <NodeIcon className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 truncate text-sm font-semibold leading-snug">{nodeLabel}</span>
+          </span>
           <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
         </summary>
         <div className="mt-1 space-y-1">
@@ -1674,7 +1732,10 @@ function MobileSidebarOverlay() {
             }`}
             style={{ paddingLeft: `${24 + depth * 12}px` }}
           >
-            <span className="min-w-0 text-sm leading-snug">Open {node.caption}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <FileSearch className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate text-sm leading-snug">Open {nodeLabel}</span>
+            </span>
             <ChevronRight className="h-4 w-4 shrink-0" />
           </button>
           {children.map((child) => renderMenuNode(child, depth + 1))}

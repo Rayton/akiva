@@ -58,7 +58,8 @@ import {
 } from '@phosphor-icons/react';
 import { useApp } from '../../contexts/AppContext';
 import { fetchMenu, hrefToSlug } from '../../data/menuApi';
-import { MenuCategory } from '../../types/menu';
+import { menuDisplayCaption } from '../../data/menuPresentation';
+import type { MenuCategory, MenuItem } from '../../types/menu';
 import { SearchableSelect } from '../common/SearchableSelect';
 
 const COLLAPSED_ICON_SIDEBAR_WIDTH = 88;
@@ -290,10 +291,31 @@ interface MenuCategoryItemProps {
   toggleSubExpanded: (id: string) => void;
 }
 
-/** Pick a distinct icon for secondary sidebar items by caption (report, inquiry, maintenance, etc.). */
-function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIcon {
+/** Pick a distinct icon for secondary sidebar items by caption/script (report, inquiry, maintenance, etc.). */
+function getSecondaryMenuIcon(caption: string, hasChildren: boolean, href = ''): PhosphorIcon {
   const lower = caption.toLowerCase();
+  const key = normalizedSlugKey(`${href} ${caption}`);
   if (lower === 'transactions' || lower.includes('stock operations')) return ArrowsLeftRight;
+  if (lower === 'inquiries and reports') return ChartBar;
+  if (key.includes('pdfprintlabel') || key.includes('pricelabel')) return Tag;
+  if (key.includes('stockserialitemresearch') || key.includes('serialitemresearch')) return MagnifyingGlass;
+  if (key.includes('stocklocmovements') || key.includes('stocklocationmovements')) return MapPinArea;
+  if (key.includes('stockmovements') || key.includes('inventoryitemmovements')) return ArrowsLeftRight;
+  if (key.includes('stocklocstatus') || key.includes('stocklocationstatus')) return MapPinArea;
+  if (key.includes('stockstatus') || key.includes('inventoryitemstatus')) return MagnifyingGlass;
+  if (key.includes('stockusage') || key.includes('allstockusage') || key.includes('allinventoryusage')) return ChartLineUp;
+  if (key.includes('inventoryquantities')) return Package;
+  if (key.includes('stockqtiescsv') || key.includes('stockquantitiescsv')) return ClipboardText;
+  if (key.includes('stockquantitybydate') || key.includes('historicalstockquantity')) return CalendarBlank;
+  if (key.includes('pdfstocknegatives') || key.includes('negativestock')) return ShieldCheck;
+  if (key.includes('pdfstocktranslisting') || key.includes('stocktransactionlisting')) return Receipt;
+  if (key.includes('inventoryvaluation') || key.includes('stockvaluation')) return CurrencyCircleDollar;
+  if (key.includes('inventoryplanning')) return ChartLineUp;
+  if (key.includes('reorderlevellocation')) return MapPinArea;
+  if (key.includes('reorderlevel')) return ListChecks;
+  if (key.includes('stockdispatch')) return Truck;
+  if (key.includes('stockcheckcomparison')) return Checks;
+  if (key.includes('stockcheck')) return ClipboardText;
   if (hasChildren) return FolderOpen;
   if (lower.includes('bank accounts')) return Bank;
   if (lower.includes('currency maintenance') || lower.includes('currencies')) return CurrencyCircleDollar;
@@ -372,7 +394,8 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
   const isExpanded = expandedSubItems.includes(`menu-${category.id}`);
   const hasChildren = category.children && category.children.length > 0;
   const pageId = menuPageId(category.id, category.caption, category.href);
-  const ItemIcon = getSecondaryMenuIcon(category.caption, Boolean(hasChildren));
+  const categoryLabel = menuDisplayCaption(category.caption, category.href);
+  const ItemIcon = getSecondaryMenuIcon(categoryLabel, Boolean(hasChildren), category.href);
   const isCurrentBranchActive = hasChildren ? nodeContainsPage(category, currentPage) : nodeMatchesPage(category, currentPage);
 
   if (hasChildren) {
@@ -387,7 +410,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
           }`}
         >
           <ItemIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${isCurrentBranchActive ? 'text-rose-600 dark:text-rose-300' : 'text-slate-400 dark:text-slate-500'}`} />
-          <span className="truncate font-medium flex-1 text-left">{category.caption}</span>
+          <span className="truncate font-medium flex-1 text-left">{categoryLabel}</span>
           <ChevronUp className={`w-3 h-3 transition-transform duration-200 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
         </button>
         {isExpanded && (
@@ -395,7 +418,8 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
             {category.children!.map((child) => {
               const childPageId = menuPageId(child.id, child.caption, child.href);
               const hasGrandChildren = child.children && child.children.length > 0;
-              const ChildIcon = getSecondaryMenuIcon(child.caption, Boolean(hasGrandChildren));
+              const childLabel = menuDisplayCaption(child.caption, child.href);
+              const ChildIcon = getSecondaryMenuIcon(childLabel, Boolean(hasGrandChildren), child.href);
               if (hasGrandChildren) {
                 const childExpanded = expandedSubItems.includes(`menu-child-${child.id}`);
                 const childBranchActive = nodeContainsPage(child as MenuCategory, currentPage);
@@ -410,13 +434,14 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                       }`}
                     >
                       <ChildIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${childBranchActive ? 'text-rose-600 dark:text-rose-300' : 'text-slate-400 dark:text-slate-500'}`} />
-                      <span className="truncate flex-1 text-left">{child.caption}</span>
+                      <span className="truncate flex-1 text-left">{childLabel}</span>
                       <ChevronUp className={`w-3 h-3 transition-transform duration-200 flex-shrink-0 ${childExpanded ? 'rotate-180' : ''}`} />
                     </button>
                     {childExpanded && (
                       <div className="ml-4 mt-1 space-y-1">
                         {child.children!.map((grandChild) => {
                           const grandChildPageId = menuPageId(grandChild.id, grandChild.caption, grandChild.href);
+                          const grandChildLabel = menuDisplayCaption(grandChild.caption, grandChild.href);
                           return (
                             <button
                               key={grandChild.id}
@@ -428,10 +453,10 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                               }`}
                             >
                               {(() => {
-                                const GrandChildIcon = getSecondaryMenuIcon(grandChild.caption, false);
+                                const GrandChildIcon = getSecondaryMenuIcon(grandChildLabel, false, grandChild.href);
                                 return <GrandChildIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />;
                               })()}
-                              <span className="truncate">{grandChild.caption}</span>
+                              <span className="truncate">{grandChildLabel}</span>
                             </button>
                           );
                         })}
@@ -451,10 +476,10 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                   }`}
                 >
                   {(() => {
-                    const LeafIcon = getSecondaryMenuIcon(child.caption, false);
+                    const LeafIcon = getSecondaryMenuIcon(childLabel, false, child.href);
                     return <LeafIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />;
                   })()}
-                  <span className="truncate">{child.caption}</span>
+                  <span className="truncate">{childLabel}</span>
                 </button>
               );
             })}
@@ -473,10 +498,10 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
       }`}
     >
       {(() => {
-        const LeafIcon = getSecondaryMenuIcon(category.caption, false);
+        const LeafIcon = getSecondaryMenuIcon(categoryLabel, false, category.href);
         return <LeafIcon weight="regular" className="w-4 h-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />;
       })()}
-      <span className="truncate font-medium">{category.caption}</span>
+      <span className="truncate font-medium">{categoryLabel}</span>
     </button>
   );
 }

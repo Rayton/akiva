@@ -70,10 +70,13 @@ class MenuController extends Controller
     {
         try {
             $items = DB::table('menu')
-                ->where('parent', $parentId)
                 ->orderBy('id', 'asc')
                 ->get()
                 ->toArray();
+            $items = collect($this->withLegacyPurchasesMenu($items))
+                ->where('parent', (int) $parentId)
+                ->values()
+                ->all();
 
             return response()->json([
                 'success' => true,

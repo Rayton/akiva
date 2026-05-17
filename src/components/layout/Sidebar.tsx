@@ -1123,7 +1123,7 @@ function Sidebar() {
                       <button
                         type="button"
                         onClick={handleDisplayedMainMenuTitleClick}
-                        className="rounded text-left font-semibold text-inherit underline-offset-4 transition hover:text-rose-600 hover:underline focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950"
+                        className="rounded text-left font-semibold text-rose-600 transition hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-white dark:text-rose-300 dark:hover:text-rose-200 dark:focus:ring-offset-slate-950"
                       >
                         {displayedMainMenu.caption}
                       </button>

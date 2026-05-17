@@ -1182,7 +1182,7 @@ function initialTabForRoute(pathname: string): WorkbenchTab {
 
 function titleForRoute(pathname: string) {
   if (pathname.includes('offersreceived')) return 'Supplier Tenders and Offers';
-  if (pathname.includes('selectsupplier')) return 'Shipment Operations Hub';
+  if (pathname.includes('selectsupplier')) return 'Shipment Operations Workspace';
   if (pathname.includes('po-header')) return 'New Purchase Order';
   if (pathname.includes('po-selectospurchorder')) return 'Select Purchase Order';
   if (pathname.includes('po-authorisemyorders')) return 'Purchase Order Approvals';
@@ -3237,6 +3237,7 @@ function VendorResponsePanel({
 type ShipmentRisk = 'Low' | 'Medium' | 'High';
 type ShipmentStatus = 'Ordered' | 'In Transit' | 'Customs Hold' | 'Warehouse Receiving' | 'Awaiting GRN' | 'Partial Receipt' | 'Invoice Match';
 type OperationalWorkspaceTab = 'Overview' | 'Workflow' | 'Actions' | 'Intelligence' | 'Tracking';
+type QueueDensity = 'Compact' | 'Comfortable';
 
 interface ShipmentWorkspaceAction {
   label: string;
@@ -3263,6 +3264,13 @@ interface ShipmentRecord {
   priority: number;
 }
 
+interface ShipmentTimelineEvent {
+  time: string;
+  label: string;
+  detail: string;
+  tone: 'neutral' | 'warning' | 'critical' | 'success';
+}
+
 function SelectSupplierPanel({
   suppliers: supplierOptions,
   orders,
@@ -3285,6 +3293,10 @@ function SelectSupplierPanel({
   const [supplierSearch, setSupplierSearch] = useState('');
   const [shipmentFilter, setShipmentFilter] = useState('All');
   const [workspaceTab, setWorkspaceTab] = useState<OperationalWorkspaceTab>('Overview');
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [queueDensity, setQueueDensity] = useState<QueueDensity>('Compact');
+  const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [advancedInsightsOpen, setAdvancedInsightsOpen] = useState(false);
   const selectedSupplier = supplierOptions.find((supplier) => supplier.value === selectedSupplierCode) ?? null;
   const supplierNeedle = supplierSearch.trim().toLowerCase();
   const filteredSuppliers = supplierNeedle
@@ -3358,6 +3370,42 @@ function SelectSupplierPanel({
   const highRiskCount = shipments.filter((shipment) => shipment.risk === 'High').length;
   const containerCount = shipments.reduce((sum, shipment) => sum + shipment.containerCount, 0);
   const filterOptions = ['All', 'Today', 'Delayed', 'Awaiting GRN', 'Partial', 'Customs'];
+  const filterPresets = [
+    { label: 'Delayed only', value: 'Delayed', count: delayedCount },
+    { label: 'Customs hold', value: 'Customs', count: customsCount },
+    { label: 'Awaiting GRN', value: 'Awaiting GRN', count: awaitingGrnCount },
+    { label: "Today's receiving", value: 'Today', count: shipments.filter((shipment) => shipment.etaDays <= 0).length },
+  ];
+  const compactQueue = queueDensity === 'Compact';
+  const queueCellClass = compactQueue ? 'px-3 py-1.5' : 'px-3 py-2.5';
+  const visibleTimelineEvents: ShipmentTimelineEvent[] = priorityShipment
+    ? [
+        {
+          time: '09:22',
+          label: priorityShipment.status === 'Customs Hold' ? 'Customs hold confirmed' : priorityShipment.etaDays < 0 ? 'Delivery SLA missed' : 'Shipment priority recalculated',
+          detail: priorityShipment.issue,
+          tone: priorityShipment.risk === 'High' ? 'critical' : priorityShipment.risk === 'Medium' ? 'warning' : 'neutral',
+        },
+        {
+          time: '11:45',
+          label: 'ETA and receiving capacity checked',
+          detail: `${priorityShipment.etaLabel} against current warehouse queue.`,
+          tone: priorityShipment.etaDays <= 0 ? 'warning' : 'neutral',
+        },
+        {
+          time: '14:12',
+          label: priorityShipment.status === 'Partial Receipt' ? 'Partial shipment detected' : 'Warehouse action prepared',
+          detail: `Primary action is ${priorityShipment.status === 'Warehouse Receiving' || priorityShipment.status === 'Partial Receipt' ? 'receive shipment' : 'open priority shipment'}.`,
+          tone: priorityShipment.status === 'Partial Receipt' ? 'warning' : 'success',
+        },
+        {
+          time: '15:08',
+          label: 'Invoice match risk scored',
+          detail: partialCount > 0 ? 'Partial receipt history may require bill matching review.' : 'No invoice variance pattern detected.',
+          tone: partialCount > 0 ? 'warning' : 'success',
+        },
+      ]
+    : [];
 
   const shipmentActions = [
     {
@@ -3517,98 +3565,130 @@ function SelectSupplierPanel({
         />
       </div>
 
-      <div className="grid gap-4 2xl:grid-cols-[300px_minmax(0,1fr)_360px]">
-        <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+      <div className={`grid gap-4 ${filtersCollapsed ? '2xl:grid-cols-[220px_minmax(0,1fr)_360px]' : '2xl:grid-cols-[300px_minmax(0,1fr)_360px]'}`}>
+        <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-3 shadow-sm">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <h2 className="text-base font-semibold text-akiva-text">Operational filters</h2>
-              <p className="mt-1 text-sm leading-6 text-akiva-text-muted">Filter inbound work by supplier, ETA, GRN state, or exception type.</p>
+              <p className="mt-1 text-sm leading-5 text-akiva-text-muted">
+                {filtersCollapsed ? `${shipmentFilter} · ${selectedSupplier?.label ?? 'All suppliers'}` : 'Supplier, ETA, GRN state, and exceptions.'}
+              </p>
             </div>
-            {loading ? <RefreshCw className="h-4 w-4 animate-spin text-akiva-text-muted" /> : <Filter className="h-4 w-4 text-akiva-text-muted" />}
+            <button
+              type="button"
+              onClick={() => setFiltersCollapsed((value) => !value)}
+              aria-expanded={!filtersCollapsed}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-2.5 text-xs font-semibold text-akiva-text transition hover:bg-akiva-surface-muted"
+            >
+              {loading ? <RefreshCw className="h-4 w-4 animate-spin text-akiva-text-muted" /> : <Filter className="h-4 w-4 text-akiva-text-muted" />}
+              {filtersCollapsed ? 'Show' : 'Compact'}
+            </button>
           </div>
 
-          <div className="relative mt-4">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-            <input
-              value={supplierSearch}
-              onChange={(event) => setSupplierSearch(event.target.value)}
-              className={`${inputClass} pl-10`}
-              placeholder="Filter supplier"
-            />
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {filterOptions.map((option) => (
+          <div className="mt-3 grid gap-2">
+            {filterPresets.map((preset) => (
               <button
-                key={option}
+                key={preset.label}
                 type="button"
-                onClick={() => setShipmentFilter(option)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${
-                  shipmentFilter === option
-                    ? 'bg-akiva-accent text-white ring-akiva-accent'
-                    : 'bg-akiva-surface text-akiva-text-muted ring-akiva-border hover:bg-akiva-surface-muted hover:text-akiva-text'
+                onClick={() => setShipmentFilter(preset.value)}
+                className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition ${
+                  shipmentFilter === preset.value
+                    ? 'bg-akiva-accent-soft text-akiva-accent-text ring-1 ring-akiva-accent/60'
+                    : 'bg-akiva-surface text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
                 }`}
               >
-                {option}
+                <span>{preset.label}</span>
+                <span className="font-mono">{preset.count}</span>
               </button>
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => onSelect('')}
-            className={`mt-4 flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition ${
-              !selectedSupplier ? 'border-akiva-accent bg-akiva-accent-soft text-akiva-accent-text' : 'border-akiva-border bg-akiva-surface text-akiva-text hover:bg-akiva-surface-muted'
-            }`}
-          >
-            <span>All suppliers</span>
-            <span className="text-xs">{shipments.length}</span>
-          </button>
-
-          <div className="mt-3 max-h-[520px] space-y-2 overflow-y-auto pr-1">
-            <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_3rem] gap-2 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-akiva-text-muted">
-              <span>Supplier</span>
-              <span className="text-center">Risk</span>
-              <span className="text-right">Open</span>
-            </div>
-            {filteredSuppliers.map((supplier) => {
-              const selected = supplier.value === selectedSupplier?.value;
-              const supplierShipments = shipments.filter((shipment) => shipment.supplierCode === supplier.value);
-              const supplierHighRisk = supplierShipments.filter((shipment) => shipment.risk === 'High').length;
-              const supplierMediumRisk = supplierShipments.filter((shipment) => shipment.risk === 'Medium').length;
-              const supplierRiskLabel = supplierHighRisk > 0 ? 'High' : supplierMediumRisk > 0 ? 'Med' : 'Low';
-              return (
-                <button
-                  key={supplier.value}
-                  type="button"
-                  onClick={() => onSelect(supplier.value)}
-                  className={`grid w-full grid-cols-[minmax(0,1fr)_3.5rem_3rem] items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${
-                    selected
-                      ? 'bg-akiva-accent-soft text-akiva-accent-text ring-1 ring-akiva-accent/70'
-                      : 'text-akiva-text hover:bg-akiva-surface-muted'
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold text-akiva-text">{supplier.label}</span>
-                    <span className="block truncate font-mono text-[11px] text-akiva-text-muted">{supplier.value}</span>
-                  </span>
-                  <span className={`rounded-full px-2 py-0.5 text-center text-[11px] font-semibold ring-1 ${
-                    supplierHighRisk > 0 ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900'
-                      : supplierMediumRisk > 0 ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900'
-                        : 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900'
-                  }`}>
-                    {supplierRiskLabel}
-                  </span>
-                  <span className="text-right text-xs font-semibold text-akiva-text-muted">{supplierShipments.length}</span>
-                </button>
-              );
-            })}
-            {filteredSuppliers.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-akiva-border bg-akiva-surface px-3 py-8 text-center text-sm text-akiva-text-muted">
-                No supplier matches this filter.
+          {!filtersCollapsed ? (
+            <>
+              <div className="relative mt-3">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                <input
+                  value={supplierSearch}
+                  onChange={(event) => setSupplierSearch(event.target.value)}
+                  className={`${inputClass} pl-10`}
+                  placeholder="Filter supplier"
+                />
               </div>
-            ) : null}
-          </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {filterOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setShipmentFilter(option)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${
+                      shipmentFilter === option
+                        ? 'bg-akiva-accent text-white ring-akiva-accent'
+                        : 'bg-akiva-surface text-akiva-text-muted ring-akiva-border hover:bg-akiva-surface-muted hover:text-akiva-text'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onSelect('')}
+                className={`mt-3 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
+                  !selectedSupplier ? 'border-akiva-accent bg-akiva-accent-soft text-akiva-accent-text' : 'border-akiva-border bg-akiva-surface text-akiva-text hover:bg-akiva-surface-muted'
+                }`}
+              >
+                <span>All suppliers</span>
+                <span className="text-xs">{shipments.length}</span>
+              </button>
+
+              <div className="mt-3 max-h-[500px] space-y-1.5 overflow-y-auto pr-1">
+                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_3rem] gap-2 px-2.5 text-[11px] font-semibold uppercase tracking-wide text-akiva-text-muted">
+                  <span>Supplier</span>
+                  <span className="text-center">Risk</span>
+                  <span className="text-right">Open</span>
+                </div>
+                {filteredSuppliers.map((supplier) => {
+                  const selected = supplier.value === selectedSupplier?.value;
+                  const supplierShipments = shipments.filter((shipment) => shipment.supplierCode === supplier.value);
+                  const supplierHighRisk = supplierShipments.filter((shipment) => shipment.risk === 'High').length;
+                  const supplierMediumRisk = supplierShipments.filter((shipment) => shipment.risk === 'Medium').length;
+                  const supplierRiskLabel = supplierHighRisk > 0 ? 'High' : supplierMediumRisk > 0 ? 'Med' : 'Low';
+                  return (
+                    <button
+                      key={supplier.value}
+                      type="button"
+                      onClick={() => onSelect(supplier.value)}
+                      className={`grid w-full grid-cols-[minmax(0,1fr)_3.5rem_3rem] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition ${
+                        selected
+                          ? 'bg-akiva-accent-soft text-akiva-accent-text ring-1 ring-akiva-accent/70'
+                          : 'text-akiva-text hover:bg-akiva-surface-muted'
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-akiva-text">{supplier.label}</span>
+                        <span className="block truncate font-mono text-[11px] text-akiva-text-muted">{supplier.value}</span>
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-center text-[11px] font-semibold ring-1 ${
+                        supplierHighRisk > 0 ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900'
+                          : supplierMediumRisk > 0 ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900'
+                            : 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900'
+                      }`}>
+                        {supplierRiskLabel}
+                      </span>
+                      <span className="text-right text-xs font-semibold text-akiva-text-muted">{supplierShipments.length}</span>
+                    </button>
+                  );
+                })}
+                {filteredSuppliers.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-akiva-border bg-akiva-surface px-3 py-8 text-center text-sm text-akiva-text-muted">
+                    No supplier matches this filter.
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : null}
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
@@ -3618,8 +3698,9 @@ function SelectSupplierPanel({
                 <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Inbound logistics queue</p>
                 <h2 className="mt-1 text-lg font-semibold text-akiva-text">Shipment and receiving priorities</h2>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
+                  variant="secondary"
                   size="sm"
                   onClick={() => priorityShipment && onViewPurchaseOrders(
                     supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
@@ -3634,6 +3715,20 @@ function SelectSupplierPanel({
                   <AlertTriangle className="mr-2 h-4 w-4" />
                   Exceptions
                 </Button>
+                <div className="inline-flex rounded-lg border border-akiva-border bg-akiva-surface p-0.5 text-xs font-semibold">
+                  {(['Compact', 'Comfortable'] as QueueDensity[]).map((density) => (
+                    <button
+                      key={density}
+                      type="button"
+                      onClick={() => setQueueDensity(density)}
+                      className={`rounded-md px-2.5 py-1 transition ${
+                        queueDensity === density ? 'bg-akiva-surface-raised text-akiva-text shadow-sm' : 'text-akiva-text-muted hover:text-akiva-text'
+                      }`}
+                    >
+                      {density}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -3645,9 +3740,9 @@ function SelectSupplierPanel({
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-akiva-text-muted">Clear supplier or exception filters to return to the active inbound queue.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-h-[680px] overflow-auto">
               <table className="w-full min-w-[980px] table-fixed">
-                <thead className="bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-table-header-text">
+                <thead className="sticky top-0 z-10 bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-table-header-text">
                   <tr>
                     <th className="w-32 px-3 py-2 text-left">Shipment</th>
                     <th className="w-24 px-3 py-2 text-left">ETA</th>
@@ -3660,31 +3755,32 @@ function SelectSupplierPanel({
                 </thead>
                 <tbody>
                   {visibleShipments.map((shipment) => (
-                    <tr key={shipment.id} className="border-t border-akiva-border align-top">
-                      <td className="px-3 py-2">
+                    <tr key={shipment.id} tabIndex={0} className={`border-t border-akiva-border align-top outline-none transition focus-within:bg-akiva-accent-soft/50 focus:bg-akiva-accent-soft/50 ${shipmentRowTone(shipment)}`}>
+                      <td className={`${queueCellClass} border-l-4 ${shipmentSeverityBorder(shipment)}`}>
                         <p className="font-mono text-sm font-semibold text-akiva-text">{shipment.id}</p>
                         <p className="text-[11px] text-akiva-text-muted">PO {shipment.order.orderNumber}</p>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className={queueCellClass}>
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${shipment.etaDays < 0 ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900' : shipment.etaDays <= 1 ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900' : 'bg-akiva-surface text-akiva-text-muted ring-akiva-border'}`}>
                           {shipment.etaLabel}
                         </span>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className={queueCellClass}>
                         <button type="button" onClick={() => onSelect(shipment.supplierCode)} className="max-w-full text-left">
                           <span className="block truncate text-sm font-semibold text-akiva-text hover:text-akiva-accent">{shipment.supplierName}</span>
                           <span className="block truncate font-mono text-[11px] text-akiva-text-muted">{shipment.supplierCode}</span>
+                          {!compactQueue ? <span className="block truncate text-[11px] text-akiva-text-muted">{shipment.issue}</span> : null}
                         </button>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className={queueCellClass}>
                         <ShipmentStatusBadge status={shipment.status} />
                         <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-akiva-surface-muted">
                           <div className="h-full rounded-full bg-akiva-accent" style={{ width: `${shipment.progress}%` }} />
                         </div>
                       </td>
-                      <td className="px-3 py-2"><ShipmentRiskBadge risk={shipment.risk} /></td>
-                      <td className="px-3 py-2 text-right text-sm font-semibold text-akiva-text">{money(shipment.value, shipment.order.currency)}</td>
-                      <td className="px-3 py-2 text-right">
+                      <td className={queueCellClass}><ShipmentRiskBadge risk={shipment.risk} /></td>
+                      <td className={`${queueCellClass} text-right text-sm font-semibold text-akiva-text`}>{money(shipment.value, shipment.order.currency)}</td>
+                      <td className={`${queueCellClass} text-right`}>
                         <Button
                           size="sm"
                           variant={shipment.status === 'Warehouse Receiving' || shipment.status === 'Partial Receipt' ? 'success' : shipment.risk === 'High' ? 'danger' : 'secondary'}
@@ -3704,25 +3800,47 @@ function SelectSupplierPanel({
           )}
         </section>
 
-        <aside className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold text-akiva-text">Operational workspace</h2>
-              <p className="mt-1 truncate text-sm text-akiva-text-muted">
-                {priorityShipment ? `${priorityShipment.id} · ${priorityShipment.supplierName}` : 'No priority shipment'}
-              </p>
+        <aside className="self-start rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm 2xl:sticky 2xl:top-4">
+          <div className="sticky top-4 z-20 -mx-4 -mt-4 border-b border-akiva-border bg-akiva-surface-raised/95 px-4 pb-3 pt-4 backdrop-blur">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-akiva-text">Operational workspace</h2>
+                <p className="mt-1 truncate text-sm text-akiva-text-muted">
+                  {priorityShipment ? `${priorityShipment.id} · ${priorityShipment.supplierName}` : 'No priority shipment'}
+                </p>
+              </div>
+              {priorityShipment ? <ShipmentRiskBadge risk={priorityShipment.risk} /> : null}
             </div>
-            {priorityShipment ? <ShipmentRiskBadge risk={priorityShipment.risk} /> : null}
+
+            <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-akiva-surface px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-akiva-text">{priorityShipment ? shipmentStageLabel(priorityShipment.status) : 'Queue clear'}</p>
+                <p className="mt-0.5 truncate text-[11px] text-akiva-text-muted">
+                  {priorityShipment ? `${priorityShipment.etaLabel} · ${priorityShipment.issue}` : 'No receiving action required'}
+                </p>
+              </div>
+              <Button
+                variant={workspaceTab === 'Actions' ? 'secondary' : 'primary'}
+                size="sm"
+                onClick={() => priorityShipment && onViewPurchaseOrders(
+                  supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
+                  'outstanding'
+                )}
+                disabled={!priorityShipment}
+              >
+                {priorityShipment?.status === 'Warehouse Receiving' || priorityShipment?.status === 'Partial Receipt' ? 'Receive' : 'Open'}
+              </Button>
+            </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-akiva-surface p-1 text-xs font-semibold min-[1500px]:grid-cols-5">
+          <div className="mt-4 flex gap-1 overflow-x-auto rounded-xl border border-akiva-border bg-akiva-surface p-1 text-xs font-semibold shadow-inner">
             {workspaceTabs.map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setWorkspaceTab(tab)}
-                className={`rounded-lg px-2 py-1.5 transition ${
-                  workspaceTab === tab ? 'bg-akiva-surface-raised text-akiva-text shadow-sm' : 'text-akiva-text-muted hover:text-akiva-text'
+                className={`min-w-fit flex-1 rounded-lg border px-2.5 py-2 transition ${
+                  workspaceTab === tab ? 'border-akiva-accent/60 bg-akiva-accent-soft text-akiva-accent-text shadow-sm' : 'border-transparent text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
                 }`}
               >
                 {tab}
@@ -3747,6 +3865,7 @@ function SelectSupplierPanel({
                 </div>
                 <OperationalInsight {...topInsight} />
                 <Button
+                  variant="secondary"
                   className="w-full"
                   onClick={() => priorityShipment && onViewPurchaseOrders(
                     supplierOptions.find((supplier) => supplier.value === priorityShipment.supplierCode) ?? { value: priorityShipment.supplierCode, label: priorityShipment.supplierName },
@@ -3776,6 +3895,7 @@ function SelectSupplierPanel({
             {workspaceTab === 'Actions' ? (
               <div className="space-y-3">
                 <PrimaryOperationalAction action={shipmentActions[0]} />
+                <p className="text-xs font-semibold text-akiva-text-muted">Secondary workflow actions</p>
                 <div className="grid gap-2">
                   {shipmentActions.slice(1).map((action) => <CompactOperationalAction key={action.label} action={action} />)}
                 </div>
@@ -3783,8 +3903,26 @@ function SelectSupplierPanel({
             ) : null}
 
             {workspaceTab === 'Intelligence' ? (
-              <div className="space-y-2">
-                {aiInsights.map((insight) => <OperationalInsight key={insight.label} {...insight} />)}
+              <div className="space-y-3">
+                <OperationalInsight {...topInsight} />
+                <button
+                  type="button"
+                  onClick={() => setAdvancedInsightsOpen((value) => !value)}
+                  className="flex w-full items-center justify-between rounded-lg bg-akiva-surface px-3 py-2 text-left text-xs font-semibold text-akiva-text transition hover:bg-akiva-surface-muted"
+                >
+                  <span>{advancedInsightsOpen ? 'Hide diagnostics' : 'View AI diagnostics'}</span>
+                  <span className="text-akiva-text-muted">{aiInsights.length - 1}</span>
+                </button>
+                {advancedInsightsOpen ? (
+                  <div className="space-y-2">
+                    {aiInsights.slice(1).map((insight) => <OperationalInsight key={insight.label} {...insight} />)}
+                    <div className="rounded-lg bg-akiva-surface px-3 py-2.5">
+                      <p className="text-xs font-semibold text-akiva-text-muted">Resolution value</p>
+                      <p className="mt-0.5 text-sm font-semibold text-akiva-text">{priorityShipment ? money(priorityShipment.value, priorityShipment.order.currency) : money(0, 'TZS')}</p>
+                      <p className="mt-0.5 text-xs leading-5 text-akiva-text-muted">Estimated financial exposure protected by resolving the selected shipment first.</p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -3796,6 +3934,11 @@ function SelectSupplierPanel({
                     {priorityShipment ? `${priorityShipment.status}. ${priorityShipment.issue}. Progress ${priorityShipment.progress}%.` : 'No shipment is currently active in the tracking workspace.'}
                   </p>
                 </div>
+                <ShipmentTimeline
+                  events={visibleTimelineEvents}
+                  expanded={timelineExpanded}
+                  onToggle={() => setTimelineExpanded((value) => !value)}
+                />
                 <div className="grid gap-2">
                   {monitoringActions.map((action) => <CompactOperationalAction key={action.label} action={action} />)}
                 </div>
@@ -3829,13 +3972,13 @@ function ShipmentKpiSection({
         : tone === 'info' ? 'border-sky-200/80 bg-sky-50/50 dark:border-sky-900/60 dark:bg-sky-950/20'
           : 'border-akiva-border bg-akiva-surface-raised';
   return (
-    <section className={`rounded-xl border px-3 py-3 shadow-sm ${toneClass}`}>
+    <section className={`rounded-xl border px-3 py-2.5 shadow-sm ${toneClass}`}>
       <p className="text-sm font-semibold text-akiva-text">{title}</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className="mt-2 grid gap-2 sm:grid-cols-3">
         {items.map(([label, value]) => (
           <div key={label} className="min-w-0">
             <p className="truncate text-xs text-akiva-text-muted">{label}</p>
-            <p className="mt-1 truncate text-lg font-semibold text-akiva-text">{value}</p>
+            <p className="mt-0.5 truncate text-base font-semibold text-akiva-text">{value}</p>
           </div>
         ))}
       </div>
@@ -3845,12 +3988,23 @@ function ShipmentKpiSection({
 
 function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {
   const tone =
-    status === 'Customs Hold' ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100'
-      : status === 'Warehouse Receiving' || status === 'Awaiting GRN' ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
+    status === 'Customs Hold' ? 'border-rose-300 bg-rose-50 text-rose-800 shadow-sm shadow-rose-900/5 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-100'
+      : status === 'Warehouse Receiving' || status === 'Awaiting GRN' ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/45 dark:text-amber-100'
         : status === 'Partial Receipt' ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/70 dark:bg-violet-950/40 dark:text-violet-100'
           : status === 'Invoice Match' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100'
             : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/70 dark:bg-sky-950/40 dark:text-sky-100';
-  return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{status}</span>;
+  const dotTone =
+    status === 'Customs Hold' ? 'bg-rose-600'
+      : status === 'Warehouse Receiving' || status === 'Awaiting GRN' ? 'bg-amber-600'
+        : status === 'Partial Receipt' ? 'bg-violet-600'
+          : status === 'Invoice Match' ? 'bg-emerald-600'
+            : 'bg-sky-600';
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dotTone}`} />
+      {status}
+    </span>
+  );
 }
 
 function ShipmentRiskBadge({ risk }: { risk: ShipmentRisk }) {
@@ -3859,6 +4013,30 @@ function ShipmentRiskBadge({ risk }: { risk: ShipmentRisk }) {
       : risk === 'Medium' ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
         : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100';
   return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{risk}</span>;
+}
+
+function shipmentStageLabel(status: ShipmentStatus) {
+  if (status === 'Customs Hold') return 'Blocked at customs';
+  if (status === 'Warehouse Receiving') return 'Ready for receiving';
+  if (status === 'Awaiting GRN') return 'GRN required';
+  if (status === 'Partial Receipt') return 'Partial receipt open';
+  if (status === 'Invoice Match') return 'Invoice match stage';
+  if (status === 'In Transit') return 'In transit';
+  return 'Ordered';
+}
+
+function shipmentSeverityBorder(shipment: ShipmentRecord) {
+  if (shipment.status === 'Customs Hold' || shipment.risk === 'High' || shipment.etaDays < 0) return 'border-l-rose-500';
+  if (shipment.status === 'Warehouse Receiving' || shipment.status === 'Awaiting GRN' || shipment.status === 'Partial Receipt') return 'border-l-amber-500';
+  if (shipment.status === 'Invoice Match') return 'border-l-emerald-500';
+  return 'border-l-transparent';
+}
+
+function shipmentRowTone(shipment: ShipmentRecord) {
+  if (shipment.status === 'Customs Hold' || shipment.risk === 'High' || shipment.etaDays < 0) return 'bg-rose-50/30 dark:bg-rose-950/10';
+  if (shipment.status === 'Warehouse Receiving' || shipment.status === 'Awaiting GRN') return 'bg-amber-50/25 dark:bg-amber-950/10';
+  if (shipment.status === 'Partial Receipt') return 'bg-violet-50/20 dark:bg-violet-950/10';
+  return 'hover:bg-akiva-surface-muted/70';
 }
 
 function ShipmentLifecycle({ status }: { status: ShipmentStatus }) {
@@ -3911,6 +4089,59 @@ function ShipmentLifecycle({ status }: { status: ShipmentStatus }) {
       <p className="mt-3 text-xs leading-5 text-akiva-text-muted">
         Current stage: <span className="font-semibold text-akiva-text">{steps[activeIndex]?.label}</span>. Use the Actions tab only for the next operational step.
       </p>
+    </div>
+  );
+}
+
+function ShipmentTimeline({
+  events,
+  expanded,
+  onToggle,
+}: {
+  events: ShipmentTimelineEvent[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const shownEvents = expanded ? events : events.slice(0, 3);
+  const dotClass = (tone: ShipmentTimelineEvent['tone']) =>
+    tone === 'critical' ? 'bg-rose-600'
+      : tone === 'warning' ? 'bg-amber-600'
+        : tone === 'success' ? 'bg-emerald-600'
+          : 'bg-akiva-accent';
+
+  if (events.length === 0) {
+    return (
+      <div className="rounded-xl bg-akiva-surface px-3 py-3 text-sm text-akiva-text-muted">
+        No shipment timeline is available.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-akiva-surface px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Clock3 className="h-4 w-4 text-akiva-text-muted" />
+          <p className="text-sm font-semibold text-akiva-text">Operational timeline</p>
+        </div>
+        {events.length > 3 ? (
+          <button type="button" onClick={onToggle} className="text-xs font-semibold text-akiva-accent hover:text-akiva-accent-strong">
+            {expanded ? 'Less' : 'Full trail'}
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-3 space-y-3">
+        {shownEvents.map((event) => (
+          <div key={`${event.time}-${event.label}`} className="grid grid-cols-[3.25rem_1fr] gap-2">
+            <span className="font-mono text-[11px] text-akiva-text-muted">{event.time}</span>
+            <div className="relative border-l border-akiva-border pl-3">
+              <span className={`absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full ring-2 ring-akiva-surface ${dotClass(event.tone)}`} />
+              <p className="text-xs font-semibold text-akiva-text">{event.label}</p>
+              <p className="mt-0.5 text-xs leading-5 text-akiva-text-muted">{event.detail}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

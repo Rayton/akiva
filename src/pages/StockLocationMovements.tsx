@@ -9,6 +9,8 @@ import {
   FileSpreadsheet,
   FileText,
   History,
+  Loader2,
+  MapPin,
   PackageSearch,
   RefreshCw,
   Search,
@@ -129,16 +131,9 @@ function directionClass(direction: StockMovementRow['direction']): string {
 function mergeOptions(...optionGroups: Option[][]): Option[] {
   const options = new Map<string, Option>();
   optionGroups.flat().forEach((option) => {
-    if (!options.has(option.value)) {
-      options.set(option.value, option);
-    }
+    if (!options.has(option.value)) options.set(option.value, option);
   });
   return Array.from(options.values());
-}
-
-function initialItemFromUrl(): string {
-  const params = new URLSearchParams(window.location.search);
-  return (params.get('item') || params.get('StockID') || params.get('stockid') || 'All').toUpperCase();
 }
 
 function initialLocationFromUrl(): string {
@@ -146,15 +141,15 @@ function initialLocationFromUrl(): string {
   return (params.get('location') || params.get('StockLocation') || params.get('stockLocation') || 'All').toUpperCase();
 }
 
-function initialDateRangeFromUrl(): DateRangeValue | null {
+function initialDateRangeFromUrl(): DateRangeValue {
   const params = new URLSearchParams(window.location.search);
-  const from = params.get('from') || params.get('dateFrom');
-  const to = params.get('to') || params.get('dateTo');
+  const from = params.get('from') || params.get('dateFrom') || params.get('AfterDate');
+  const to = params.get('to') || params.get('dateTo') || params.get('BeforeDate');
   if (!from || !to) return getDefaultDateRange();
   return { preset: 'custom', from, to };
 }
 
-export function StockMovements() {
+export function StockLocationMovements() {
   const [payload, setPayload] = useState<WorkbenchPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<'pdf' | 'excel' | ''>('');
@@ -165,7 +160,7 @@ export function StockMovements() {
   const [itemSearch, setItemSearch] = useState('');
   const [itemLookupOptions, setItemLookupOptions] = useState<Option[]>([]);
   const [locationFilter, setLocationFilter] = useState(initialLocationFromUrl);
-  const [itemFilter, setItemFilter] = useState(initialItemFromUrl);
+  const [itemFilter, setItemFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('All');
   const [dateRange, setDateRange] = useState<DateRangeValue | null>(initialDateRangeFromUrl);
@@ -183,10 +178,7 @@ export function StockMovements() {
   };
   const currency = payload?.currency ?? 'TZS';
   const locationOptions = useMemo(() => [{ value: 'All', label: 'All locations' }, ...(payload?.locations ?? [])], [payload?.locations]);
-  const itemOptions = useMemo(
-    () => mergeOptions([{ value: 'All', label: 'All items' }], payload?.items ?? [], itemLookupOptions),
-    [payload?.items, itemLookupOptions]
-  );
+  const itemOptions = useMemo(() => mergeOptions([{ value: 'All', label: 'All items' }], payload?.items ?? [], itemLookupOptions), [payload?.items, itemLookupOptions]);
   const typeOptions = useMemo(() => [{ value: 'All', label: 'All movement types' }, ...(payload?.movementTypes ?? [])], [payload?.movementTypes]);
   const directionOptions = [
     { value: 'All', label: 'All directions' },
@@ -214,17 +206,14 @@ export function StockMovements() {
     setError('');
 
     try {
-      const params = buildMovementParams();
-
-      const response = await apiFetch(buildApiUrl(`/api/inventory/stock-movements/workbench?${params.toString()}`));
+      const response = await apiFetch(buildApiUrl(`/api/inventory/stock-location-movements/workbench?${buildMovementParams().toString()}`));
       const json = (await response.json()) as WorkbenchResponse;
       if (!response.ok || !json.success || !json.data) {
-        throw new Error(json.message || 'Stock movements could not be loaded.');
+        throw new Error(json.message || 'Location stock movements could not be loaded.');
       }
-
       setPayload(json.data);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Stock movements could not be loaded.');
+      setError(caught instanceof Error ? caught.message : 'Location stock movements could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -234,13 +223,11 @@ export function StockMovements() {
     try {
       const params = new URLSearchParams({ limit: '50' });
       if (query.trim()) params.set('q', query.trim());
-
-      const response = await apiFetch(buildApiUrl(`/api/inventory/stock-movement-items?${params.toString()}`));
+      const response = await apiFetch(buildApiUrl(`/api/inventory/stock-location-movement-items?${params.toString()}`));
       const json = (await response.json()) as ItemLookupResponse;
       if (!response.ok || !json.success || !Array.isArray(json.data)) {
         throw new Error(json.message || 'Items could not be loaded.');
       }
-
       setItemLookupOptions(json.data);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Items could not be loaded.');
@@ -254,57 +241,49 @@ export function StockMovements() {
 
     const pdfWindow = format === 'pdf' ? window.open('', '_blank') : null;
     if (pdfWindow) {
-      pdfWindow.document.write('<!doctype html><title>Preparing report</title><body style="font-family:system-ui,sans-serif;padding:32px;color:#211019;background:#fff8fb"><h1 style="font-size:20px;margin:0 0 8px">Preparing Stock Movements PDF</h1><p style="margin:0;color:#7b6170">The report will open here in a moment.</p></body>');
+      pdfWindow.document.write('<!doctype html><title>Preparing report</title><body style="font-family:system-ui,sans-serif;padding:32px;color:#211019;background:#fff8fb"><h1 style="font-size:20px;margin:0 0 8px">Preparing Location Movements PDF</h1><p style="margin:0;color:#7b6170">The report will open here in a moment.</p></body>');
       pdfWindow.document.close();
     }
 
     try {
-      const params = buildMovementParams('500');
-      const exportUrl = buildApiUrl(`/api/inventory/stock-movements/export/${format}?${params.toString()}`);
-
-      const response = await apiFetch(exportUrl);
-
+      const response = await apiFetch(buildApiUrl(`/api/inventory/stock-location-movements/export/${format}?${buildMovementParams('1000').toString()}`));
       if (!response.ok) {
         const contentType = response.headers.get('content-type') ?? '';
         if (contentType.includes('application/json')) {
           const json = await response.json();
-          throw new Error(json.message || `Stock movements ${format.toUpperCase()} export could not be created.`);
+          throw new Error(json.message || `Location movements ${format.toUpperCase()} export could not be created.`);
         }
-        throw new Error(`Stock movements ${format.toUpperCase()} export could not be created.`);
+        throw new Error(`Location movements ${format.toUpperCase()} export could not be created.`);
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
 
       if (format === 'pdf') {
-        if (pdfWindow) {
-          pdfWindow.location.replace(url);
-        } else {
-          window.open(url, '_blank');
-        }
+        if (pdfWindow) pdfWindow.location.replace(url);
+        else window.open(url, '_blank');
         window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-        setMessage('Stock movements PDF opened.');
+        setMessage('Location movements PDF opened.');
         return;
       }
 
       const disposition = response.headers.get('content-disposition') ?? '';
       const match = disposition.match(/filename="([^"]+)"/);
-      const filename = match?.[1] ?? 'stock-movements.xlsx';
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = filename;
+      anchor.download = match?.[1] ?? 'stock-location-movements.xlsx';
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1200);
-      setMessage('Stock movements Excel file downloaded.');
+      setMessage('Location movements Excel file downloaded.');
     } catch (caught) {
       if (pdfWindow && !pdfWindow.closed) {
-        const message = caught instanceof Error ? caught.message : 'Stock movements PDF could not be created.';
+        const problem = caught instanceof Error ? caught.message : 'Location movements PDF could not be created.';
         pdfWindow.document.body.innerHTML = '<div style="font-family:system-ui,sans-serif;padding:32px;color:#211019;background:#fff8fb"><h1 style="font-size:20px;margin:0 0 8px">Report could not be opened</h1><p style="margin:0;color:#7b6170"></p></div>';
-        pdfWindow.document.querySelector('p')!.textContent = message;
+        pdfWindow.document.querySelector('p')!.textContent = problem;
       }
-      setError(caught instanceof Error ? caught.message : `Stock movements ${format.toUpperCase()} export could not be created.`);
+      setError(caught instanceof Error ? caught.message : `Location movements ${format.toUpperCase()} export could not be created.`);
     } finally {
       setExporting('');
     }
@@ -315,18 +294,14 @@ export function StockMovements() {
   }, [locationFilter, itemFilter, typeFilter, directionFilter, dateRange?.from, dateRange?.to]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadItemOptions(itemSearch);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [itemSearch]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadWorkbench();
-    }, 320);
+    const timer = window.setTimeout(() => void loadWorkbench(), 320);
     return () => window.clearTimeout(timer);
   }, [tableSearch]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadItemOptions(itemSearch), 250);
+    return () => window.clearTimeout(timer);
+  }, [itemSearch]);
 
   useEffect(() => {
     if (!message && !error) return;
@@ -342,18 +317,23 @@ export function StockMovements() {
     setItemFilter('All');
     setTypeFilter('All');
     setDirectionFilter('All');
-    setDateRange(null);
+    setDateRange(getDefaultDateRange());
     setTableSearch('');
   };
 
   const columns = useMemo<AdvancedTableColumn<StockMovementRow>[]>(
     () => [
       {
-        id: 'movementNumber',
-        header: 'Move',
-        accessor: (row) => row.movementNumber,
-        width: 120,
-        cell: (row) => <span className="font-semibold text-akiva-text">#{row.movementNumber}</span>,
+        id: 'location',
+        header: 'Location',
+        accessor: (row) => `${row.locationName} ${row.location}`,
+        minWidth: 220,
+        cell: (row) => (
+          <div>
+            <div className="font-semibold text-akiva-text">{row.locationName}</div>
+            <div className="mt-1 text-xs text-akiva-text-muted">{row.location}</div>
+          </div>
+        ),
       },
       {
         id: 'item',
@@ -369,7 +349,7 @@ export function StockMovements() {
       },
       {
         id: 'source',
-        header: 'Source',
+        header: 'Type / Document',
         accessor: (row) => `${row.typeName} ${row.transactionNumber}`,
         minWidth: 210,
         cell: (row) => (
@@ -379,61 +359,33 @@ export function StockMovements() {
           </div>
         ),
       },
-      {
-        id: 'location',
-        header: 'Location',
-        accessor: (row) => `${row.locationName} ${row.location}`,
-        minWidth: 210,
-        cell: (row) => (
-          <div>
-            <div className="font-semibold text-akiva-text">{row.locationName}</div>
-            <div className="mt-1 text-xs text-akiva-text-muted">{row.location}</div>
-          </div>
-        ),
-      },
       { id: 'date', header: 'Date', accessor: (row) => row.date, width: 130 },
+      { id: 'customer', header: 'Customer', accessor: (row) => row.customer, width: 150, cell: (row) => row.customer || '-' },
       {
         id: 'quantity',
-        header: 'Movement',
+        header: 'Quantity',
         accessor: (row) => row.quantity,
         sortValue: (row) => row.quantity,
         align: 'right',
-        width: 160,
+        width: 150,
         cell: (row) => (
           <span className={row.direction === 'In' ? 'font-semibold text-emerald-700 dark:text-emerald-300' : row.direction === 'Out' ? 'font-semibold text-rose-700 dark:text-rose-300' : 'font-semibold text-akiva-text'}>
             {row.quantity > 0 ? '+' : ''}{formatNumber(row.quantity, row.decimalPlaces || 2)} {row.units}
           </span>
         ),
       },
+      { id: 'reference', header: 'Reference', accessor: (row) => row.reference, minWidth: 240, cell: (row) => <span className="line-clamp-2">{row.reference || '-'}</span> },
+      { id: 'price', header: 'Price', accessor: (row) => row.price, align: 'right', width: 130, cell: (row) => formatMoney(row.price, currency) },
+      { id: 'discountPercent', header: 'Discount', accessor: (row) => row.discountPercent, align: 'right', width: 120, cell: (row) => `${formatNumber(row.discountPercent, 2)}%` },
+      { id: 'newOnHand', header: 'On hand after', accessor: (row) => row.newOnHand, align: 'right', width: 150, cell: (row) => formatNumber(row.newOnHand, row.decimalPlaces || 2) },
       {
-        id: 'newOnHand',
-        header: 'On hand after',
-        accessor: (row) => row.newOnHand,
-        align: 'right',
-        width: 150,
-        cell: (row) => formatNumber(row.newOnHand, row.decimalPlaces || 2),
-      },
-      {
-        id: 'movementValue',
-        header: 'Cost value',
-        accessor: (row) => row.movementValue,
-        align: 'right',
-        width: 150,
-        cell: (row) => <span className="font-semibold text-akiva-text">{formatMoney(row.movementValue, currency)}</span>,
-      },
-      {
-        id: 'reference',
-        header: 'Reference',
-        accessor: (row) => row.reference,
-        minWidth: 260,
-        cell: (row) => <span className="line-clamp-2">{row.reference || '-'}</span>,
-      },
-      {
-        id: 'direction',
-        header: 'Direction',
-        accessor: (row) => row.direction,
-        width: 140,
-        cell: (row) => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${directionClass(row.direction)}`}>{row.direction === 'In' ? 'Stock in' : row.direction === 'Out' ? 'Stock out' : 'No change'}</span>,
+        id: 'serials',
+        header: 'Serial / batch',
+        accessor: (row) => row.serials.map((serial) => serial.serialNo).join(' '),
+        minWidth: 190,
+        cell: (row) => row.serials.length > 0 ? (
+          <span className="line-clamp-2 text-sm text-akiva-text-muted">{row.serials.map((serial) => `${serial.serialNo}${row.serialised ? '' : ` (${formatNumber(serial.quantity, row.decimalPlaces || 2)})`}`).join(', ')}</span>
+        ) : '-',
       },
       {
         id: 'action',
@@ -468,15 +420,15 @@ export function StockMovements() {
                     Inventory reports
                   </span>
                   <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
-                    <ShieldCheck className="h-4 w-4 text-akiva-accent-text" />
-                    Stock audit trail
+                    <MapPin className="h-4 w-4 text-akiva-accent-text" />
+                    Location movement history
                   </span>
                 </div>
                 <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-3xl lg:text-4xl">
-                  Stock Movements
+                  Stock Movements by Location
                 </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
-                  Review when items moved, which document created the movement, who posted it, and the balance left after posting.
+                  Review every inventory movement posted for a location and date range, including document type, customer, quantity, price, discount, and balance after posting.
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -503,12 +455,12 @@ export function StockMovements() {
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   <div>
-                    <span className={labelClass}>Item</span>
-                    <SearchableSelect value={itemFilter} onChange={setItemFilter} onSearchChange={setItemSearch} options={itemOptions} inputClassName={inputClass} placeholder="Search item code or name" />
-                  </div>
-                  <div>
                     <span className={labelClass}>Location</span>
                     <SearchableSelect value={locationFilter} onChange={setLocationFilter} options={locationOptions} inputClassName={inputClass} placeholder="Location" />
+                  </div>
+                  <div>
+                    <span className={labelClass}>Item</span>
+                    <SearchableSelect value={itemFilter} onChange={setItemFilter} onSearchChange={setItemSearch} options={itemOptions} inputClassName={inputClass} placeholder="All items" />
                   </div>
                   <div>
                     <span className={labelClass}>Movement type</span>
@@ -523,11 +475,7 @@ export function StockMovements() {
                     {dateRange ? (
                       <DateRangePicker value={dateRange} onChange={setDateRange} label="Start and end date" triggerClassName="h-11 rounded-lg px-3" />
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setDateRange(getDefaultDateRange())}
-                        className="inline-flex h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-left text-sm text-akiva-text shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
-                      >
+                      <button type="button" onClick={() => setDateRange(getDefaultDateRange())} className="inline-flex h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-left text-sm text-akiva-text shadow-sm transition hover:border-akiva-accent focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent">
                         <CalendarDays className="h-4 w-4 shrink-0 text-akiva-text-muted" />
                         <span className="min-w-0 truncate font-medium text-akiva-text">All dates</span>
                       </button>
@@ -543,30 +491,30 @@ export function StockMovements() {
             ) : null}
 
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Movement lines" value={formatNumber(summary.movementLines, 0)} note={`${formatNumber(summary.itemsMoved, 0)} items in this view`} icon={History} onClick={() => setFilterOpen(true)} />
-              <MetricCard label="Stock in" value={formatNumber(summary.inboundQuantity)} note="Quantity received or added" icon={ArrowDownLeft} onClick={() => setDirectionFilter('In')} />
-              <MetricCard label="Stock out" value={formatNumber(summary.outboundQuantity)} note="Quantity issued, sold or moved out" icon={ArrowUpRight} onClick={() => setDirectionFilter('Out')} />
-              <MetricCard label="Cost value" value={formatMoney(summary.movementValue, currency)} note={summary.lastMovementDate ? `Last movement ${summary.lastMovementDate}` : 'No movements in this view'} icon={PackageSearch} onClick={() => setFilterOpen(true)} />
+              <MetricCard label="Movement lines" value={formatNumber(summary.movementLines, 0)} note={`${formatNumber(summary.itemsMoved, 0)} items in this view`} icon={History} loading={loading} onClick={() => setFilterOpen(true)} />
+              <MetricCard label="Locations" value={formatNumber(summary.locationsMoved, 0)} note="Locations represented by the selected filters" icon={MapPin} loading={loading} onClick={() => setLocationFilter('All')} />
+              <MetricCard label="Stock in" value={formatNumber(summary.inboundQuantity)} note="Quantity received or added" icon={ArrowDownLeft} loading={loading} onClick={() => setDirectionFilter('In')} />
+              <MetricCard label="Stock out" value={formatNumber(summary.outboundQuantity)} note="Quantity issued, sold or moved out" icon={ArrowUpRight} loading={loading} onClick={() => setDirectionFilter('Out')} />
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
               <div className="flex flex-col gap-3 border-b border-akiva-border px-4 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-akiva-text">Movement history</h2>
-                  <p className="mt-1 text-sm text-akiva-text-muted">The newest movements are shown first. Use filters for item, location, document type or date range.</p>
+                  <h2 className="text-sm font-semibold text-akiva-text">Location movement history</h2>
+                  <p className="mt-1 text-sm text-akiva-text-muted">Newest movements are shown first. Filter by location and date to keep the audit trail focused.</p>
                 </div>
                 <div className="relative w-full md:max-w-sm">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-                  <input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} className={`${inputClass} pl-10`} placeholder="Search item, reference or document" />
+                  <input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} className={`${inputClass} pl-10`} placeholder="Search item, reference, customer or document" />
                 </div>
               </div>
               <div className="p-4">
                 <AdvancedTable
-                  tableId="stock-movements"
+                  tableId="stock-location-movements"
                   columns={columns}
                   rows={movements}
                   rowKey={(row) => String(row.movementNumber)}
-                  emptyMessage={loading ? 'Loading stock movements...' : 'No stock movements match these filters.'}
+                  emptyMessage={loading ? 'Loading location movements...' : 'No location movements match these filters.'}
                   loading={loading}
                   initialPageSize={25}
                   initialScroll="left"
@@ -578,13 +526,7 @@ export function StockMovements() {
         </section>
       </div>
 
-      <Modal
-        isOpen={Boolean(detailRow)}
-        onClose={() => setDetailRow(null)}
-        title={detailRow ? `Movement #${detailRow.movementNumber}` : 'Movement Detail'}
-        size="md"
-        footer={<Button type="button" onClick={() => setDetailRow(null)}>Close</Button>}
-      >
+      <Modal isOpen={Boolean(detailRow)} onClose={() => setDetailRow(null)} title={detailRow ? `Movement #${detailRow.movementNumber}` : 'Movement Detail'} size="md" footer={<Button type="button" onClick={() => setDetailRow(null)}>Close</Button>}>
         {detailRow ? (
           <div className="space-y-4">
             <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
@@ -602,21 +544,17 @@ export function StockMovements() {
                 <InfoTile label="Date" value={detailRow.date} />
                 <InfoTile label="Quantity" value={`${detailRow.quantity > 0 ? '+' : ''}${formatNumber(detailRow.quantity, detailRow.decimalPlaces || 2)} ${detailRow.units}`} />
                 <InfoTile label="On hand after" value={formatNumber(detailRow.newOnHand, detailRow.decimalPlaces || 2)} />
-                <InfoTile label="Unit cost" value={formatMoney(detailRow.unitCost, currency)} />
-                <InfoTile label="Cost value" value={formatMoney(detailRow.movementValue, currency)} />
                 <InfoTile label="Price" value={formatMoney(detailRow.price, currency)} />
                 <InfoTile label="Discount" value={`${formatNumber(detailRow.discountPercent, 2)}%`} />
                 <InfoTile label="Posted by" value={detailRow.postedBy || '-'} />
                 <InfoTile label="Customer / branch" value={[detailRow.customer, detailRow.branch].filter(Boolean).join(' / ') || '-'} />
               </div>
             </section>
-
             <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
               <h3 className="text-sm font-semibold text-akiva-text">Reference</h3>
               <p className="mt-2 text-sm leading-6 text-akiva-text-muted">{detailRow.reference || 'No reference recorded.'}</p>
               {detailRow.narrative ? <p className="mt-2 text-sm leading-6 text-akiva-text-muted">{detailRow.narrative}</p> : null}
             </section>
-
             {detailRow.serials.length > 0 ? (
               <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
                 <h3 className="text-sm font-semibold text-akiva-text">Serial or batch details</h3>
@@ -640,13 +578,15 @@ export function StockMovements() {
   );
 }
 
-function MetricCard({ label, value, note, icon: Icon, onClick }: { label: string; value: string; note: string; icon: LucideIcon; onClick?: () => void }) {
+function MetricCard({ label, value, note, icon: Icon, loading = false, onClick }: { label: string; value: string; note: string; icon: LucideIcon; loading?: boolean; onClick?: () => void }) {
   return (
     <button type="button" onClick={onClick} className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted/70">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{label}</p>
-          <p className="mt-3 truncate text-2xl font-semibold text-akiva-text">{value}</p>
+          <div className="mt-3 flex min-h-[2rem] items-center">
+            {loading ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-akiva-accent-text" /> : <p className="truncate text-2xl font-semibold text-akiva-text">{value}</p>}
+          </div>
           <p className="mt-3 text-sm leading-5 text-akiva-text-muted">{note}</p>
         </div>
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-akiva-accent-soft text-akiva-accent-text">
@@ -666,15 +606,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ToastNotification({
-  type,
-  message,
-  onClose,
-}: {
-  type: 'success' | 'error';
-  message: string;
-  onClose: () => void;
-}) {
+function ToastNotification({ type, message, onClose }: { type: 'success' | 'error'; message: string; onClose: () => void }) {
   const isError = type === 'error';
   const Icon = isError ? AlertTriangle : CheckCircle2;
   const tone = isError

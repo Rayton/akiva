@@ -293,7 +293,7 @@ interface MenuCategoryItemProps {
 /** Pick a distinct icon for secondary sidebar items by caption (report, inquiry, maintenance, etc.). */
 function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIcon {
   const lower = caption.toLowerCase();
-  if (lower.includes('stock operations')) return Package;
+  if (lower === 'transactions' || lower.includes('stock operations')) return ArrowsLeftRight;
   if (hasChildren) return FolderOpen;
   if (lower.includes('bank accounts')) return Bank;
   if (lower.includes('currency maintenance') || lower.includes('currencies')) return CurrencyCircleDollar;
@@ -329,7 +329,6 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean): PhosphorIc
   if (lower.includes('stock counts')) return Checks;
   if (lower.includes('stock issue')) return ArrowUpRight;
   if (lower.includes('inventory item usage') || lower.includes('stock usage') || lower.includes('inventory usage')) return ChartLineUp;
-  if (lower.includes('stock operations')) return Package;
   if (lower.includes('discount category')) return TagSimple;
   if (lower.includes('units of measure')) return Scales;
   if (lower.includes('mrp available production days')) return CalendarCheck;

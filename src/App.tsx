@@ -14,15 +14,28 @@ import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
 import { InventoryTransferReceive } from './pages/InventoryTransferReceive';
 import { StockAdjustments } from './pages/StockAdjustments';
+import { StockCheck } from './pages/StockCheck';
+import { StockCheckComparison } from './pages/StockCheckComparison';
 import { StockCounts } from './pages/StockCounts';
 import { StockIssues } from './pages/StockIssues';
 import { StockSerialItemResearch } from './pages/StockSerialItemResearch';
 import { PrintPriceLabels } from './pages/PrintPriceLabels';
 import { StockMovements } from './pages/StockMovements';
+import { StockLocationMovements } from './pages/StockLocationMovements';
 import { StockStatus } from './pages/StockStatus';
+import { StockLocationStatus } from './pages/StockLocationStatus';
 import { StockUsage } from './pages/StockUsage';
 import { AllInventoryUsage } from './pages/AllInventoryUsage';
 import { InventoryQuantities } from './pages/InventoryQuantities';
+import { StockQuantitiesCsv } from './pages/StockQuantitiesCsv';
+import { StockQuantityByDate } from './pages/StockQuantityByDate';
+import { StockNegatives } from './pages/StockNegatives';
+import { StockTransactionListing } from './pages/StockTransactionListing';
+import { InventoryPlanning } from './pages/InventoryPlanning';
+import { InventoryValuation } from './pages/InventoryValuation';
+import { ReorderLevel } from './pages/ReorderLevel';
+import { ReorderLevelLocation } from './pages/ReorderLevelLocation';
+import { StockDispatch } from './pages/StockDispatch';
 import { ReverseGoodsReceived } from './pages/ReverseGoodsReceived';
 import { FinancialReports } from './pages/FinancialReports';
 import { UserManagement } from './pages/UserManagement';
@@ -321,14 +334,33 @@ function isStockAdjustmentMenuSlug(slug: string): boolean {
   );
 }
 
+function isStockCheckMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockcheck' ||
+    key === 'inventorystockchecksheets' ||
+    key.includes('stockcheck')
+  );
+}
+
+function isStockCheckComparisonMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'pdfstockcheckcomparison' ||
+    key === 'stockcheckcomparison' ||
+    key === 'inventorycomparisonreport' ||
+    key.includes('pdfstockcheckcomparison') ||
+    key.includes('stockcheckcomparison')
+  );
+}
+
 function isStockCountsMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
     key === 'stockcounts' ||
     key === 'enterstockcounts' ||
     key.includes('stockcounts') ||
-    key.includes('enterstockcounts') ||
-    key.includes('stockcheck')
+    key.includes('enterstockcounts')
   );
 }
 
@@ -363,12 +395,36 @@ function isStockMovementsMenuSlug(slug: string): boolean {
   );
 }
 
+function isStockLocationMovementsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stocklocmovements' ||
+    key === 'stocklocationmovements' ||
+    key === 'allinventorymovementsbylocationdate' ||
+    key.includes('stocklocmovements') ||
+    key.includes('stocklocationmovements') ||
+    key.includes('inventorymovementsbylocation')
+  );
+}
+
 function isStockStatusMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
     key === 'stockstatus' ||
     key === 'stock-status' ||
     key.includes('stockstatus')
+  );
+}
+
+function isStockLocationStatusMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stocklocstatus' ||
+    key === 'stocklocationstatus' ||
+    key === 'listinventorystatusbylocationcategory' ||
+    key.includes('stocklocstatus') ||
+    key.includes('stocklocationstatus') ||
+    key.includes('inventorystatusbylocation')
   );
 }
 
@@ -399,6 +455,104 @@ function isInventoryQuantitiesMenuSlug(slug: string): boolean {
     key === 'inventoryquantities' ||
     key === 'inventory-quantities' ||
     key.includes('inventoryquantities')
+  );
+}
+
+function isStockQuantitiesCsvMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockqtiescsv' ||
+    key === 'stockquantitiescsv' ||
+    key === 'makeinventoryquantitiescsv' ||
+    key.includes('stockqtiescsv') ||
+    key.includes('stockquantitiescsv')
+  );
+}
+
+function isStockQuantityByDateMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockquantitybydate' ||
+    key === 'historicalstockquantity' ||
+    key === 'historicalstockquantitybylocationcategory' ||
+    key.includes('stockquantitybydate') ||
+    key.includes('historicalstockquantity')
+  );
+}
+
+function isStockNegativesMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'pdfstocknegatives' ||
+    key === 'stocknegatives' ||
+    key === 'negativestocklisting' ||
+    key === 'listnegativestocks' ||
+    key.includes('pdfstocknegatives') ||
+    key.includes('stocknegatives') ||
+    key.includes('negativestock')
+  );
+}
+
+function isStockTransactionListingMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'pdfstocktranslisting' ||
+    key === 'pdfperiodstocktranslisting' ||
+    key === 'stocktransactionlisting' ||
+    key === 'periodstocktransactionlisting' ||
+    key === 'dailystocktransactionlisting' ||
+    key.includes('pdfstocktranslisting') ||
+    key.includes('pdfperiodstocktranslisting') ||
+    key.includes('stocktransactionlisting')
+  );
+}
+
+function isInventoryValuationMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'inventoryvaluation' ||
+    key === 'stockvaluation' ||
+    key === 'inventoryvaluationreport' ||
+    key.includes('inventoryvaluation') ||
+    key.includes('stockvaluation')
+  );
+}
+
+function isInventoryPlanningMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'inventoryplanning' ||
+    key === 'inventoryplanningreport' ||
+    key.includes('inventoryplanning')
+  );
+}
+
+function isReorderLevelMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'reorderlevel' ||
+    key === 'reorder-level' ||
+    key === 'stockreorderlevel' ||
+    key.includes('reorderlevel')
+  );
+}
+
+function isReorderLevelLocationMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'reorderlevellocation' ||
+    key === 'reorder-level-location' ||
+    key.includes('reorderlevellocation')
+  );
+}
+
+function isStockDispatchMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'stockdispatch' ||
+    key === 'dispatchstocktransfer' ||
+    key.includes('stockdispatch') ||
+    key.includes('dispatchstocktransfer')
   );
 }
 
@@ -799,6 +953,14 @@ function AppContent() {
         return <StockAdjustments />;
       }
 
+      if (isStockCheckComparisonMenuSlug(menuSlug)) {
+        return <StockCheckComparison />;
+      }
+
+      if (isStockCheckMenuSlug(menuSlug)) {
+        return <StockCheck />;
+      }
+
       if (isStockCountsMenuSlug(menuSlug)) {
         return <StockCounts />;
       }
@@ -811,8 +973,16 @@ function AppContent() {
         return <StockSerialItemResearch />;
       }
 
+      if (isStockLocationMovementsMenuSlug(menuSlug)) {
+        return <StockLocationMovements />;
+      }
+
       if (isStockMovementsMenuSlug(menuSlug)) {
         return <StockMovements />;
+      }
+
+      if (isStockLocationStatusMenuSlug(menuSlug)) {
+        return <StockLocationStatus />;
       }
 
       if (isStockStatusMenuSlug(menuSlug)) {
@@ -823,8 +993,44 @@ function AppContent() {
         return <AllInventoryUsage />;
       }
 
+      if (isStockQuantitiesCsvMenuSlug(menuSlug)) {
+        return <StockQuantitiesCsv />;
+      }
+
+      if (isStockQuantityByDateMenuSlug(menuSlug)) {
+        return <StockQuantityByDate />;
+      }
+
+      if (isStockNegativesMenuSlug(menuSlug)) {
+        return <StockNegatives />;
+      }
+
+      if (isStockTransactionListingMenuSlug(menuSlug)) {
+        return <StockTransactionListing />;
+      }
+
       if (isInventoryQuantitiesMenuSlug(menuSlug)) {
         return <InventoryQuantities />;
+      }
+
+      if (isInventoryValuationMenuSlug(menuSlug)) {
+        return <InventoryValuation />;
+      }
+
+      if (isInventoryPlanningMenuSlug(menuSlug)) {
+        return <InventoryPlanning />;
+      }
+
+      if (isReorderLevelLocationMenuSlug(menuSlug)) {
+        return <ReorderLevelLocation />;
+      }
+
+      if (isReorderLevelMenuSlug(menuSlug)) {
+        return <ReorderLevel />;
+      }
+
+      if (isStockDispatchMenuSlug(menuSlug)) {
+        return <StockDispatch />;
       }
 
       if (isStockUsageMenuSlug(menuSlug)) {
@@ -870,8 +1076,24 @@ function AppContent() {
       return <PrintPriceLabels />;
     }
 
+    if (isStockCheckComparisonMenuSlug(locationPathname)) {
+      return <StockCheckComparison />;
+    }
+
+    if (isStockCheckMenuSlug(locationPathname)) {
+      return <StockCheck />;
+    }
+
+    if (isStockLocationMovementsMenuSlug(locationPathname)) {
+      return <StockLocationMovements />;
+    }
+
     if (isStockMovementsMenuSlug(locationPathname)) {
       return <StockMovements />;
+    }
+
+    if (isStockLocationStatusMenuSlug(locationPathname)) {
+      return <StockLocationStatus />;
     }
 
     if (isStockStatusMenuSlug(locationPathname)) {
@@ -882,8 +1104,44 @@ function AppContent() {
       return <AllInventoryUsage />;
     }
 
+    if (isStockQuantitiesCsvMenuSlug(locationPathname)) {
+      return <StockQuantitiesCsv />;
+    }
+
+    if (isStockQuantityByDateMenuSlug(locationPathname)) {
+      return <StockQuantityByDate />;
+    }
+
+    if (isStockNegativesMenuSlug(locationPathname)) {
+      return <StockNegatives />;
+    }
+
+    if (isStockTransactionListingMenuSlug(locationPathname)) {
+      return <StockTransactionListing />;
+    }
+
     if (isInventoryQuantitiesMenuSlug(locationPathname)) {
       return <InventoryQuantities />;
+    }
+
+    if (isInventoryValuationMenuSlug(locationPathname)) {
+      return <InventoryValuation />;
+    }
+
+    if (isInventoryPlanningMenuSlug(locationPathname)) {
+      return <InventoryPlanning />;
+    }
+
+    if (isReorderLevelLocationMenuSlug(locationPathname)) {
+      return <ReorderLevelLocation />;
+    }
+
+    if (isReorderLevelMenuSlug(locationPathname)) {
+      return <ReorderLevel />;
+    }
+
+    if (isStockDispatchMenuSlug(locationPathname)) {
+      return <StockDispatch />;
     }
 
     if (isStockUsageMenuSlug(locationPathname)) {
@@ -1048,6 +1306,20 @@ function AppContent() {
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Fixed Assets</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage company fixed assets and depreciation</p></div>;
       
       // Inventory Management
+      case 'stock-loc-movements':
+      case 'stocklocmovements':
+      case 'stock-location-movements':
+      case 'stocklocationmovements':
+      case 'all-inventory-movements-by-location-date':
+      case 'allinventorymovementsbylocationdate':
+        return <StockLocationMovements />;
+      case 'stock-loc-status':
+      case 'stocklocstatus':
+      case 'stock-location-status':
+      case 'stocklocationstatus':
+      case 'list-inventory-status-by-location-category':
+      case 'listinventorystatusbylocationcategory':
+        return <StockLocationStatus />;
       case 'stock-movements':
       case 'stockmovements':
         return <StockMovements />;
@@ -1056,6 +1328,17 @@ function AppContent() {
       case 'inventory-adjustments':
       case 'inventoryadjustments':
         return <StockAdjustments />;
+      case 'pdfstockcheckcomparison':
+      case 'stock-check-comparison':
+      case 'stockcheckcomparison':
+      case 'inventory-comparison-report':
+      case 'inventorycomparisonreport':
+        return <StockCheckComparison />;
+      case 'stock-check':
+      case 'stockcheck':
+      case 'inventory-stock-check-sheets':
+      case 'inventorystockchecksheets':
+        return <StockCheck />;
       case 'stock-counts':
       case 'stockcounts':
       case 'enter-stock-counts':
@@ -1114,19 +1397,62 @@ function AppContent() {
       case 'all-stock-usage':
       case 'allstockusage':
         return <AllInventoryUsage />;
+      case 'stockqties-csv':
+      case 'stockqtiescsv':
+      case 'stock-quantities-csv':
+      case 'stockquantitiescsv':
+        return <StockQuantitiesCsv />;
+      case 'stockquantitybydate':
+      case 'stock-quantity-by-date':
+      case 'historical-stock-quantity':
+      case 'historicalstockquantity':
+      case 'historical-stock-quantity-by-location-category':
+      case 'historicalstockquantitybylocationcategory':
+        return <StockQuantityByDate />;
+      case 'pdfstocknegatives':
+      case 'stock-negatives':
+      case 'stocknegatives':
+      case 'negative-stock-listing':
+      case 'negativestocklisting':
+      case 'list-negative-stocks':
+      case 'listnegativestocks':
+        return <StockNegatives />;
+      case 'pdfstocktranslisting':
+      case 'pdfperiodstocktranslisting':
+      case 'stock-transaction-listing':
+      case 'stocktransactionlisting':
+      case 'period-stock-transaction-listing':
+      case 'periodstocktransactionlisting':
+      case 'daily-stock-transaction-listing':
+      case 'dailystocktransactionlisting':
+        return <StockTransactionListing />;
       case 'inventory-quantities':
       case 'inventoryquantities':
         return <InventoryQuantities />;
+      case 'inventory-valuation':
+      case 'inventoryvaluation':
+      case 'stock-valuation':
+      case 'stockvaluation':
+        return <InventoryValuation />;
+      case 'inventory-planning':
+      case 'inventoryplanning':
+        return <InventoryPlanning />;
+      case 'reorder-level':
+      case 'reorderlevel':
+        return <ReorderLevel />;
+      case 'reorder-level-location':
+      case 'reorderlevellocation':
+        return <ReorderLevelLocation />;
+      case 'stock-dispatch':
+      case 'stockdispatch':
+      case 'dispatch-stock-transfer':
+      case 'dispatchstocktransfer':
+        return <StockDispatch />;
       case 'stock-usage':
       case 'stockusage':
       case 'inventory-item-usage':
       case 'inventoryitemusage':
         return <StockUsage />;
-      case 'stock-valuation':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Stock Valuation Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Calculate inventory valuation</p></div>;
-      case 'reorder-level':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Reorder Level Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Items below reorder level</p></div>;
-      
       // System Setup
       case 'company-setup':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Company Setup</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Configure company information and settings</p></div>;

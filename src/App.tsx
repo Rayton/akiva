@@ -10,6 +10,7 @@ import { AccountsReceivable } from './pages/AccountsReceivable';
 import { AccountsPayable } from './pages/AccountsPayable';
 import { Inventory } from './pages/Inventory';
 import { InventoryItems } from './pages/InventoryItems';
+import { MarkupPrices } from './pages/MarkupPrices';
 import { SalesCategories } from './pages/SalesCategories';
 import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
@@ -602,6 +603,18 @@ function isSalesCategoriesMenuSlug(slug: string): boolean {
   return key === 'salescategories' || key.includes('salescategories');
 }
 
+function isMarkupPricesMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'pricesbasedonmarkup' ||
+    key === 'pricesbycost' ||
+    key === 'costbasedprices' ||
+    key.includes('pricesbasedonmarkup') ||
+    key.includes('pricesbycost') ||
+    key.includes('costbasedprices')
+  );
+}
+
 function isInventorySetupMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
@@ -703,6 +716,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (isInventoryItemsMenuSlug(pathname)) {
     return <InventoryItems />;
+  }
+
+  if (isMarkupPricesMenuSlug(pathname)) {
+    return <MarkupPrices />;
   }
 
   if (isSalesCategoriesMenuSlug(pathname)) {
@@ -1016,6 +1033,10 @@ function AppContent() {
         return <InventoryItems />;
       }
 
+      if (isMarkupPricesMenuSlug(menuSlug)) {
+        return <MarkupPrices />;
+      }
+
       if (isSalesCategoriesMenuSlug(menuSlug)) {
         return <SalesCategories />;
       }
@@ -1257,6 +1278,10 @@ function AppContent() {
       return <InventoryItems />;
     }
 
+    if (isMarkupPricesMenuSlug(locationPathname)) {
+      return <MarkupPrices />;
+    }
+
     if (isSalesCategoriesMenuSlug(locationPathname)) {
       return <SalesCategories />;
     }
@@ -1278,6 +1303,12 @@ function AppContent() {
       case 'inventoryitems':
       case 'stockmaster':
         return <InventoryItems />;
+      case 'pricesbasedonmarkup':
+      case 'prices-by-cost':
+      case 'pricesbycost':
+      case 'cost-based-prices':
+      case 'costbasedprices':
+        return <MarkupPrices />;
       case 'salescategories':
       case 'sales-categories':
         return <SalesCategories />;

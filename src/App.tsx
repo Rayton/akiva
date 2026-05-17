@@ -14,6 +14,7 @@ import { MarkupPrices } from './pages/MarkupPrices';
 import { SalesCategories } from './pages/SalesCategories';
 import { UserLocations } from './pages/UserLocations';
 import { Departments } from './pages/Departments';
+import { InternalStockCategoryRoles } from './pages/InternalStockCategoryRoles';
 import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
@@ -625,6 +626,17 @@ function isDepartmentsMenuSlug(slug: string): boolean {
   );
 }
 
+function isInternalStockCategoryRolesMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'internalstockcategoriesbyrole' ||
+    key === 'categoryroles' ||
+    key.includes('internalstockcategoriesbyrole') ||
+    key.includes('stockcategoriesbyrole') ||
+    key.includes('categoryroles')
+  );
+}
+
 function isMarkupPricesMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
@@ -648,8 +660,7 @@ function isInventorySetupMenuSlug(slug: string): boolean {
     key.includes('unitsofmeasure') ||
     key.includes('unitsofmeasurement') ||
     key.includes('locationusers') ||
-    key.includes('userlocations') ||
-    key.includes('internalstockcategoriesbyrole')
+    key.includes('userlocations')
   );
 }
 
@@ -725,6 +736,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (isDepartmentsMenuSlug(pathname)) {
     return <Departments />;
+  }
+
+  if (isInternalStockCategoryRolesMenuSlug(pathname)) {
+    return <InternalStockCategoryRoles />;
   }
 
   if (pathKey.includes('configurationgeneralledgersetup')) {
@@ -1082,6 +1097,10 @@ function AppContent() {
         return <Departments />;
       }
 
+      if (isInternalStockCategoryRolesMenuSlug(menuSlug)) {
+        return <InternalStockCategoryRoles />;
+      }
+
       if (isSalesCategoriesMenuSlug(menuSlug)) {
         return <SalesCategories />;
       }
@@ -1339,6 +1358,10 @@ function AppContent() {
       return <Departments />;
     }
 
+    if (isInternalStockCategoryRolesMenuSlug(locationPathname)) {
+      return <InternalStockCategoryRoles />;
+    }
+
     if (isSalesCategoriesMenuSlug(locationPathname)) {
       return <SalesCategories />;
     }
@@ -1377,6 +1400,12 @@ function AppContent() {
       case 'departmentauthorization':
       case 'maintaininternaldepartments':
         return <Departments />;
+      case 'internalstockcategoriesbyrole':
+      case 'internal-stock-categories-by-role':
+      case 'stockcategoriesbyrole':
+      case 'categoryroles':
+      case 'category-roles':
+        return <InternalStockCategoryRoles />;
       case 'salescategories':
       case 'sales-categories':
         return <SalesCategories />;

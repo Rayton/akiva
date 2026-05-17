@@ -27,8 +27,11 @@ import { DatePicker } from '../components/common/DatePicker';
 import { DateRangePicker, getDefaultDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
+import { useApp } from '../contexts/AppContext';
+import { fetchPurchasesPayablesSetup } from '../data/purchasesPayablesSetupApi';
 import { apiFetch } from '../lib/network/apiClient';
 import { buildApiUrl } from '../lib/network/apiBase';
+import type { PoAuthorisationLevel } from '../types/purchasesPayablesSetup';
 
 type PoStatus =
   | 'Draft'
@@ -45,6 +48,14 @@ type PoStatus =
 type WorkbenchTab = 'outstanding' | 'approvals' | 'receiving' | 'billMatch' | 'all';
 type DrawerMode = 'view' | 'create' | 'receive' | 'review' | null;
 type OfferDecision = 'accept' | 'reject' | 'defer';
+
+interface AuthorisationDecision {
+  canReview: boolean;
+  canAuthorise: boolean;
+  reviewReason: string;
+  authoriseReason: string;
+  level: PoAuthorisationLevel | null;
+}
 
 interface PoLine {
   id: string;
@@ -616,6 +627,12 @@ function currentPurchaseRoute() {
   return window.location.pathname.toLowerCase();
 }
 
+function navigateTo(path: string) {
+  if (typeof window === 'undefined') return;
+  window.history.pushState({}, '', path);
+  window.dispatchEvent(new Event('akiva:navigation'));
+}
+
 function initialTabForRoute(pathname: string): WorkbenchTab {
   if (pathname.includes('offersreceived')) return 'outstanding';
   if (pathname.includes('authorise') || pathname.includes('review')) return 'approvals';
@@ -662,6 +679,51 @@ function daysUntil(value: string) {
   return Math.ceil((date.getTime() - today.getTime()) / 86400000);
 }
 
+function authProfileLabel(level: PoAuthorisationLevel) {
+  return `${level.userName || level.userId} (${level.userId}) · ${level.currencyCode} · limit ${money(level.authLevel, level.currencyCode as PurchaseOrder['currency'])}`;
+}
+
+function authProfileMatches(level: PoAuthorisationLevel, user: { id: string; name: string; email: string }) {
+  const candidates = [user.id, user.name, user.email.split('@')[0], user.email].map((value) => value.trim().toLowerCase()).filter(Boolean);
+  return candidates.includes(level.userId.toLowerCase()) || candidates.includes(level.userName.toLowerCase());
+}
+
+function authorisationForOrder(order: PurchaseOrder, level: PoAuthorisationLevel | null): AuthorisationDecision {
+  if (!level) {
+    return {
+      canReview: false,
+      canAuthorise: false,
+      reviewReason: 'No purchase order authorisation profile is configured.',
+      authoriseReason: 'No purchase order authorisation profile is configured.',
+      level: null,
+    };
+  }
+
+  if (level.currencyCode !== order.currency) {
+    return {
+      canReview: false,
+      canAuthorise: false,
+      reviewReason: `This profile is for ${level.currencyCode}, but the PO is in ${order.currency}.`,
+      authoriseReason: `This profile is for ${level.currencyCode}, but the PO is in ${order.currency}.`,
+      level,
+    };
+  }
+
+  const total = orderTotal(order);
+  const canReview = level.canReview;
+  const canAuthorise = level.authLevel >= total;
+
+  return {
+    canReview,
+    canAuthorise,
+    reviewReason: canReview ? 'Profile can review purchase orders.' : 'Profile cannot review purchase orders.',
+    authoriseReason: canAuthorise
+      ? `Limit covers ${money(total, order.currency)}.`
+      : `Order value ${money(total, order.currency)} is above the ${money(level.authLevel, order.currency)} approval limit.`,
+    level,
+  };
+}
+
 function toPurchaseLine(line: DraftLine): PoLine {
   return {
     id: line.id,
@@ -685,6 +747,11 @@ function toPurchaseLine(line: DraftLine): PoLine {
 }
 
 export function PurchaseOrders() {
+  const { currentUser } = useApp();
+  const authUser = useMemo(
+    () => ({ id: currentUser.id, name: currentUser.name, email: currentUser.email }),
+    [currentUser.email, currentUser.id, currentUser.name]
+  );
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [drawerMode, setDrawerMode] = useState<DrawerMode>(null);
@@ -708,6 +775,10 @@ export function PurchaseOrders() {
   const [offerSupplier, setOfferSupplier] = useState(initialOffers[0]?.supplierCode ?? '');
   const [offerDecisions, setOfferDecisions] = useState<Record<string, OfferDecision>>({});
   const [offerMessage, setOfferMessage] = useState('');
+  const [poAuthLevels, setPoAuthLevels] = useState<PoAuthorisationLevel[]>([]);
+  const [selectedAuthId, setSelectedAuthId] = useState('');
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
   const [receiveDate, setReceiveDate] = useState(new Date().toISOString().slice(0, 10));
   const [supplierReference, setSupplierReference] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
@@ -737,6 +808,7 @@ export function PurchaseOrders() {
   const pageDescription = descriptionForRoute(routePath);
   const isCreatePoRoute = routePath.includes('po-header');
   const isOffersRoute = routePath.includes('offersreceived');
+  const isAuthoriseRoute = routePath.includes('po-authorisemyorders');
 
   const offerSupplierOptions = useMemo(() => {
     const bySupplier = new Map<string, LookupOption>();
@@ -803,6 +875,37 @@ export function PurchaseOrders() {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAuthorisationLevels() {
+      setAuthLoading(true);
+      setAuthError('');
+      try {
+        const setup = await fetchPurchasesPayablesSetup();
+        if (cancelled) return;
+        const levels = setup.poAuthorisationLevels;
+        setPoAuthLevels(levels);
+        setSelectedAuthId((current) => {
+          if (current && levels.some((level) => level.id === current)) return current;
+          return levels.find((level) => authProfileMatches(level, authUser))?.id ?? levels.find((level) => level.canReview)?.id ?? levels[0]?.id ?? '';
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setPoAuthLevels([]);
+        setAuthError(error instanceof Error ? error.message : 'PO authorisation setup could not be loaded.');
+      } finally {
+        if (!cancelled) setAuthLoading(false);
+      }
+    }
+
+    loadAuthorisationLevels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
 
   useEffect(() => {
     if (offerSupplierOptions.length === 0) {
@@ -874,6 +977,19 @@ export function PurchaseOrders() {
   );
 
   const primaryQueueOrder = nextActionOrders[0] ?? null;
+  const selectedAuthLevel = useMemo(() => poAuthLevels.find((level) => level.id === selectedAuthId) ?? null, [poAuthLevels, selectedAuthId]);
+  const approvalOrders = useMemo(
+    () => orders.filter((order) => ['Pending Review', 'Reviewed'].includes(order.status)).sort((a, b) => b.orderDate.localeCompare(a.orderDate)),
+    [orders]
+  );
+  const authCurrencyCoverage = useMemo(() => {
+    const currencies = new Set(poAuthLevels.map((level) => level.currencyCode));
+    return [...currencies].sort();
+  }, [poAuthLevels]);
+  const authorisableApprovalOrders = useMemo(
+    () => approvalOrders.filter((order) => order.status === 'Reviewed' && authorisationForOrder(order, selectedAuthLevel).canAuthorise).length,
+    [approvalOrders, selectedAuthLevel]
+  );
 
   const receiptValidation = useMemo(() => {
     if (drawerMode !== 'receive') return { hasQuantity: false, hasOverQuantity: false, canPost: false };
@@ -1076,6 +1192,18 @@ export function PurchaseOrders() {
     );
   }
 
+  function markOrderReviewed(order: PurchaseOrder) {
+    const decision = authorisationForOrder(order, selectedAuthLevel);
+    if (!decision.canReview) return;
+    transitionOrder(order.id, 'Reviewed', `Reviewed by ${selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name}`);
+  }
+
+  function authoriseOrder(order: PurchaseOrder) {
+    const decision = authorisationForOrder(order, selectedAuthLevel);
+    if (!decision.canAuthorise) return;
+    transitionOrder(order.id, 'Authorised', `Authorised by ${selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name}`);
+  }
+
   function addDraftLine() {
     const item = catalog[draftLines.length % catalog.length];
     setDraftLines((current) => [
@@ -1231,6 +1359,7 @@ export function PurchaseOrders() {
 
   const closePoDialog = () => setDrawerMode(null);
   const poDialogSize = drawerMode === 'create' ? 'lg' : '2xl';
+  const selectedOrderAuthDecision = authorisationForOrder(selectedOrder, selectedAuthLevel);
   const poDialogFooter = (
     <>
       <Button variant="secondary" onClick={closePoDialog}>Cancel</Button>
@@ -1253,7 +1382,8 @@ export function PurchaseOrders() {
         <>
           <Button
             variant={selectedOrder.status === 'Pending Review' ? 'secondary' : 'danger'}
-            onClick={selectedOrder.status === 'Pending Review' ? () => transitionOrder(selectedOrder.id, 'Reviewed', 'Reviewed by John Doe') : () => transitionOrder(selectedOrder.id, 'Rejected', 'Rejected by John Doe')}
+            onClick={selectedOrder.status === 'Pending Review' ? () => markOrderReviewed(selectedOrder) : () => transitionOrder(selectedOrder.id, 'Rejected', `Rejected by ${selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name}`)}
+            disabled={selectedOrder.status === 'Pending Review' && !selectedOrderAuthDecision.canReview}
           >
             {selectedOrder.status === 'Pending Review' ? (
               <>
@@ -1265,8 +1395,8 @@ export function PurchaseOrders() {
             )}
           </Button>
           <Button
-            onClick={() => transitionOrder(selectedOrder.id, 'Authorised', 'Authorised by John Doe')}
-            disabled={selectedOrder.status === 'Pending Review'}
+            onClick={() => authoriseOrder(selectedOrder)}
+            disabled={selectedOrder.status === 'Pending Review' || !selectedOrderAuthDecision.canAuthorise}
           >
             <ShieldCheck className="mr-2 h-4 w-4" />
             Authorise
@@ -1316,8 +1446,8 @@ export function PurchaseOrders() {
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <Chip icon={PackageCheck}>Purchasing</Chip>
-                  <Chip icon={isCreatePoRoute ? Plus : isOffersRoute ? ClipboardCheck : FileText}>
-                    {isCreatePoRoute ? 'New PO' : isOffersRoute ? 'Supplier offers' : 'Purchase orders'}
+                  <Chip icon={isCreatePoRoute ? Plus : isOffersRoute ? ClipboardCheck : isAuthoriseRoute ? ShieldCheck : FileText}>
+                    {isCreatePoRoute ? 'New PO' : isOffersRoute ? 'Supplier offers' : isAuthoriseRoute ? 'Authorise POs' : 'Purchase orders'}
                   </Chip>
                   <Chip icon={ShieldCheck}>Receiving and bill matching</Chip>
                   <Chip icon={purchaseOrdersReady ? CheckCircle2 : AlertTriangle}>
@@ -1346,6 +1476,11 @@ export function PurchaseOrders() {
                       Submit for review
                     </Button>
                   </>
+                ) : isAuthoriseRoute ? (
+                  <Button variant="secondary" onClick={() => navigateTo('/configuration/purchases-payables/setup/po-authorisation-levels')}>
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    Setup levels
+                  </Button>
                 ) : (
                   <>
                     <IconButton
@@ -1370,7 +1505,7 @@ export function PurchaseOrders() {
             </div>
           </header>
 
-          {!isCreatePoRoute && !isOffersRoute && filtersOpen ? (
+          {!isCreatePoRoute && !isOffersRoute && !isAuthoriseRoute && filtersOpen ? (
             <div className="border-b border-akiva-border bg-akiva-surface/70 px-4 py-3 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 gap-2 min-[520px]:grid-cols-2 md:grid-cols-4 2xl:grid-cols-[180px_180px_minmax(220px,1fr)_190px_minmax(210px,0.8fr)]">
                 <SearchableSelect
@@ -1493,6 +1628,25 @@ export function PurchaseOrders() {
                     </aside>
                   </div>
                 </>
+              ) : isAuthoriseRoute ? (
+                <AuthorisePurchaseOrdersPanel
+                  orders={approvalOrders}
+                  authLevels={poAuthLevels}
+                  selectedAuthId={selectedAuthId}
+                  selectedAuthLevel={selectedAuthLevel}
+                  loading={authLoading}
+                  error={authError}
+                  currencies={authCurrencyCoverage}
+                  authorisableCount={authorisableApprovalOrders}
+                  onAuthChange={setSelectedAuthId}
+                  onOpen={(order) => openDrawer(order, 'review')}
+                  onReview={markOrderReviewed}
+                  onAuthorise={authoriseOrder}
+                  onReject={(order) =>
+                    transitionOrder(order.id, 'Rejected', `Rejected by ${selectedAuthLevel?.userName || selectedAuthLevel?.userId || currentUser.name}`)
+                  }
+                  onSetupLevels={() => navigateTo('/configuration/purchases-payables/setup/po-authorisation-levels')}
+                />
               ) : (
                 <>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1708,6 +1862,8 @@ export function PurchaseOrders() {
         {drawerMode === 'review' ? (
           <ReviewPurchaseOrderPanel
             order={selectedOrder}
+            decision={selectedOrderAuthDecision}
+            selectedAuthLevel={selectedAuthLevel}
           />
         ) : null}
 
@@ -1870,6 +2026,216 @@ function OffersReceivedPanel({
             </tbody>
           </table>
         </div>
+      </section>
+    </div>
+  );
+}
+
+function AuthorisePurchaseOrdersPanel({
+  orders,
+  authLevels,
+  selectedAuthId,
+  selectedAuthLevel,
+  loading,
+  error,
+  currencies,
+  authorisableCount,
+  onAuthChange,
+  onOpen,
+  onReview,
+  onAuthorise,
+  onReject,
+  onSetupLevels,
+}: {
+  orders: PurchaseOrder[];
+  authLevels: PoAuthorisationLevel[];
+  selectedAuthId: string;
+  selectedAuthLevel: PoAuthorisationLevel | null;
+  loading: boolean;
+  error: string;
+  currencies: string[];
+  authorisableCount: number;
+  onAuthChange: (value: string) => void;
+  onOpen: (order: PurchaseOrder) => void;
+  onReview: (order: PurchaseOrder) => void;
+  onAuthorise: (order: PurchaseOrder) => void;
+  onReject: (order: PurchaseOrder) => void;
+  onSetupLevels: () => void;
+}) {
+  const profileOptions = authLevels.map((level) => ({ value: level.id, label: authProfileLabel(level) }));
+  const reviewCount = orders.filter((order) => order.status === 'Pending Review').length;
+  const finalCount = orders.filter((order) => order.status === 'Reviewed').length;
+
+  if (!loading && authLevels.length === 0) {
+    return (
+      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm dark:border-amber-900/70 dark:bg-amber-950/40">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-amber-950 dark:text-amber-100">Purchase order authorisation levels are not configured</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900 dark:text-amber-100">
+              Add at least one user and currency authorisation level before reviewing or authorising purchase orders.
+            </p>
+            {error ? <p className="mt-2 text-sm font-semibold text-rose-700 dark:text-rose-200">{error}</p> : null}
+          </div>
+          <Button onClick={onSetupLevels}>
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Configure levels
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {error ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100">
+          {error}
+        </div>
+      ) : null}
+
+      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-emerald-50/60 to-violet-50/70 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 xl:grid-cols-[minmax(280px,520px)_1fr_auto] xl:items-end">
+        <Field label="Authorising profile">
+          <SearchableSelect
+            value={selectedAuthId}
+            onChange={onAuthChange}
+            options={profileOptions}
+            inputClassName={inputClass}
+            placeholder={loading ? 'Loading authorisation levels...' : 'Select configured level'}
+          />
+        </Field>
+        <div className="grid gap-2 sm:grid-cols-4">
+          <InfoTile label="Review queue" value={String(reviewCount)} />
+          <InfoTile label="Final approval" value={String(finalCount)} />
+          <InfoTile label="Ready to authorise" value={String(authorisableCount)} />
+          <InfoTile label="Currencies" value={currencies.length > 0 ? currencies.join(', ') : 'None'} />
+        </div>
+        <Button variant="secondary" onClick={onSetupLevels}>
+          <ShieldCheck className="mr-2 h-4 w-4" />
+          Levels
+        </Button>
+      </section>
+
+      {selectedAuthLevel ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Profile user" value={selectedAuthLevel.userName || selectedAuthLevel.userId} detail={`Configured as ${selectedAuthLevel.userId}.`} icon={ClipboardCheck} />
+          <MetricCard label="Currency" value={selectedAuthLevel.currencyCode} detail={selectedAuthLevel.currencyName || 'Purchase order currency must match.'} icon={FileText} />
+          <MetricCard label="Approval limit" value={money(selectedAuthLevel.authLevel, selectedAuthLevel.currencyCode as PurchaseOrder['currency'])} detail="Orders above this value stay blocked." icon={ShieldCheck} />
+          <MetricCard
+            label="Workflow rights"
+            value={selectedAuthLevel.canReview ? 'Review enabled' : 'Review blocked'}
+            detail={selectedAuthLevel.offHold ? 'Off-hold authority is also enabled.' : 'Review and authorise use separate setup flags.'}
+            icon={CheckCircle2}
+          />
+        </section>
+      ) : null}
+
+      <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
+        <div className="border-b border-akiva-border px-4 py-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-akiva-text">Orders waiting for approval</h2>
+              <p className="mt-1 text-sm text-akiva-text-muted">
+                Review uses the configured review flag. Authorise uses the matching currency and approval limit.
+              </p>
+            </div>
+            {loading ? (
+              <span className="inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-100 dark:ring-sky-900">
+                Loading setup
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {orders.length === 0 ? (
+          <div className="p-8 text-center">
+            <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
+            <h3 className="mt-3 text-base font-semibold text-akiva-text">No purchase orders need authorisation</h3>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-akiva-text-muted">
+              Pending-review and reviewed orders will appear here as they move through the purchase order workflow.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1120px] table-fixed">
+              <thead className="bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-text-muted">
+                <tr>
+                  <th className="w-32 px-4 py-3 text-left">Order</th>
+                  <th className="w-72 px-4 py-3 text-left">Supplier</th>
+                  <th className="w-36 px-4 py-3 text-left">Requested</th>
+                  <th className="w-36 px-4 py-3 text-left">Status</th>
+                  <th className="w-40 px-4 py-3 text-right">Total</th>
+                  <th className="w-72 px-4 py-3 text-left">Authorisation check</th>
+                  <th className="w-80 px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order) => {
+                  const decision = authorisationForOrder(order, selectedAuthLevel);
+                  const isPendingReview = order.status === 'Pending Review';
+                  const blocked = isPendingReview ? !decision.canReview : !decision.canAuthorise;
+                  return (
+                    <tr key={order.id} className="border-t border-akiva-border align-top">
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => onOpen(order)}
+                          className="text-left font-mono text-sm font-semibold text-akiva-accent hover:text-akiva-accent-text"
+                        >
+                          {order.orderNumber}
+                          <span className="block font-sans text-xs font-medium text-akiva-text-muted">{order.realOrderNumber}</span>
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="truncate text-sm font-semibold text-akiva-text">{order.supplierName}</p>
+                        <p className="mt-1 truncate text-xs text-akiva-text-muted">{order.supplierCode} · {order.location}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className="block">{formatDate(order.orderDate)}</span>
+                        <span className="mt-1 block text-xs text-akiva-text-muted">{order.initiatedBy}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusPill status={order.status} />
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm font-semibold">{money(orderTotal(order), order.currency)}</td>
+                      <td className="px-4 py-3">
+                        <div className={`rounded-lg border px-3 py-2 text-xs leading-5 ${
+                          blocked
+                            ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100'
+                        }`}>
+                          <p className="font-semibold">{isPendingReview ? decision.reviewReason : decision.authoriseReason}</p>
+                          <p className="mt-1 opacity-80">{isPendingReview ? decision.authoriseReason : decision.reviewReason}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => onOpen(order)} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
+                            Open
+                          </Button>
+                          {isPendingReview ? (
+                            <Button size="sm" onClick={() => onReview(order)} disabled={!decision.canReview} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
+                              <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />
+                              Reviewed
+                            </Button>
+                          ) : (
+                            <Button size="sm" onClick={() => onAuthorise(order)} disabled={!decision.canAuthorise} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
+                              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                              Authorise
+                            </Button>
+                          )}
+                          <Button variant="danger" size="sm" onClick={() => onReject(order)} disabled={!decision.canReview} className="min-h-8 rounded-md px-2.5 py-1 text-xs">
+                            Reject
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -2177,7 +2543,15 @@ function ReceivePurchaseOrderPanel({
   );
 }
 
-function ReviewPurchaseOrderPanel({ order }: { order: PurchaseOrder }) {
+function ReviewPurchaseOrderPanel({
+  order,
+  decision,
+  selectedAuthLevel,
+}: {
+  order: PurchaseOrder;
+  decision: AuthorisationDecision;
+  selectedAuthLevel: PoAuthorisationLevel | null;
+}) {
   return (
     <div className="space-y-4">
       <PanelSection title="Approval summary">
@@ -2186,6 +2560,38 @@ function ReviewPurchaseOrderPanel({ order }: { order: PurchaseOrder }) {
           <InfoTile label="Requested by" value={order.initiatedBy} />
           <InfoTile label="Order value" value={money(orderTotal(order), order.currency)} />
           <InfoTile label="Delivery date" value={formatDate(order.deliveryDate)} />
+        </div>
+      </PanelSection>
+      <PanelSection title="Configured authorisation">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <InfoTile label="Profile" value={selectedAuthLevel ? selectedAuthLevel.userName || selectedAuthLevel.userId : 'Not configured'} />
+          <InfoTile label="Currency" value={selectedAuthLevel ? selectedAuthLevel.currencyCode : order.currency} />
+          <InfoTile
+            label="Limit"
+            value={selectedAuthLevel ? money(selectedAuthLevel.authLevel, selectedAuthLevel.currencyCode as PurchaseOrder['currency']) : 'No limit'}
+          />
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              decision.canReview
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100'
+                : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
+            }`}
+          >
+            <span className="font-semibold">Review: </span>
+            {decision.reviewReason}
+          </div>
+          <div
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              decision.canAuthorise
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100'
+                : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
+            }`}
+          >
+            <span className="font-semibold">Authorise: </span>
+            {decision.authoriseReason}
+          </div>
         </div>
       </PanelSection>
       <PurchaseOrderLines order={order} />

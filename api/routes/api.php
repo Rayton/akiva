@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\SalesReceivablesSetupController;
 use App\Http\Controllers\Api\PurchasesPayablesSetupController;
 use App\Http\Controllers\Api\InventorySetupController;
 use App\Http\Controllers\Api\InventoryDashboardController;
+use App\Http\Controllers\Api\InventoryItemController;
 use App\Http\Controllers\Api\AllInventoryUsageController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
@@ -145,6 +146,9 @@ Route::prefix('purchases')->group(function () {
 
 Route::prefix('inventory')->group(function () {
     Route::get('/dashboard', [InventoryDashboardController::class, 'show']);
+    Route::get('/items/workbench', [InventoryItemController::class, 'workbench']);
+    Route::post('/items', [InventoryItemController::class, 'store']);
+    Route::put('/items/{stockId}', [InventoryItemController::class, 'update']);
     Route::get('/adjustments/workbench', [StockAdjustmentController::class, 'workbench']);
     Route::get('/adjustment-items', [StockAdjustmentController::class, 'items']);
     Route::post('/adjustments', [StockAdjustmentController::class, 'store']);

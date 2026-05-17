@@ -9,6 +9,7 @@ import { GeneralLedger } from './pages/GeneralLedger';
 import { AccountsReceivable } from './pages/AccountsReceivable';
 import { AccountsPayable } from './pages/AccountsPayable';
 import { Inventory } from './pages/Inventory';
+import { InventoryItems } from './pages/InventoryItems';
 import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
@@ -582,6 +583,19 @@ function isStockDispatchMenuSlug(slug: string): boolean {
   );
 }
 
+function isInventoryItemsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return (
+    key === 'selectproduct' ||
+    key === 'stocks' ||
+    key === 'stockmaster' ||
+    key === 'inventoryitems' ||
+    key.includes('selectproduct') ||
+    key.includes('inventoryitems') ||
+    key.includes('stockmaster')
+  );
+}
+
 function isInventorySetupMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
@@ -679,6 +693,10 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (pathKey.includes('configurationmanufacturingsetup')) {
     return <ManufacturingSetup initialTab={resolveManufacturingSetupTab(pathname)} />;
+  }
+
+  if (isInventoryItemsMenuSlug(pathname)) {
+    return <InventoryItems />;
   }
 
   if (pathKey.includes('configurationuserswwwusers')) {
@@ -984,6 +1002,10 @@ function AppContent() {
         return <PurchasesPayablesSetup initialTab={resolvePurchasesPayablesSetupTab(menuSlug)} />;
       }
 
+      if (isInventoryItemsMenuSlug(menuSlug)) {
+        return <InventoryItems />;
+      }
+
       if (isManufacturingSetupMenuSlug(menuSlug)) {
         return <ManufacturingSetup initialTab={resolveManufacturingSetupTab(menuSlug)} />;
       }
@@ -1217,6 +1239,10 @@ function AppContent() {
       return <StockUsage />;
     }
 
+    if (isInventoryItemsMenuSlug(locationPathname)) {
+      return <InventoryItems />;
+    }
+
     switch (currentPage) {
       case 'accounts':
         return <ChartOfAccounts />;
@@ -1228,6 +1254,12 @@ function AppContent() {
         return <AccountsPayable />;
       case 'inventory':
         return <Inventory />;
+      case 'selectproduct':
+      case 'stocks':
+      case 'inventory-items':
+      case 'inventoryitems':
+      case 'stockmaster':
+        return <InventoryItems />;
       case 'sales-orders':
         return <SalesOrders mode="transactions" sourceSlug="sales-orders" />;
       case 'purchase-orders':

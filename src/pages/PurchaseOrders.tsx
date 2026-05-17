@@ -532,17 +532,75 @@ function canPrint(order: PurchaseOrder) {
   return order.status === 'Authorised' || order.allowPrint;
 }
 
+function currentPurchaseRoute() {
+  if (typeof window === 'undefined') return '';
+  return window.location.pathname.toLowerCase();
+}
+
+function initialTabForRoute(pathname: string): WorkbenchTab {
+  if (pathname.includes('authorise') || pathname.includes('review')) return 'approvals';
+  if (pathname.includes('outstanding-grns') || pathname.includes('suppinvgrns')) return 'billMatch';
+  if (pathname.includes('goods-received') || pathname.includes('receive')) return 'receiving';
+  return 'outstanding';
+}
+
+function titleForRoute(pathname: string) {
+  if (pathname.includes('po-selectospurchorder')) return 'Select Purchase Order';
+  if (pathname.includes('po-authorisemyorders')) return 'Purchase Order Approvals';
+  if (pathname.includes('outstanding-grns') || pathname.includes('suppinvgrns')) return 'GRN Bill Matching';
+  return 'Purchase Orders';
+}
+
+function descriptionForRoute(pathname: string) {
+  if (pathname.includes('po-selectospurchorder')) {
+    return 'Find the right purchase order quickly, then print, receive, review, or inspect the order without losing the queue context.';
+  }
+  if (pathname.includes('po-authorisemyorders')) {
+    return 'Review pending purchase orders, confirm budget and GL coding, then authorise supplier-visible orders.';
+  }
+  if (pathname.includes('outstanding-grns') || pathname.includes('suppinvgrns')) {
+    return 'Follow received goods that still need supplier invoice matching and GRN accrual clearing.';
+  }
+  return 'Create purchase commitments, route them through review and authorisation, print or send authorised orders, receive goods into stock, and hold GRNs for supplier bill matching.';
+}
+
+function receiptBalance(line: PoLine) {
+  return Math.max(line.quantityOrdered - line.quantityReceived, 0);
+}
+
+function toPurchaseLine(line: DraftLine): PoLine {
+  return {
+    id: line.id,
+    itemCode: line.itemCode,
+    supplierItem: line.supplierItem,
+    description: line.description,
+    category: line.category,
+    supplierUnits: line.supplierUnits,
+    receivingUnits: line.receivingUnits,
+    conversionFactor: line.conversionFactor,
+    quantityOrdered: line.quantityOrdered,
+    quantityReceived: line.quantityReceived,
+    quantityInvoiced: line.quantityInvoiced,
+    deliveryDate: line.deliveryDate,
+    unitPrice: line.unitPrice,
+    taxRate: line.taxRate,
+    glCode: line.glCode,
+    controlled: line.controlled,
+    completed: line.completed,
+  };
+}
+
 export function PurchaseOrders() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [drawerMode, setDrawerMode] = useState<DrawerMode>(null);
-  const [activeTab, setActiveTab] = useState<WorkbenchTab>('outstanding');
+  const [activeTab, setActiveTab] = useState<WorkbenchTab>(() => initialTabForRoute(currentPurchaseRoute()));
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('outstanding');
   const [locationFilter, setLocationFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [showLineDetails, setShowLineDetails] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(() => currentPurchaseRoute().includes('po-selectospurchorder'));
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRangeValue>(getDefaultDateRange());
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -576,6 +634,9 @@ export function PurchaseOrders() {
   ]);
 
   const selectedOrder = orders.find((order) => order.id === selectedId) ?? orders[0] ?? initialOrders[0];
+  const routePath = currentPurchaseRoute();
+  const pageTitle = titleForRoute(routePath);
+  const pageDescription = descriptionForRoute(routePath);
 
   useEffect(() => {
     let cancelled = false;
@@ -609,13 +670,11 @@ export function PurchaseOrders() {
 
         if (payload.lookups?.suppliers?.length) {
           setLookupSuppliers(payload.lookups.suppliers);
-          const currentSupplierStillExists = payload.lookups.suppliers.some((supplier) => supplier.value === draftSupplier);
-          if (!currentSupplierStillExists) setDraftSupplier(payload.lookups.suppliers[0].value);
+          setDraftSupplier((current) => (payload.lookups?.suppliers?.some((supplier) => supplier.value === current) ? current : payload.lookups?.suppliers?.[0]?.value ?? current));
         }
         if (payload.lookups?.locations?.length) {
           setLookupLocations(payload.lookups.locations);
-          const currentLocationStillExists = payload.lookups.locations.some((location) => location.value === draftLocation);
-          if (!currentLocationStillExists) setDraftLocation(payload.lookups.locations[0].value);
+          setDraftLocation((current) => (payload.lookups?.locations?.some((location) => location.value === current) ? current : payload.lookups?.locations?.[0]?.value ?? current));
         }
         if (payload.lookups?.categories?.length) {
           setLookupCategories(payload.lookups.categories);
@@ -678,8 +737,38 @@ export function PurchaseOrders() {
     };
   }, [orders]);
 
-  const columns = useMemo<AdvancedTableColumn<PurchaseOrder>[]>(() => {
-    const baseColumns: AdvancedTableColumn<PurchaseOrder>[] = [
+  const tabCounts = useMemo<Record<WorkbenchTab, number>>(() => {
+    return {
+      outstanding: orders.filter((order) => !['Completed', 'Cancelled', 'Rejected'].includes(order.status)).length,
+      approvals: orders.filter((order) => ['Pending Review', 'Reviewed'].includes(order.status)).length,
+      receiving: orders.filter(canReceive).length,
+      billMatch: orders.filter((order) => order.status === 'Received').length,
+      all: orders.length,
+    };
+  }, [orders]);
+
+  const nextActionOrders = useMemo(
+    () =>
+      orders
+        .filter((order) => ['Pending Review', 'Reviewed', 'Printed', 'Part Received', 'Received'].includes(order.status))
+        .sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate)),
+    [orders]
+  );
+
+  const primaryQueueOrder = nextActionOrders[0] ?? null;
+
+  const receiptValidation = useMemo(() => {
+    if (drawerMode !== 'receive') return { hasQuantity: false, hasOverQuantity: false, canPost: false };
+    const quantities = selectedOrder.lines.map((line) => {
+      const qty = Math.max(0, Number(receiptQty[line.id] ?? 0));
+      return { qty, balance: receiptBalance(line) };
+    });
+    const hasQuantity = quantities.some((line) => line.qty > 0);
+    const hasOverQuantity = quantities.some((line) => line.qty > line.balance);
+    return { hasQuantity, hasOverQuantity, canPost: hasQuantity && !hasOverQuantity };
+  }, [drawerMode, receiptQty, selectedOrder]);
+
+  const columns: AdvancedTableColumn<PurchaseOrder>[] = [
       {
         id: 'order',
         header: 'Order #',
@@ -809,9 +898,6 @@ export function PurchaseOrders() {
       },
     ];
 
-    return baseColumns;
-  }, [showLineDetails]);
-
   function openDrawer(order: PurchaseOrder, mode: Exclude<DrawerMode, null>) {
     setSelectedId(order.id);
     if (mode === 'receive') {
@@ -897,7 +983,7 @@ export function PurchaseOrders() {
       comments: draftComments,
       status,
       allowPrint: false,
-      lines: draftLines.map(({ draftId, ...line }) => line),
+      lines: draftLines.map(toPurchaseLine),
       events: [{ label: status === 'Draft' ? 'Draft created' : 'Submitted for review', by: 'John Doe', at: 'Today' }],
     };
     setOrders((current) => [order, ...current]);
@@ -906,6 +992,7 @@ export function PurchaseOrders() {
   }
 
   function postReceipt() {
+    if (!receiptValidation.canPost) return;
     setOrders((current) =>
       current.map((order) => {
         if (order.id !== selectedOrder.id) return order;
@@ -940,7 +1027,6 @@ export function PurchaseOrders() {
     setDrawerMode('view');
   }
 
-  const nextActionOrders = orders.filter((order) => ['Pending Review', 'Reviewed', 'Printed', 'Part Received', 'Received'].includes(order.status));
   const closePoDialog = () => setDrawerMode(null);
   const poDialogSize = drawerMode === 'create' ? 'lg' : '2xl';
   const poDialogFooter = (
@@ -956,7 +1042,7 @@ export function PurchaseOrders() {
         </>
       ) : null}
       {drawerMode === 'receive' ? (
-        <Button variant="success" onClick={postReceipt}>
+        <Button variant="success" onClick={postReceipt} disabled={!receiptValidation.canPost}>
           <PackageCheck className="mr-2 h-4 w-4" />
           Process goods received
         </Button>
@@ -1013,10 +1099,10 @@ export function PurchaseOrders() {
                   </Chip>
                 </div>
                 <h1 className="mt-4 text-lg font-semibold tracking-normal text-akiva-text sm:text-2xl lg:text-[1.875rem]">
-                  Purchase Orders
+                  {pageTitle}
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
-                  Create purchase commitments, route them through review and authorisation, print or send authorised orders, receive goods into stock, and hold GRNs for supplier bill matching.
+                  {pageDescription}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1095,6 +1181,31 @@ export function PurchaseOrders() {
                 <MetricCard label="GRN accrual" value={money(metrics.grnAccrual, 'TZS')} detail="Received goods awaiting supplier invoice." icon={FileCheck2} />
               </div>
 
+              <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-sky-50/60 to-amber-50/60 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[1fr_auto] lg:items-center">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Selection queue</p>
+                  <h2 className="mt-1 truncate text-base font-semibold text-akiva-text">
+                    {primaryQueueOrder ? `${actionForStatus(primaryQueueOrder.status)} PO ${primaryQueueOrder.orderNumber} for ${primaryQueueOrder.supplierName}` : 'No urgent purchase orders waiting for action'}
+                  </h2>
+                  <p className="mt-1 text-sm leading-5 text-akiva-text-muted">
+                    {primaryQueueOrder
+                      ? `${formatDate(primaryQueueOrder.deliveryDate)} delivery into ${primaryQueueOrder.location} · ${money(orderTotal(primaryQueueOrder), primaryQueueOrder.currency)}`
+                      : 'The current filters have no approval, receiving, or bill-match work queued.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setFiltersOpen(true)}>
+                    <SlidersHorizontal className="mr-2 h-4 w-4" />
+                    Refine
+                  </Button>
+                  {primaryQueueOrder ? (
+                    <Button size="sm" onClick={() => primaryAction(primaryQueueOrder)}>
+                      {actionForStatus(primaryQueueOrder.status)}
+                    </Button>
+                  ) : null}
+                </div>
+              </section>
+
               <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
                 <div className="border-b border-akiva-border px-4 py-3">
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1115,6 +1226,9 @@ export function PurchaseOrders() {
                           >
                             <Icon className="h-4 w-4" />
                             {tab.label}
+                            <span className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/20 text-white' : 'bg-akiva-surface-muted text-akiva-text-muted'}`}>
+                              {tabCounts[tab.id]}
+                            </span>
                           </button>
                         );
                       })}
@@ -1493,6 +1607,8 @@ function ReceivePurchaseOrderPanel({
   onCompleteChange: (lineId: string, checked: boolean) => void;
 }) {
   const receiptValue = order.lines.reduce((sum, line) => sum + Math.max(0, Number(receiptQty[line.id] ?? 0)) * line.unitPrice, 0);
+  const hasQuantity = order.lines.some((line) => Math.max(0, Number(receiptQty[line.id] ?? 0)) > 0);
+  const hasOverQuantity = order.lines.some((line) => Math.max(0, Number(receiptQty[line.id] ?? 0)) > receiptBalance(line));
   return (
     <div className="space-y-4">
       <PanelSection title="Receipt header">
@@ -1510,6 +1626,19 @@ function ReceivePurchaseOrderPanel({
       </PanelSection>
 
       <PanelSection title="Receive quantities">
+        {!hasQuantity || hasOverQuantity ? (
+          <div
+            className={`mb-3 rounded-lg border px-3 py-2 text-sm ${
+              hasOverQuantity
+                ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100'
+                : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100'
+            }`}
+          >
+            {hasOverQuantity
+              ? 'One or more received quantities are above the remaining purchase order balance.'
+              : 'Enter at least one received quantity before posting the GRN.'}
+          </div>
+        ) : null}
         <div className="overflow-x-auto rounded-lg border border-akiva-border">
           <table className="w-full min-w-[860px] table-fixed">
             <thead className="bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-text-muted">
@@ -1525,7 +1654,7 @@ function ReceivePurchaseOrderPanel({
             </thead>
             <tbody>
               {order.lines.map((line) => {
-                const balance = Math.max(line.quantityOrdered - line.quantityReceived, 0);
+                const balance = receiptBalance(line);
                 const qty = Math.max(0, Number(receiptQty[line.id] ?? 0));
                 const over = qty > balance;
                 return (
@@ -1556,12 +1685,17 @@ function ReceivePurchaseOrderPanel({
                       {over ? <span className="mt-1 block text-xs text-rose-600">Above balance {balance}</span> : null}
                     </td>
                     <td className="px-3 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={completedLines[line.id] ?? line.completed ?? false}
-                        onChange={(event) => onCompleteChange(line.id, event.target.checked)}
-                        className="h-4 w-4 rounded border-akiva-border text-akiva-accent focus:ring-akiva-accent"
-                      />
+                      <label className="inline-flex cursor-pointer items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={completedLines[line.id] ?? line.completed ?? false}
+                          onChange={(event) => onCompleteChange(line.id, event.target.checked)}
+                          className="peer sr-only"
+                        />
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md border border-akiva-border bg-akiva-surface-raised text-transparent shadow-sm transition peer-checked:border-akiva-accent peer-checked:bg-akiva-accent peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-akiva-accent">
+                          <Check className="h-4 w-4 stroke-[3]" />
+                        </span>
+                      </label>
                     </td>
                     <td className="px-3 py-2 text-right text-sm font-semibold">{money(qty * line.unitPrice, order.currency)}</td>
                   </tr>

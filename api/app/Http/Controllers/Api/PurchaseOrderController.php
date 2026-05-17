@@ -118,6 +118,132 @@ class PurchaseOrderController extends Controller
         }
     }
 
+    public function shipments(Request $request)
+    {
+        if (!Schema::hasTable('purchorders') || !Schema::hasTable('purchorderdetails')) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'summary' => $this->shipmentSummary([]),
+                'meta' => $this->shipmentMeta(),
+            ]);
+        }
+
+        $limit = $this->safeLimit($request->query('limit', 250), 20, 1000);
+        $search = trim((string) $request->query('q', ''));
+
+        try {
+            $query = DB::table('purchorders as po')
+                ->leftJoin('suppliers as s', 's.supplierid', '=', 'po.supplierno')
+                ->leftJoin('locations as l', 'l.loccode', '=', 'po.intostocklocation')
+                ->leftJoin('purchorderdetails as pod', 'pod.orderno', '=', 'po.orderno')
+                ->select(
+                    'po.orderno',
+                    'po.supplierno',
+                    'po.comments',
+                    'po.orddate',
+                    'po.rate',
+                    'po.dateprinted',
+                    'po.allowprint',
+                    'po.initiator',
+                    'po.requisitionno',
+                    'po.intostocklocation',
+                    'po.realorderno',
+                    'po.deliveryby',
+                    'po.deliverydate',
+                    'po.status',
+                    'po.stat_comment',
+                    'po.paymentterms',
+                    DB::raw('COALESCE(NULLIF(s.suppname, ""), po.supplierno) as supplier_name'),
+                    DB::raw('COALESCE(s.currcode, "TZS") as currency_code'),
+                    DB::raw('CONCAT_WS(", ", NULLIF(s.address1, ""), NULLIF(s.address2, ""), NULLIF(s.address3, ""), NULLIF(s.address4, "")) as supplier_address'),
+                    DB::raw('COALESCE(NULLIF(l.locationname, ""), po.intostocklocation) as location_name'),
+                    DB::raw('COALESCE(SUM(pod.quantityord * pod.unitprice), 0) as order_total'),
+                    DB::raw('COALESCE(SUM(GREATEST(pod.quantityord - pod.quantityrecd, 0)), 0) as balance_qty'),
+                    DB::raw('COALESCE(SUM(pod.quantityord), 0) as ordered_qty'),
+                    DB::raw('COALESCE(SUM(pod.quantityrecd), 0) as received_qty'),
+                    DB::raw('COALESCE(SUM(pod.qtyinvoiced), 0) as invoiced_qty'),
+                    DB::raw('COUNT(DISTINCT pod.podetailitem) as line_count')
+                )
+                ->whereNotIn('po.status', ['Cancelled', 'Canceled', 'Rejected', 'Completed', 'Pending', 'Modify', 'Reviewed'])
+                ->groupBy(
+                    'po.orderno',
+                    'po.supplierno',
+                    'po.comments',
+                    'po.orddate',
+                    'po.rate',
+                    'po.dateprinted',
+                    'po.allowprint',
+                    'po.initiator',
+                    'po.requisitionno',
+                    'po.intostocklocation',
+                    'po.realorderno',
+                    'po.deliveryby',
+                    'po.deliverydate',
+                    'po.status',
+                    'po.stat_comment',
+                    'po.paymentterms',
+                    's.suppname',
+                    's.currcode',
+                    's.address1',
+                    's.address2',
+                    's.address3',
+                    's.address4',
+                    'l.locationname'
+                )
+                ->havingRaw('COALESCE(SUM(pod.quantityord), 0) > 0')
+                ->orderByDesc('po.orderno')
+                ->limit($limit);
+
+            if ($search !== '') {
+                $query->where(function ($inner) use ($search) {
+                    $inner
+                        ->where('po.orderno', 'like', "%{$search}%")
+                        ->orWhere('po.realorderno', 'like', "%{$search}%")
+                        ->orWhere('po.requisitionno', 'like', "%{$search}%")
+                        ->orWhere('po.supplierno', 'like', "%{$search}%")
+                        ->orWhere('s.suppname', 'like', "%{$search}%")
+                        ->orWhere('pod.itemcode', 'like', "%{$search}%")
+                        ->orWhere('pod.itemdescription', 'like', "%{$search}%");
+                });
+            }
+
+            $headers = $query->get();
+            $orderNumbers = $headers->pluck('orderno')->map(function ($value) {
+                return (int) $value;
+            })->all();
+            $linesByOrder = $this->linesByOrder($orderNumbers);
+            $grnsByOrder = $this->grnStatsByOrder($orderNumbers);
+
+            $shipments = $headers
+                ->map(function ($row) use ($linesByOrder, $grnsByOrder) {
+                    return $this->shipmentPayload($row, $linesByOrder[(int) $row->orderno] ?? [], $grnsByOrder[(int) $row->orderno] ?? null);
+                })
+                ->filter(function ($shipment) {
+                    return $shipment !== null;
+                })
+                ->sortByDesc('priority')
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $shipments,
+                'summary' => $this->shipmentSummary($shipments->all()),
+                'meta' => $this->shipmentMeta(),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Shipment operations could not be loaded.',
+                'data' => [],
+                'summary' => $this->shipmentSummary([]),
+                'meta' => $this->shipmentMeta(),
+            ], 500);
+        }
+    }
+
     private function linesByOrder(array $orderNumbers): array
     {
         if (count($orderNumbers) === 0) {
@@ -147,6 +273,264 @@ class PurchaseOrderController extends Controller
                 })->values()->all();
             })
             ->all();
+    }
+
+    private function grnStatsByOrder(array $orderNumbers): array
+    {
+        if (count($orderNumbers) === 0 || !Schema::hasTable('grns')) {
+            return [];
+        }
+
+        return DB::table('grns as g')
+            ->join('purchorderdetails as pod', 'pod.podetailitem', '=', 'g.podetailitem')
+            ->whereIn('pod.orderno', $orderNumbers)
+            ->select(
+                'pod.orderno',
+                DB::raw('COUNT(DISTINCT g.grnno) as grn_count'),
+                DB::raw('MAX(g.deliverydate) as last_grn_date'),
+                DB::raw('COALESCE(SUM(g.qtyrecd), 0) as grn_received_qty'),
+                DB::raw('COALESCE(SUM(g.quantityinv), 0) as grn_invoiced_qty')
+            )
+            ->groupBy('pod.orderno')
+            ->get()
+            ->keyBy(function ($row) {
+                return (int) $row->orderno;
+            })
+            ->all();
+    }
+
+    private function shipmentPayload(object $row, array $lines, ?object $grnStats): ?array
+    {
+        $order = $this->orderPayload($row, $lines);
+        $orderedQty = array_reduce($lines, fn ($sum, $line) => $sum + (float) ($line['quantityOrdered'] ?? 0), 0.0);
+        $receivedQty = array_reduce($lines, fn ($sum, $line) => $sum + (float) ($line['quantityReceived'] ?? 0), 0.0);
+        $invoicedQty = array_reduce($lines, fn ($sum, $line) => $sum + (float) ($line['quantityInvoiced'] ?? 0), 0.0);
+        $openQty = max(0, $orderedQty - $receivedQty);
+
+        if ($orderedQty <= 0) {
+            return null;
+        }
+
+        $etaDate = $this->safeDate((string) ($row->deliverydate ?? ''), $order['orderDate']);
+        $etaDays = $this->signedDaysUntil($etaDate);
+        $status = $this->shipmentStatus((string) $row->status, $etaDays, $openQty, $receivedQty, $invoicedQty, $row, $grnStats);
+        $value = (float) ($row->order_total ?? 0);
+        $risk = $this->shipmentRisk($status, $etaDays, $value, $openQty, $receivedQty, $invoicedQty);
+        $issue = $this->shipmentIssue($status, $etaDays, $openQty, $receivedQty, $invoicedQty);
+        $grnCount = (int) ($grnStats->grn_count ?? 0);
+
+        return [
+            'id' => 'PO-' . (string) $row->orderno,
+            'order' => $order,
+            'orderId' => $order['id'],
+            'orderNumber' => $order['orderNumber'],
+            'realOrderNumber' => $order['realOrderNumber'],
+            'supplierCode' => $order['supplierCode'],
+            'supplierName' => $order['supplierName'],
+            'location' => $order['location'],
+            'currency' => $order['currency'],
+            'etaDate' => $etaDate,
+            'etaLabel' => $this->etaLabel($etaDays),
+            'etaDays' => $etaDays,
+            'status' => $status,
+            'risk' => $risk,
+            'value' => $value,
+            'progress' => $this->shipmentProgress($status),
+            'containerCount' => 0,
+            'issue' => $issue,
+            'priority' => $this->shipmentPriority($risk, $etaDays, $value, $openQty, $receivedQty, $invoicedQty, $status),
+            'orderedQuantity' => $orderedQty,
+            'receivedQuantity' => $receivedQty,
+            'invoicedQuantity' => $invoicedQty,
+            'openQuantity' => $openQty,
+            'grnCount' => $grnCount,
+            'lastGrnDate' => $grnStats?->last_grn_date ? $this->safeDate((string) $grnStats->last_grn_date, '') : '',
+            'timeline' => $this->shipmentTimeline($row, $order, $status, $issue, $grnStats),
+            'source' => 'purchase_order_receiving',
+        ];
+    }
+
+    private function shipmentStatus(string $rawStatus, int $etaDays, float $openQty, float $receivedQty, float $invoicedQty, object $row, ?object $grnStats): string
+    {
+        if ($this->containsCustomsHold($row)) {
+            return 'Customs Hold';
+        }
+
+        if ($receivedQty > 0 && $openQty > 0) {
+            return 'Partial Receipt';
+        }
+
+        if ($receivedQty > 0 && $receivedQty > $invoicedQty) {
+            return 'Invoice Match';
+        }
+
+        if ($openQty <= 0 && $receivedQty > 0) {
+            return 'Invoice Match';
+        }
+
+        $status = strtolower(trim($rawStatus));
+        if ($status === 'printed') {
+            return $etaDays <= 0 ? 'Warehouse Receiving' : 'In Transit';
+        }
+
+        if ((int) ($grnStats->grn_count ?? 0) > 0) {
+            return 'Awaiting GRN';
+        }
+
+        return 'Ordered';
+    }
+
+    private function shipmentRisk(string $status, int $etaDays, float $value, float $openQty, float $receivedQty, float $invoicedQty): string
+    {
+        if ($status === 'Customs Hold' || ($etaDays < -1 && $openQty > 0)) {
+            return 'High';
+        }
+
+        if ($value >= 70000000 && $openQty > 0) {
+            return 'High';
+        }
+
+        if ($etaDays < 0 || $status === 'Partial Receipt' || ($receivedQty > $invoicedQty && $receivedQty > 0)) {
+            return 'Medium';
+        }
+
+        return 'Low';
+    }
+
+    private function shipmentIssue(string $status, int $etaDays, float $openQty, float $receivedQty, float $invoicedQty): string
+    {
+        if ($status === 'Customs Hold') {
+            return 'Customs or clearance note found on purchase order';
+        }
+
+        if ($etaDays < 0 && $openQty > 0) {
+            $days = abs($etaDays);
+            return 'Delivery date missed by ' . $days . ' day' . ($days === 1 ? '' : 's');
+        }
+
+        if ($status === 'Partial Receipt') {
+            return 'Open balance remains after receiving';
+        }
+
+        if ($receivedQty > $invoicedQty && $receivedQty > 0) {
+            return 'Received quantity awaiting invoice match';
+        }
+
+        if ($status === 'Warehouse Receiving') {
+            return 'Goods due for warehouse receiving and GRN';
+        }
+
+        if ($status === 'In Transit') {
+            return 'Supplier delivery is in transit';
+        }
+
+        return 'Supplier order released, awaiting receiving activity';
+    }
+
+    private function shipmentProgress(string $status): int
+    {
+        return match ($status) {
+            'Ordered' => 18,
+            'In Transit' => 42,
+            'Customs Hold' => 54,
+            'Warehouse Receiving' => 72,
+            'Partial Receipt' => 82,
+            'Awaiting GRN' => 88,
+            'Invoice Match' => 96,
+            default => 18,
+        };
+    }
+
+    private function shipmentPriority(string $risk, int $etaDays, float $value, float $openQty, float $receivedQty, float $invoicedQty, string $status): int
+    {
+        $score = $risk === 'High' ? 100 : ($risk === 'Medium' ? 55 : 15);
+        $score += max(0, 7 - $etaDays);
+        $score += min(30, (int) ceil($value / 10000000));
+        if ($status === 'Customs Hold') $score += 30;
+        if ($status === 'Warehouse Receiving') $score += 20;
+        if ($status === 'Partial Receipt') $score += 15;
+        if ($receivedQty > $invoicedQty && $receivedQty > 0) $score += 10;
+        if ($openQty <= 0) $score -= 25;
+        return max(0, $score);
+    }
+
+    private function shipmentTimeline(object $row, array $order, string $status, string $issue, ?object $grnStats): array
+    {
+        $events = [[
+            'time' => $order['orderDate'],
+            'label' => 'Purchase order created',
+            'detail' => 'PO ' . $order['orderNumber'] . ' opened for ' . $order['supplierName'] . '.',
+            'tone' => 'neutral',
+        ]];
+
+        if ((string) ($row->dateprinted ?? '') !== '' && substr((string) $row->dateprinted, 0, 10) !== '0000-00-00') {
+            $events[] = [
+                'time' => $this->safeDate((string) $row->dateprinted, $order['orderDate']),
+                'label' => 'Purchase order printed',
+                'detail' => 'Supplier-facing purchase order was released for fulfilment.',
+                'tone' => 'neutral',
+            ];
+        }
+
+        $events[] = [
+            'time' => $order['deliveryDate'],
+            'label' => 'Required delivery date',
+            'detail' => $issue,
+            'tone' => in_array($status, ['Customs Hold', 'Warehouse Receiving', 'Partial Receipt'], true) ? 'warning' : 'neutral',
+        ];
+
+        if ($grnStats?->last_grn_date) {
+            $events[] = [
+                'time' => $this->safeDate((string) $grnStats->last_grn_date, $order['deliveryDate']),
+                'label' => 'Goods received note posted',
+                'detail' => (int) ($grnStats->grn_count ?? 0) . ' GRN record' . ((int) ($grnStats->grn_count ?? 0) === 1 ? '' : 's') . ' linked to this purchase order.',
+                'tone' => 'success',
+            ];
+        }
+
+        foreach (($order['events'] ?? []) as $event) {
+            $label = trim((string) ($event['label'] ?? ''));
+            if ($label === '' || $label === 'Purchase order created') {
+                continue;
+            }
+
+            $events[] = [
+                'time' => $this->safeDate((string) ($event['at'] ?? $order['orderDate']), $order['orderDate']),
+                'label' => $label,
+                'detail' => 'Recorded by ' . (string) ($event['by'] ?? 'System') . '.',
+                'tone' => str_contains(strtolower($label), 'reject') ? 'critical' : 'neutral',
+            ];
+        }
+
+        usort($events, function ($a, $b) {
+            return strcmp((string) $b['time'], (string) $a['time']);
+        });
+
+        return array_slice($events, 0, 8);
+    }
+
+    private function shipmentSummary(array $shipments): array
+    {
+        return [
+            'incoming' => count($shipments),
+            'awaitingGrn' => count(array_filter($shipments, fn ($shipment) => in_array($shipment['status'] ?? '', ['Warehouse Receiving', 'Awaiting GRN'], true))),
+            'delayed' => count(array_filter($shipments, fn ($shipment) => (int) ($shipment['etaDays'] ?? 0) < 0 || ($shipment['status'] ?? '') === 'Customs Hold')),
+            'partialReceipts' => count(array_filter($shipments, fn ($shipment) => ($shipment['status'] ?? '') === 'Partial Receipt')),
+            'customsFlagged' => count(array_filter($shipments, fn ($shipment) => ($shipment['status'] ?? '') === 'Customs Hold')),
+            'highRisk' => count(array_filter($shipments, fn ($shipment) => ($shipment['risk'] ?? '') === 'High')),
+            'exposure' => array_reduce($shipments, fn ($sum, $shipment) => $sum + (float) ($shipment['value'] ?? 0), 0.0),
+        ];
+    }
+
+    private function shipmentMeta(): array
+    {
+        return [
+            'source' => 'purchase_order_receiving',
+            'dedicatedShipmentTable' => false,
+            'usesPurchaseOrders' => true,
+            'usesGoodsReceivedNotes' => Schema::hasTable('grns'),
+            'generatedAt' => Carbon::now()->toIso8601String(),
+        ];
     }
 
     private function orderPayload(object $row, array $lines): array
@@ -297,6 +681,48 @@ class PurchaseOrderController extends Controller
         } catch (\Throwable $e) {
             return $fallback;
         }
+    }
+
+    private function signedDaysUntil(string $value): int
+    {
+        try {
+            $target = Carbon::parse($value)->startOfDay();
+            $today = Carbon::today();
+            return (int) $today->diffInDays($target, false);
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function etaLabel(int $etaDays): string
+    {
+        if ($etaDays < 0) {
+            return abs($etaDays) . 'd late';
+        }
+
+        if ($etaDays === 0) {
+            return 'Today';
+        }
+
+        if ($etaDays === 1) {
+            return 'Tomorrow';
+        }
+
+        return $etaDays . 'd';
+    }
+
+    private function containsCustomsHold(object $row): bool
+    {
+        $text = strtolower(implode(' ', [
+            (string) ($row->comments ?? ''),
+            (string) ($row->stat_comment ?? ''),
+            (string) ($row->deliveryby ?? ''),
+        ]));
+
+        return str_contains($text, 'customs')
+            || str_contains($text, 'clearance')
+            || str_contains($text, 'port hold')
+            || str_contains($text, 'border hold');
     }
 
     private function currency(string $value): string

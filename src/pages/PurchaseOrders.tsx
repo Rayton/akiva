@@ -165,6 +165,19 @@ interface PurchaseOrdersApiResponse {
   };
 }
 
+interface PurchaseShipmentsApiResponse {
+  success: boolean;
+  data?: ShipmentRecord[];
+  message?: string;
+  meta?: {
+    source?: string;
+    dedicatedShipmentTable?: boolean;
+    usesPurchaseOrders?: boolean;
+    usesGoodsReceivedNotes?: boolean;
+    generatedAt?: string;
+  };
+}
+
 interface SupplierOffer {
   id: string;
   tenderId: string;
@@ -1309,6 +1322,10 @@ export function PurchaseOrders() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [purchaseOrdersReady, setPurchaseOrdersReady] = useState(false);
+  const [shipmentRecords, setShipmentRecords] = useState<ShipmentRecord[]>([]);
+  const [loadingShipments, setLoadingShipments] = useState(true);
+  const [shipmentsReady, setShipmentsReady] = useState(false);
+  const [shipmentLoadError, setShipmentLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [lookupSuppliers, setLookupSuppliers] = useState<SupplierLookup[]>(suppliers);
   const [selectedSupplierCode, setSelectedSupplierCode] = useState(() => {
@@ -1420,6 +1437,45 @@ export function PurchaseOrders() {
     }
 
     loadPurchaseOrders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadShipments() {
+      setLoadingShipments(true);
+      setShipmentLoadError('');
+
+      try {
+        const response = await apiFetch(buildApiUrl('/api/purchases/shipments?limit=500'));
+        if (!response.ok) {
+          throw new Error('Shipment operations are temporarily unavailable.');
+        }
+
+        const payload = (await response.json()) as PurchaseShipmentsApiResponse;
+        const rows = Array.isArray(payload.data)
+          ? payload.data.map(normalizeShipmentRecord).filter((shipment): shipment is ShipmentRecord => shipment !== null)
+          : [];
+
+        if (cancelled) return;
+
+        setShipmentRecords(rows);
+        setShipmentsReady(true);
+      } catch (error) {
+        if (cancelled) return;
+        setShipmentRecords([]);
+        setShipmentsReady(false);
+        setShipmentLoadError(error instanceof Error ? error.message : 'Shipment operations are temporarily unavailable.');
+      } finally {
+        if (!cancelled) setLoadingShipments(false);
+      }
+    }
+
+    loadShipments();
 
     return () => {
       cancelled = true;
@@ -2452,8 +2508,11 @@ export function PurchaseOrders() {
                 <SelectSupplierPanel
                   suppliers={lookupSuppliers}
                   orders={orders}
+                  apiShipments={shipmentRecords}
+                  shipmentsReady={shipmentsReady}
                   selectedSupplierCode={selectedSupplierCode}
-                  loading={loadingOrders}
+                  loading={loadingOrders || loadingShipments}
+                  shipmentLoadError={shipmentLoadError}
                   onSelect={setSelectedSupplierCode}
                   onNewPurchaseOrder={startPurchaseOrderForSupplier}
                   onViewPurchaseOrders={viewPurchaseOrdersForSupplier}
@@ -3262,6 +3321,14 @@ interface ShipmentRecord {
   containerCount: number;
   issue: string;
   priority: number;
+  orderedQuantity?: number;
+  receivedQuantity?: number;
+  invoicedQuantity?: number;
+  openQuantity?: number;
+  grnCount?: number;
+  lastGrnDate?: string;
+  timeline?: ShipmentTimelineEvent[];
+  source?: string;
 }
 
 interface ShipmentTimelineEvent {
@@ -3271,11 +3338,158 @@ interface ShipmentTimelineEvent {
   tone: 'neutral' | 'warning' | 'critical' | 'success';
 }
 
+const shipmentStatuses: ShipmentStatus[] = ['Ordered', 'In Transit', 'Customs Hold', 'Warehouse Receiving', 'Awaiting GRN', 'Partial Receipt', 'Invoice Match'];
+const shipmentRisks: ShipmentRisk[] = ['Low', 'Medium', 'High'];
+
+function normalizeShipmentRecord(record: Partial<ShipmentRecord> | null | undefined): ShipmentRecord | null {
+  const order = record?.order;
+  if (!order?.orderNumber) return null;
+
+  const etaDays = Number.isFinite(Number(record.etaDays)) ? Number(record.etaDays) : daysUntil(order.deliveryDate);
+  const status = shipmentStatuses.includes(record.status as ShipmentStatus) ? record.status as ShipmentStatus : shipmentStatusFromOrder(order);
+  const risk = shipmentRisks.includes(record.risk as ShipmentRisk) ? record.risk as ShipmentRisk : shipmentRiskFromOrder(order, status, etaDays);
+  const value = Number.isFinite(Number(record.value)) ? Number(record.value) : orderTotal(order);
+  const progress = Number.isFinite(Number(record.progress)) ? Number(record.progress) : shipmentProgressFromStatus(status);
+
+  return {
+    id: String(record.id ?? `PO-${order.orderNumber}`),
+    order,
+    supplierCode: String(record.supplierCode ?? order.supplierCode),
+    supplierName: String(record.supplierName ?? order.supplierName),
+    etaLabel: String(record.etaLabel ?? etaLabel(etaDays)),
+    etaDays,
+    status,
+    risk,
+    value,
+    progress,
+    containerCount: Number.isFinite(Number(record.containerCount)) ? Number(record.containerCount) : 0,
+    issue: String(record.issue ?? shipmentIssueFromOrder(order, status, etaDays)),
+    priority: Number.isFinite(Number(record.priority)) ? Number(record.priority) : shipmentPriorityFromOrder(order, status, risk, etaDays, value),
+    orderedQuantity: Number.isFinite(Number(record.orderedQuantity)) ? Number(record.orderedQuantity) : undefined,
+    receivedQuantity: Number.isFinite(Number(record.receivedQuantity)) ? Number(record.receivedQuantity) : undefined,
+    invoicedQuantity: Number.isFinite(Number(record.invoicedQuantity)) ? Number(record.invoicedQuantity) : undefined,
+    openQuantity: Number.isFinite(Number(record.openQuantity)) ? Number(record.openQuantity) : undefined,
+    grnCount: Number.isFinite(Number(record.grnCount)) ? Number(record.grnCount) : undefined,
+    lastGrnDate: record.lastGrnDate,
+    timeline: Array.isArray(record.timeline) && record.timeline.length > 0 ? record.timeline : shipmentTimelineFromOrder(order, status, record.issue),
+    source: record.source ?? 'purchase_order_receiving',
+  };
+}
+
+function deriveShipmentRecords(orders: PurchaseOrder[]) {
+  return orders
+    .filter((order) => !['Draft', 'Pending Review', 'Reviewed', 'Rejected', 'Cancelled', 'Completed'].includes(order.status))
+    .map((order) => normalizeShipmentRecord({
+      id: `PO-${order.orderNumber}`,
+      order,
+      status: shipmentStatusFromOrder(order),
+      risk: shipmentRiskFromOrder(order, shipmentStatusFromOrder(order), daysUntil(order.deliveryDate)),
+      source: 'purchase_order_fallback',
+    }))
+    .filter((shipment): shipment is ShipmentRecord => shipment !== null)
+    .sort((a, b) => b.priority - a.priority);
+}
+
+function shipmentStatusFromOrder(order: PurchaseOrder): ShipmentStatus {
+  const receivedQuantity = order.lines.reduce((sum, line) => sum + line.quantityReceived, 0);
+  const invoicedQuantity = order.lines.reduce((sum, line) => sum + line.quantityInvoiced, 0);
+  const openQuantity = order.lines.reduce((sum, line) => sum + Math.max(0, line.quantityOrdered - line.quantityReceived), 0);
+  const etaDays = daysUntil(order.deliveryDate);
+  const logisticsText = `${order.comments} ${order.deliveryBy} ${order.events.map((event) => event.label).join(' ')}`.toLowerCase();
+
+  if (logisticsText.includes('customs') || logisticsText.includes('clearance') || logisticsText.includes('port hold')) return 'Customs Hold';
+  if (receivedQuantity > 0 && openQuantity > 0) return 'Partial Receipt';
+  if (receivedQuantity > 0 && receivedQuantity > invoicedQuantity) return 'Invoice Match';
+  if (order.status === 'Printed') return etaDays <= 0 ? 'Warehouse Receiving' : 'In Transit';
+  if (order.status === 'Part Received') return 'Partial Receipt';
+  if (order.status === 'Received') return 'Invoice Match';
+  return 'Ordered';
+}
+
+function shipmentRiskFromOrder(order: PurchaseOrder, status: ShipmentStatus, etaDays: number): ShipmentRisk {
+  const openQuantity = order.lines.reduce((sum, line) => sum + Math.max(0, line.quantityOrdered - line.quantityReceived), 0);
+  const value = orderTotal(order);
+  if (status === 'Customs Hold' || (etaDays < -1 && openQuantity > 0) || (value >= 70000000 && openQuantity > 0)) return 'High';
+  if (etaDays < 0 || status === 'Partial Receipt' || status === 'Invoice Match') return 'Medium';
+  return 'Low';
+}
+
+function shipmentIssueFromOrder(order: PurchaseOrder, status: ShipmentStatus, etaDays: number) {
+  if (status === 'Customs Hold') return 'Customs or clearance note found on purchase order';
+  if (etaDays < 0) return `Delivery date missed by ${Math.abs(etaDays)} day${Math.abs(etaDays) === 1 ? '' : 's'}`;
+  if (status === 'Partial Receipt') return 'Open balance remains after receiving';
+  if (status === 'Invoice Match') return 'Received quantity awaiting invoice match';
+  if (status === 'Warehouse Receiving') return 'Goods due for warehouse receiving and GRN';
+  if (status === 'In Transit') return 'Supplier delivery is in transit';
+  return 'Supplier order released, awaiting receiving activity';
+}
+
+function shipmentProgressFromStatus(status: ShipmentStatus) {
+  if (status === 'Ordered') return 18;
+  if (status === 'In Transit') return 42;
+  if (status === 'Customs Hold') return 54;
+  if (status === 'Warehouse Receiving') return 72;
+  if (status === 'Partial Receipt') return 82;
+  if (status === 'Awaiting GRN') return 88;
+  return 96;
+}
+
+function shipmentPriorityFromOrder(order: PurchaseOrder, status: ShipmentStatus, risk: ShipmentRisk, etaDays: number, value: number) {
+  const openQuantity = order.lines.reduce((sum, line) => sum + Math.max(0, line.quantityOrdered - line.quantityReceived), 0);
+  let score = risk === 'High' ? 100 : risk === 'Medium' ? 55 : 15;
+  score += Math.max(0, 7 - etaDays);
+  score += Math.min(30, Math.ceil(value / 10000000));
+  if (status === 'Customs Hold') score += 30;
+  if (status === 'Warehouse Receiving') score += 20;
+  if (status === 'Partial Receipt') score += 15;
+  if (openQuantity <= 0) score -= 25;
+  return Math.max(0, score);
+}
+
+function shipmentTimelineFromOrder(order: PurchaseOrder, status: ShipmentStatus, issue?: string): ShipmentTimelineEvent[] {
+  const events: ShipmentTimelineEvent[] = [
+    {
+      time: order.orderDate,
+      label: 'Purchase order created',
+      detail: `PO ${order.orderNumber} opened for ${order.supplierName}.`,
+      tone: 'neutral',
+    },
+    {
+      time: order.deliveryDate,
+      label: 'Required delivery date',
+      detail: issue ?? shipmentIssueFromOrder(order, status, daysUntil(order.deliveryDate)),
+      tone: status === 'Customs Hold' || status === 'Partial Receipt' ? 'warning' : 'neutral',
+    },
+  ];
+
+  order.events.forEach((event) => {
+    if (!event.label || event.label === 'Purchase order created') return;
+    events.push({
+      time: event.at,
+      label: event.label,
+      detail: `Recorded by ${event.by || 'System'}.`,
+      tone: event.label.toLowerCase().includes('reject') ? 'critical' : 'neutral',
+    });
+  });
+
+  return events.sort((a, b) => b.time.localeCompare(a.time)).slice(0, 8);
+}
+
+function etaLabel(etaDays: number) {
+  if (etaDays < 0) return `${Math.abs(etaDays)}d late`;
+  if (etaDays === 0) return 'Today';
+  if (etaDays === 1) return 'Tomorrow';
+  return `${etaDays}d`;
+}
+
 function SelectSupplierPanel({
   suppliers: supplierOptions,
   orders,
+  apiShipments,
+  shipmentsReady,
   selectedSupplierCode,
   loading,
+  shipmentLoadError,
   onSelect,
   onNewPurchaseOrder,
   onViewPurchaseOrders,
@@ -3283,8 +3497,11 @@ function SelectSupplierPanel({
 }: {
   suppliers: SupplierLookup[];
   orders: PurchaseOrder[];
+  apiShipments: ShipmentRecord[];
+  shipmentsReady: boolean;
   selectedSupplierCode: string;
   loading: boolean;
+  shipmentLoadError: string;
   onSelect: (supplierCode: string) => void;
   onNewPurchaseOrder: (supplierCode: string) => void;
   onViewPurchaseOrders: (supplier: SupplierLookup, status?: string) => void;
@@ -3305,49 +3522,9 @@ function SelectSupplierPanel({
       )
     : supplierOptions;
 
-  const shipments: ShipmentRecord[] = orders
-    .filter((order) => !['Draft', 'Pending Review', 'Reviewed', 'Rejected', 'Cancelled', 'Completed'].includes(order.status))
-    .map((order, index) => {
-      const etaDays = daysUntil(order.deliveryDate);
-      const value = orderTotal(order);
-      const customsFlagged = order.status === 'Printed' && (index + order.orderNumber.length) % 4 === 1;
-      const status: ShipmentStatus =
-        customsFlagged ? 'Customs Hold'
-          : order.status === 'Authorised' ? 'Ordered'
-            : order.status === 'Printed' ? (etaDays <= 0 ? 'Warehouse Receiving' : 'In Transit')
-              : order.status === 'Part Received' ? 'Partial Receipt'
-                : order.status === 'Received' ? 'Invoice Match'
-                  : 'Awaiting GRN';
-      const risk: ShipmentRisk =
-        customsFlagged || etaDays < -1 || value >= 70000000 ? 'High'
-          : etaDays < 0 || order.status === 'Part Received' || value >= 25000000 ? 'Medium'
-            : 'Low';
-      const progress =
-        status === 'Ordered' ? 18
-          : status === 'In Transit' ? 42
-            : status === 'Customs Hold' ? 54
-              : status === 'Warehouse Receiving' ? 72
-                : status === 'Partial Receipt' ? 82
-                  : status === 'Awaiting GRN' ? 88
-                    : 96;
-      const etaLabel = etaDays < 0 ? `${Math.abs(etaDays)}d late` : etaDays === 0 ? 'Today' : etaDays === 1 ? 'Tomorrow' : `${etaDays}d`;
-      return {
-        id: `SHP-${2044 + index}`,
-        order,
-        supplierCode: order.supplierCode,
-        supplierName: order.supplierName,
-        etaLabel,
-        etaDays,
-        status,
-        risk,
-        value,
-        progress,
-        containerCount: Math.max(1, Math.ceil(order.lines.length / 2)),
-        issue: customsFlagged ? 'Customs documents pending' : etaDays < 0 ? 'ETA missed' : order.status === 'Part Received' ? 'Open balance remains' : 'On workflow',
-        priority: (risk === 'High' ? 100 : risk === 'Medium' ? 50 : 10) + Math.max(0, 5 - etaDays) + Math.ceil(value / 10000000),
-      };
-    })
-    .sort((a, b) => b.priority - a.priority);
+  const derivedShipments = useMemo(() => deriveShipmentRecords(orders), [orders]);
+  const shipments = shipmentsReady ? apiShipments : derivedShipments;
+  const shipmentSourceLabel = shipmentsReady ? 'Live ERP receiving data' : 'PO fallback data';
 
   const scopedShipments = selectedSupplier ? shipments.filter((shipment) => shipment.supplierCode === selectedSupplier.value) : shipments;
   const visibleShipments = scopedShipments.filter((shipment) => {
@@ -3378,34 +3555,7 @@ function SelectSupplierPanel({
   ];
   const compactQueue = queueDensity === 'Compact';
   const queueCellClass = compactQueue ? 'px-3 py-1.5' : 'px-3 py-2.5';
-  const visibleTimelineEvents: ShipmentTimelineEvent[] = priorityShipment
-    ? [
-        {
-          time: '09:22',
-          label: priorityShipment.status === 'Customs Hold' ? 'Customs hold confirmed' : priorityShipment.etaDays < 0 ? 'Delivery SLA missed' : 'Shipment priority recalculated',
-          detail: priorityShipment.issue,
-          tone: priorityShipment.risk === 'High' ? 'critical' : priorityShipment.risk === 'Medium' ? 'warning' : 'neutral',
-        },
-        {
-          time: '11:45',
-          label: 'ETA and receiving capacity checked',
-          detail: `${priorityShipment.etaLabel} against current warehouse queue.`,
-          tone: priorityShipment.etaDays <= 0 ? 'warning' : 'neutral',
-        },
-        {
-          time: '14:12',
-          label: priorityShipment.status === 'Partial Receipt' ? 'Partial shipment detected' : 'Warehouse action prepared',
-          detail: `Primary action is ${priorityShipment.status === 'Warehouse Receiving' || priorityShipment.status === 'Partial Receipt' ? 'receive shipment' : 'open priority shipment'}.`,
-          tone: priorityShipment.status === 'Partial Receipt' ? 'warning' : 'success',
-        },
-        {
-          time: '15:08',
-          label: 'Invoice match risk scored',
-          detail: partialCount > 0 ? 'Partial receipt history may require bill matching review.' : 'No invoice variance pattern detected.',
-          tone: partialCount > 0 ? 'warning' : 'success',
-        },
-      ]
-    : [];
+  const visibleTimelineEvents = priorityShipment?.timeline?.length ? priorityShipment.timeline : [];
 
   const shipmentActions = [
     {
@@ -3697,6 +3847,9 @@ function SelectSupplierPanel({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Inbound logistics queue</p>
                 <h2 className="mt-1 text-lg font-semibold text-akiva-text">Shipment and receiving priorities</h2>
+                <p className="mt-1 text-xs text-akiva-text-muted">
+                  {shipmentSourceLabel}{shipmentLoadError ? ` · ${shipmentLoadError}` : ''}
+                </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -3856,7 +4009,9 @@ function SelectSupplierPanel({
                     {priorityShipment ? `${priorityShipment.status}: ${priorityShipment.issue}` : 'Inbound queue is clear'}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-akiva-text-muted">
-                    {priorityShipment ? `ETA ${priorityShipment.etaLabel}. ${priorityShipment.containerCount} container equivalent${priorityShipment.containerCount === 1 ? '' : 's'} linked to PO ${priorityShipment.order.orderNumber}.` : 'No open shipment currently requires warehouse intervention.'}
+                    {priorityShipment
+                      ? `ETA ${priorityShipment.etaLabel}. ${priorityShipment.containerCount > 0 ? `${priorityShipment.containerCount} container${priorityShipment.containerCount === 1 ? '' : 's'}` : 'No container record'} linked to PO ${priorityShipment.order.orderNumber}.`
+                      : 'No open shipment currently requires warehouse intervention.'}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">

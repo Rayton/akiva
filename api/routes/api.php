@@ -147,6 +147,7 @@ Route::prefix('sales')->group(function () {
 
 Route::prefix('purchases')->group(function () {
     Route::get('/orders', [PurchaseOrderController::class, 'index']);
+    Route::get('/shipments', [PurchaseOrderController::class, 'shipments']);
 });
 
 Route::prefix('inventory')->group(function () {

@@ -97,7 +97,7 @@ export function Header() {
 
           <button
             type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-akiva-accent text-white shadow-lg shadow-violet-900/20 transition hover:bg-akiva-accent-strong"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-akiva-accent text-white shadow-sm shadow-violet-950/10 transition hover:bg-akiva-accent-strong"
             aria-label="Create new item"
             title="Create new item"
           >

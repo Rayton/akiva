@@ -34,6 +34,7 @@ import {
   Sparkles,
   Truck,
   WalletCards,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -143,47 +144,71 @@ const cashTrend = [
 ];
 
 const supplierExposure = [
-  { supplier: 'MSD Medical Store', value: 98200, orders: 8, color: 'var(--akiva-chart-danger)' },
-  { supplier: 'Primecare Equipment', value: 74300, orders: 6, color: 'var(--akiva-chart-warning)' },
-  { supplier: 'Afri Dental Products', value: 51100, orders: 9, color: 'var(--akiva-chart-pending)' },
-  { supplier: 'Anudha Ltd', value: 38600, orders: 4, color: 'var(--akiva-chart-ink)' },
-  { supplier: 'Action Medeor', value: 24200, orders: 3, color: 'var(--akiva-chart-success)' },
+  { supplier: 'MSD Medical Store', value: 98200, orders: 8, variance: '+31%', sla: '2 overdue POs', color: 'var(--akiva-chart-danger)' },
+  { supplier: 'Primecare Equipment', value: 74300, orders: 6, variance: '+18%', sla: '1 approval aging', color: 'var(--akiva-chart-warning)' },
+  { supplier: 'Afri Dental Products', value: 51100, orders: 9, variance: '+9%', sla: '3 partial receipts', color: 'var(--akiva-chart-pending)' },
+  { supplier: 'Anudha Ltd', value: 38600, orders: 4, variance: '-4%', sla: 'On target', color: 'var(--akiva-chart-ink)' },
+  { supplier: 'Action Medeor', value: 24200, orders: 3, variance: '-12%', sla: 'On target', color: 'var(--akiva-chart-success)' },
 ];
 
 const exceptionQueue = [
   {
+    priority: 1,
     area: 'Receivables',
     issue: 'Kijani Hospitals credit hold recommended',
     value: '$16,086',
     age: '67 days',
     owner: 'Credit Control',
+    severity: 'Critical',
+    score: 94,
+    escalation: 'CFO escalation',
+    sla: '42 days over term',
+    blocked: 'Credit release blocked',
     tone: 'danger' as const,
     action: 'Open AR',
   },
   {
+    priority: 2,
     area: 'Purchasing',
     issue: 'PO 501 exceeds reviewer limit',
     value: '$44,960',
     age: '5 hours',
     owner: 'Procurement Lead',
+    severity: 'High',
+    score: 89,
+    escalation: 'Director approval',
+    sla: 'SLA breach in 3 hrs',
+    blocked: 'Replenishment blocked',
     tone: 'pending' as const,
     action: 'Approve',
   },
   {
+    priority: 3,
     area: 'Inventory',
     issue: 'Ceftriaxone below reorder at Central Store',
     value: '320 vials',
     age: 'Today',
     owner: 'Stores',
+    severity: 'Medium',
+    score: 76,
+    escalation: 'Stores lead',
+    sla: 'Transfer before 16:00',
+    blocked: 'Sales fulfilment risk',
     tone: 'info' as const,
     action: 'Reorder',
   },
   {
+    priority: 4,
     area: 'Payables',
     issue: 'GRN suspense needs invoice match',
     value: '$28,540',
     age: '2 days',
     owner: 'Accounts Payable',
+    severity: 'Medium',
+    score: 72,
+    escalation: 'AP review',
+    sla: 'Close control aging',
+    blocked: 'Accrual accuracy risk',
     tone: 'warning' as const,
     action: 'Match',
   },
@@ -196,10 +221,14 @@ const aiControlBrief = [
     priority: 1,
     confidence: '92%',
     impactScore: '8.7',
+    riskScore: '78',
+    exposure: '$84.2k AP run',
+    projectedGain: '+2.1 cash days',
     businessImpact: '$31k liquidity protected',
     severity: 'Medium cash pressure',
     sequence: 'After 14:00 AR calls',
     resolutionValue: '2.1 days runway',
+    auditSignal: 'Supplier SLA retained',
     reasoning: 'Deferral stays inside supplier SLA while protecting the cash floor for payroll and critical medical supply orders.',
     approval: 'CFO review',
     icon: Banknote,
@@ -211,10 +240,14 @@ const aiControlBrief = [
     priority: 2,
     confidence: '89%',
     impactScore: '9.1',
+    riskScore: '86',
+    exposure: '$44.9k PO value',
+    projectedGain: '18 stockout lines',
     businessImpact: '$44.9k replenishment unblocked',
     severity: 'High stockout exposure',
     sequence: 'Before next GRN cut-off',
     resolutionValue: '18 stockout lines cleared',
+    auditSignal: 'Approval limit exceeded',
     reasoning: 'Approval aging exceeds SLA and the same supplier holds the highest open commitment concentration.',
     approval: 'Procurement director',
     icon: ShieldCheck,
@@ -226,10 +259,14 @@ const aiControlBrief = [
     priority: 3,
     confidence: '76%',
     impactScore: '7.4',
+    riskScore: '62',
+    exposure: '$8.6k avoidable PO',
+    projectedGain: 'Same-day cover',
     businessImpact: '$8.6k purchase avoided',
     severity: 'Low procurement risk',
     sequence: 'Before new PO creation',
     resolutionValue: '2 items rebalanced',
+    auditSignal: 'No negative balance',
     reasoning: 'Internal stock can cover central demand faster than supplier lead time with no negative location balance.',
     approval: 'Stores manager',
     icon: PackageCheck,
@@ -293,6 +330,15 @@ function StatusBadge({ tone, children }: { tone: RiskTone; children: string }) {
   );
 }
 
+function subtleToneClass(tone: RiskTone): string {
+  if (tone === 'danger') return 'border-red-300/80 bg-red-50/75 text-red-800 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-100';
+  if (tone === 'warning') return 'border-orange-300/80 bg-orange-50/75 text-orange-800 dark:border-orange-800/80 dark:bg-orange-950/30 dark:text-orange-100';
+  if (tone === 'pending') return 'border-purple-300/80 bg-purple-50/75 text-purple-800 dark:border-purple-800/80 dark:bg-purple-950/30 dark:text-purple-100';
+  if (tone === 'success') return 'border-emerald-300/80 bg-emerald-50/75 text-emerald-800 dark:border-emerald-800/80 dark:bg-emerald-950/30 dark:text-emerald-100';
+  if (tone === 'info') return 'border-blue-300/80 bg-blue-50/75 text-blue-800 dark:border-blue-800/80 dark:bg-blue-950/30 dark:text-blue-100';
+  return 'border-akiva-border bg-akiva-surface-muted text-akiva-text';
+}
+
 function MetricStatusPill({ tone, children }: { tone: RiskTone; children: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
@@ -318,7 +364,7 @@ function MetricCard({
   icon: LucideIcon;
 }) {
   return (
-    <article className="relative overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
+    <article className="akiva-panel relative overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
       <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${dotClass(tone)}`} aria-hidden="true" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -339,7 +385,7 @@ function MetricCard({
 
 function RiskCommandStrip() {
   return (
-    <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
+    <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
       <div className="grid gap-4 xl:grid-cols-[220px_1fr] xl:items-center">
         <div className="rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/35">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-100">Operational risk index</p>
@@ -390,7 +436,7 @@ function RiskCommandStrip() {
 
 function Panel({ title, detail, icon: Icon, children }: { title: string; detail?: string; icon: LucideIcon; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
+    <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
       <div className="mb-4 flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-muted text-akiva-accent-text">
           <Icon className="h-4 w-4" />
@@ -410,7 +456,7 @@ function WorkflowStage({ item }: { item: (typeof operatingFlow)[number] }) {
   const ratio = Math.min(100, Math.round((item.count / item.target) * 100));
 
   return (
-    <button type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
+    <button type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
       <div className="flex items-start justify-between gap-3">
         <span className="flex min-w-0 items-center gap-3">
           <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(item.tone)}`}>
@@ -431,16 +477,30 @@ function WorkflowStage({ item }: { item: (typeof operatingFlow)[number] }) {
 }
 
 function ExceptionRow({ row }: { row: (typeof exceptionQueue)[number] }) {
+  const isCritical = row.priority === 1;
+  const priorityClass = isCritical
+    ? 'border-red-300 akiva-elevated-surface shadow-md shadow-red-900/10 dark:border-red-800/80 dark:shadow-red-950/10'
+    : row.priority === 2
+      ? 'border-akiva-border akiva-elevated-surface shadow-sm'
+      : 'border-akiva-border bg-akiva-surface shadow-sm';
+
   return (
-    <button type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
+    <button type="button" className={`relative w-full overflow-hidden rounded-lg border px-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted ${isCritical ? 'py-4' : 'py-3'} ${priorityClass}`}>
+      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${dotClass(row.tone)}`} aria-hidden="true" />
       <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${subtleToneClass(row.tone)}`}>P{row.priority}</span>
             <StatusBadge tone={row.tone}>{row.area}</StatusBadge>
             <span className="text-xs font-semibold text-akiva-text-muted">{row.owner}</span>
           </div>
           <p className="mt-2 text-sm font-semibold text-akiva-text">{row.issue}</p>
-          <p className="mt-1 text-xs text-akiva-text-muted">Age: {row.age}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-akiva-text-muted">
+            <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">Risk {row.score}</span>
+            <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">{row.severity}</span>
+            <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">{row.sla}</span>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-akiva-text-muted">{row.blocked} · {row.escalation} · Age {row.age}</p>
         </div>
         <div className="flex items-center justify-between gap-3 md:block md:text-right">
           <p className="akiva-financial-value text-sm font-semibold text-akiva-text">{row.value}</p>
@@ -484,7 +544,7 @@ export function Dashboard() {
                 <IconButton icon={FileSearch} label="Open audit trail" />
                 <button
                   type="button"
-                  className="inline-flex min-h-10 items-center gap-2 rounded-full bg-akiva-accent px-4 text-sm font-semibold text-white shadow-sm shadow-violet-900/20 transition hover:bg-akiva-accent-strong"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-full bg-akiva-accent px-4 text-sm font-semibold text-white shadow-sm shadow-violet-950/10 transition hover:bg-akiva-accent-strong"
                 >
                   <Sparkles className="h-4 w-4" />
                   Review Risks
@@ -522,11 +582,12 @@ export function Dashboard() {
                       <Line type="monotone" dataKey="forecastCash" name="Forecast cash" stroke="var(--akiva-chart-pending)" strokeWidth={2.5} strokeDasharray="6 6" dot={false} />
                       <ReferenceLine y={120000} stroke="var(--akiva-chart-danger)" strokeDasharray="5 5" label={{ value: 'Cash floor', fill: 'var(--akiva-chart-danger)', fontSize: 11 }} />
                       <ReferenceLine y={160000} stroke="var(--akiva-chart-warning)" strokeDasharray="4 6" label={{ value: 'AR review', fill: 'var(--akiva-chart-warning)', fontSize: 11 }} />
+                      <ReferenceLine x="Oct" stroke="var(--akiva-chart-pending)" strokeDasharray="3 5" label={{ value: 'Forecast start', fill: 'var(--akiva-chart-pending)', fontSize: 11, position: 'insideTop' }} />
                       <ReferenceDot x="Sep" y={156841} r={5} fill="var(--akiva-chart-warning)" stroke="var(--akiva-chart-tooltip-bg)" strokeWidth={2} label={{ value: 'AR anomaly', fill: 'var(--akiva-chart-warning)', fontSize: 11, position: 'top' }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+                <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-semibold text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
                     Cash floor protected by $94.9k
                   </div>
@@ -535,6 +596,9 @@ export function Dashboard() {
                   </div>
                   <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
                     Forecast overlay shows cash compression by Nov
+                  </div>
+                  <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 font-semibold text-purple-800 dark:border-purple-900 dark:bg-purple-950/30 dark:text-purple-100">
+                    Sep cash +22% vs Aug; payment sequencing required
                   </div>
                 </div>
               </Panel>
@@ -569,6 +633,20 @@ export function Dashboard() {
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                    {supplierExposure.slice(0, 2).map((row, index) => (
+                      <div key={row.supplier} className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex min-w-0 items-center gap-2 font-semibold text-akiva-text">
+                            <Zap className="h-3.5 w-3.5 shrink-0 text-akiva-accent-text" />
+                            <span className="truncate">P{index + 1} {row.supplier}</span>
+                          </span>
+                          <span className="akiva-financial-value font-semibold text-akiva-text">{row.variance}</span>
+                        </div>
+                        <p className="mt-1 text-akiva-text-muted">{row.orders} open orders · {row.sla}</p>
+                      </div>
+                    ))}
                   </div>
                 </Panel>
               </div>
@@ -620,7 +698,7 @@ export function Dashboard() {
                   {aiControlBrief.map((item) => {
                     const Icon = item.icon;
                     return (
-                      <button key={item.title} type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
+                      <button key={item.title} type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
                         <div className="flex gap-3">
                           <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(item.tone)}`}>
                             <Icon className="h-4 w-4" />
@@ -631,7 +709,7 @@ export function Dashboard() {
                               <span className="block text-sm font-semibold text-akiva-text">{item.title}</span>
                             </span>
                             <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{item.detail}</span>
-                            <span className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                            <span className="mt-2 grid gap-1.5 sm:grid-cols-3">
                               <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
                                 <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">Confidence</span>
                                 <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{item.confidence}</span>
@@ -639,6 +717,10 @@ export function Dashboard() {
                               <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
                                 <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">Impact</span>
                                 <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{item.impactScore}/10</span>
+                              </span>
+                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
+                                <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">Risk</span>
+                                <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{item.riskScore}</span>
                               </span>
                             </span>
                             <span className="mt-2 block rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1.5 text-[11px] leading-5 text-akiva-text-muted">
@@ -648,13 +730,24 @@ export function Dashboard() {
                               <span className="mx-1 text-akiva-border-strong">|</span>
                               {item.resolutionValue}
                             </span>
+                            <span className="mt-2 grid gap-1.5 text-[11px] leading-5 text-akiva-text-muted sm:grid-cols-2">
+                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
+                                <span className="font-semibold text-akiva-text">Exposure:</span> {item.exposure}
+                              </span>
+                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
+                                <span className="font-semibold text-akiva-text">Projected gain:</span> {item.projectedGain}
+                              </span>
+                            </span>
                             <span className="mt-2 block text-[11px] leading-5 text-akiva-text-muted">
                               <span className="font-semibold text-akiva-text">Sequence:</span> {item.sequence}
                             </span>
                             <span className="mt-1 block text-[11px] leading-5 text-akiva-text-muted">
                               <span className="font-semibold text-akiva-text">Reason:</span> {item.reasoning}
                             </span>
-                            <span className="mt-2 inline-flex rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">{item.approval}</span>
+                            <span className="mt-2 flex flex-wrap gap-2">
+                              <span className="inline-flex rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">{item.approval}</span>
+                              <span className="inline-flex rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">{item.auditSignal}</span>
+                            </span>
                           </span>
                         </div>
                       </button>

@@ -1855,7 +1855,7 @@ function MobileHeader() {
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
           
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-akiva-accent shadow-sm shadow-violet-900/20 dark:bg-akiva-accent">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-akiva-accent shadow-sm shadow-violet-950/10 dark:bg-akiva-accent">
             <span className="text-white text-xs font-medium">JD</span>
           </div>
         </div>
@@ -1969,7 +1969,7 @@ function MobileSidebarOverlay() {
         <summary
           className={`flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors [&::-webkit-details-marker]:hidden ${
             isActive
-              ? 'bg-akiva-accent text-white shadow-sm shadow-violet-900/20'
+              ? 'bg-akiva-accent text-white shadow-sm shadow-violet-950/10'
               : 'text-slate-700 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900'
           }`}
           style={{ paddingLeft: `${12 + depth * 12}px` }}
@@ -2040,7 +2040,7 @@ function MobileSidebarOverlay() {
             onClick={() => navigateTo('dashboard')}
             className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'dashboard'
-                ? 'bg-akiva-accent text-white shadow-sm shadow-violet-900/20'
+                ? 'bg-akiva-accent text-white shadow-sm shadow-violet-950/10'
                 : 'text-slate-700 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900'
             }`}
           >
@@ -2060,7 +2060,7 @@ function MobileSidebarOverlay() {
             onClick={() => navigateTo('starred')}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'starred'
-                ? 'bg-akiva-accent text-white shadow-sm shadow-violet-900/20'
+                ? 'bg-akiva-accent text-white shadow-sm shadow-violet-950/10'
                 : 'text-slate-700 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900'
             }`}
           >
@@ -2072,7 +2072,7 @@ function MobileSidebarOverlay() {
             onClick={() => navigateTo('recent')}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
               currentPage === 'recent'
-                ? 'bg-akiva-accent text-white shadow-sm shadow-violet-900/20'
+                ? 'bg-akiva-accent text-white shadow-sm shadow-violet-950/10'
                 : 'text-slate-700 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900'
             }`}
           >

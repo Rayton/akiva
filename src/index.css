@@ -125,16 +125,16 @@ html.dark :where(button, input, textarea, select)[aria-disabled="true"] {
 html.dark {
   color-scheme: dark;
   --akiva-bg: #0d1117;
-  --akiva-surface: #111827;
-  --akiva-surface-muted: #1b2533;
-  --akiva-surface-raised: #182233;
-  --akiva-border: #4b5f77;
-  --akiva-border-strong: #8da0b8;
+  --akiva-surface: #101822;
+  --akiva-surface-muted: #202c3b;
+  --akiva-surface-raised: #192638;
+  --akiva-border: #536984;
+  --akiva-border-strong: #9aacc2;
   --akiva-text: #f8fafc;
-  --akiva-text-muted: #d7dee8;
-  --akiva-accent: #7c3aed;
-  --akiva-accent-strong: #6d28d9;
-  --akiva-accent-text: #ddd6fe;
+  --akiva-text-muted: #e0e7ef;
+  --akiva-accent: #6d28d9;
+  --akiva-accent-strong: #5b21b6;
+  --akiva-accent-text: #e4dcff;
   --akiva-accent-soft: #2e1f53;
   --akiva-success: #34d399;
   --akiva-success-soft: #052e2b;
@@ -146,8 +146,8 @@ html.dark {
   --akiva-pending-soft: #2e1f53;
   --akiva-info: #93c5fd;
   --akiva-info-soft: #172554;
-  --akiva-chart-grid: rgba(215, 222, 232, 0.28);
-  --akiva-chart-muted: #d7dee8;
+  --akiva-chart-grid: rgba(224, 231, 239, 0.3);
+  --akiva-chart-muted: #e0e7ef;
   --akiva-chart-ink: #93c5fd;
   --akiva-chart-brand: #c4b5fd;
   --akiva-chart-success: #34d399;
@@ -225,7 +225,7 @@ html.dark .dark\:border-slate-600 {
 }
 
 html.dark .dark\:border-slate-800 {
-  border-color: #1f2937 !important;
+  border-color: #2f3f52 !important;
 }
 
 html.dark .dark\:border-slate-700,
@@ -238,11 +238,11 @@ html.dark .dark\:text-slate-600 {
 }
 
 html.dark .dark\:text-slate-500 {
-  color: #94a3b8 !important;
+  color: #a8b6c8 !important;
 }
 
 html.dark .dark\:text-slate-400 {
-  color: #cbd5e1 !important;
+  color: #d6deea !important;
 }
 
 html.dark .dark\:text-slate-300,
@@ -364,6 +364,58 @@ html.dark select {
   display: none;
 }
 
+.scrollbar-hover {
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollbar-hover:hover,
+.scrollbar-hover:focus-within {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+.scrollbar-hover::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar,
+.scrollbar-hover:focus-within::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-hover::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: #94a3b8;
+}
+
+.scrollbar-hover::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+html.dark .scrollbar-hover:hover,
+html.dark .scrollbar-hover:focus-within {
+  scrollbar-color: #64748b transparent;
+}
+
+html.dark .scrollbar-hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html.dark .scrollbar-hover::-webkit-scrollbar-thumb {
+  background: #64748b;
+}
+
+html.dark .scrollbar-hover::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* Smooth scrolling */
 .smooth-scroll {
   scroll-behavior: smooth;
@@ -383,9 +435,25 @@ html.dark select {
 }
 
 html.dark .akiva-frame {
-  border-color: var(--akiva-border);
-  background: color-mix(in srgb, var(--akiva-surface) 92%, transparent);
-  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.34);
+  border-color: color-mix(in srgb, var(--akiva-border) 88%, white 12%);
+  background: color-mix(in srgb, var(--akiva-surface) 94%, transparent);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
+}
+
+.akiva-panel {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+html.dark .akiva-panel {
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+}
+
+.akiva-elevated-surface {
+  background: color-mix(in srgb, var(--akiva-surface-raised) 94%, var(--akiva-surface) 6%);
+}
+
+html.dark .akiva-elevated-surface {
+  background: color-mix(in srgb, var(--akiva-surface-raised) 90%, white 10%);
 }
 
 .akiva-financial-value {

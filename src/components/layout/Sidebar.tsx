@@ -63,8 +63,8 @@ import type { MenuCategory, MenuItem } from '../../types/menu';
 import { SearchableSelect } from '../common/SearchableSelect';
 
 const COLLAPSED_ICON_SIDEBAR_WIDTH = 88;
-const DEFAULT_EXPANDED_ICON_SIDEBAR_WIDTH = 300;
-const MAX_EXPANDED_ICON_SIDEBAR_WIDTH = 360;
+const DEFAULT_EXPANDED_ICON_SIDEBAR_WIDTH = 240;
+const MAX_EXPANDED_ICON_SIDEBAR_WIDTH = 240;
 const ICON_LAYOUT_EXPAND_WIDTH = 180;
 const MIN_MAIN_SIDEBAR_WIDTH = 240;
 const MAX_MAIN_SIDEBAR_WIDTH = 520;
@@ -983,7 +983,7 @@ function Sidebar() {
 		                    }}
 	                    className={`flex items-center rounded-full transition-all duration-300 ${
                       isActive
-                        ? 'bg-akiva-accent text-white shadow-lg shadow-violet-900/20 dark:bg-akiva-accent dark:shadow-black/25'
+                        ? 'bg-akiva-accent text-white shadow-sm shadow-violet-950/10 dark:bg-akiva-accent dark:shadow-black/20'
                         : iconSidebarExpanded
                           ? 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800 dark:hover:text-white'
                           : 'bg-white/86 text-slate-700 shadow-sm shadow-slate-200/70 hover:bg-white hover:text-slate-950 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white'
@@ -1029,8 +1029,8 @@ function Sidebar() {
 	                className={`flex items-center transition-all duration-300 ${
 	                  selectedMainMenuId === configurationMainMenu?.id
 	                    ? iconSidebarExpanded
-	                      ? 'h-10 w-full justify-start gap-3 rounded-lg bg-akiva-accent px-3 text-white shadow-lg shadow-violet-900/20 dark:bg-akiva-accent dark:shadow-black/25'
-	                      : 'mx-auto h-11 w-11 justify-center rounded-full bg-akiva-accent text-white shadow-lg shadow-violet-900/20 dark:bg-akiva-accent dark:shadow-black/25'
+	                      ? 'h-10 w-full justify-start gap-3 rounded-lg bg-akiva-accent px-3 text-white shadow-sm shadow-violet-950/10 dark:bg-akiva-accent dark:shadow-black/20'
+	                      : 'mx-auto h-11 w-11 justify-center rounded-full bg-akiva-accent text-white shadow-sm shadow-violet-950/10 dark:bg-akiva-accent dark:shadow-black/20'
 	                    : iconSidebarExpanded
 	                      ? 'h-10 w-full justify-start gap-3 rounded-lg px-3 text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800 dark:hover:text-white'
 	                      : 'mx-auto h-11 w-11 justify-center rounded-full bg-white/86 text-slate-700 shadow-sm shadow-slate-200/70 hover:bg-white hover:text-slate-950 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white'
@@ -1113,7 +1113,7 @@ function Sidebar() {
             </div>
 
             {/* Second sidebar: submodules of the displayed main menu (hover or selection) */}
-              <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+              <nav className="scrollbar-hover flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
               {menuLoading && (
                 <div className="flex items-center justify-center py-4">
                     <Loader2 className="w-5 h-5 animate-spin text-akiva-accent-text" />

@@ -394,8 +394,10 @@ Always check new surfaces in both modes:
 
 - Borders remain visible
 - Muted text remains readable
-- Accent pills do not glow too strongly
-- Shadows do not dominate warm dark surfaces
+- Accent pills and active navigation use restrained shadows, not glow-heavy emphasis
+- Shadows do not dominate dark surfaces
+- Analytical panels use subtle elevation classes such as `akiva-panel`
+- Critical queue rows may use semantic rails, priority markers, SLA text, and risk scores, but should avoid neon borders
 
 ## Accessibility
 

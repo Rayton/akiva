@@ -50,6 +50,10 @@ type PoStatus =
 type WorkbenchTab = 'outstanding' | 'approvals' | 'receiving' | 'billMatch' | 'all';
 type DrawerMode = 'view' | 'create' | 'receive' | 'review' | null;
 type OfferDecision = 'accept' | 'reject' | 'defer';
+type TenderStatus = 'Draft' | 'Published' | 'Supplier Invited' | 'Offers Received' | 'Evaluation' | 'Award Recommended' | 'Approved' | 'PO Created' | 'Closed' | 'Cancelled';
+type TenderInvitationStatus = 'Invited' | 'Viewed' | 'Responded' | 'Declined' | 'Expired';
+type OfferComplianceStatus = 'Compliant' | 'Clarification' | 'Non-compliant';
+type TenderRiskLevel = 'Low' | 'Moderate' | 'High';
 
 interface AuthorisationDecision {
   canReview: boolean;
@@ -151,6 +155,7 @@ interface PurchaseOrdersApiResponse {
 interface SupplierOffer {
   id: string;
   tenderId: string;
+  lineId: string;
   supplierCode: string;
   supplierName: string;
   currency: PurchaseOrder['currency'];
@@ -159,8 +164,70 @@ interface SupplierOffer {
   quantity: number;
   units: string;
   price: number;
+  leadTimeDays: number;
+  complianceStatus: OfferComplianceStatus;
+  technicalScore: number;
+  supplierRating: number;
+  paymentTerms: string;
+  notes: string;
   expiryDate: string;
   category: string;
+}
+
+interface TenderEvaluationWeights {
+  price: number;
+  delivery: number;
+  compliance: number;
+  performance: number;
+}
+
+interface TenderLine {
+  id: string;
+  itemCode: string;
+  description: string;
+  category: string;
+  quantity: number;
+  units: string;
+  requiredDate: string;
+  technicalRequirement: string;
+  glCode: string;
+}
+
+interface TenderSupplierInvitation {
+  supplierCode: string;
+  supplierName: string;
+  status: TenderInvitationStatus;
+  invitedAt: string;
+  respondedAt?: string;
+}
+
+interface Tender {
+  id: string;
+  reference: string;
+  title: string;
+  status: TenderStatus;
+  method: 'Open Tender' | 'Restricted Tender' | 'RFQ';
+  category: string;
+  location: string;
+  currency: PurchaseOrder['currency'];
+  requiredDate: string;
+  submissionDeadline: string;
+  estimatedValue: number;
+  createdBy: string;
+  evaluationWeights: TenderEvaluationWeights;
+  lines: TenderLine[];
+  suppliers: TenderSupplierInvitation[];
+  auditEvents: StatusEvent[];
+}
+
+interface OfferEvaluation {
+  score: number;
+  priceScore: number;
+  deliveryScore: number;
+  complianceScore: number;
+  performanceScore: number;
+  rank: number;
+  recommendation: 'Recommended' | 'Viable' | 'Review' | 'Reject';
 }
 
 const inputClass =
@@ -471,6 +538,7 @@ const initialOffers: SupplierOffer[] = [
   {
     id: 'OFF-1012',
     tenderId: 'TEN-2407',
+    lineId: 'TEN-2407-L1',
     supplierCode: 'AFRI D10',
     supplierName: 'AFRI DENTAL PRODUCTS',
     currency: 'TZS',
@@ -479,12 +547,19 @@ const initialOffers: SupplierOffer[] = [
     quantity: 12,
     units: 'kgs',
     price: 8800,
+    leadTimeDays: 4,
+    complianceStatus: 'Compliant',
+    technicalScore: 92,
+    supplierRating: 88,
+    paymentTerms: '30 days',
+    notes: 'Preferred local supplier with immediate stock confirmation.',
     expiryDate: '2026-05-24',
     category: 'Equipment Spares',
   },
   {
     id: 'OFF-1013',
     tenderId: 'TEN-2407',
+    lineId: 'TEN-2407-L2',
     supplierCode: 'AFRI D10',
     supplierName: 'AFRI DENTAL PRODUCTS',
     currency: 'TZS',
@@ -493,12 +568,103 @@ const initialOffers: SupplierOffer[] = [
     quantity: 8,
     units: 'each',
     price: 17500,
+    leadTimeDays: 5,
+    complianceStatus: 'Compliant',
+    technicalScore: 89,
+    supplierRating: 88,
+    paymentTerms: '30 days',
+    notes: 'Meets equipment compatibility requirements.',
     expiryDate: '2026-05-24',
+    category: 'Medical Consumables',
+  },
+  {
+    id: 'OFF-1014',
+    tenderId: 'TEN-2407',
+    lineId: 'TEN-2407-L1',
+    supplierCode: 'SUPPLIER 3',
+    supplierName: 'ANUDHA LTD',
+    currency: 'TZS',
+    itemCode: 'ACCESORY016',
+    description: 'GREASE',
+    quantity: 12,
+    units: 'kgs',
+    price: 9200,
+    leadTimeDays: 3,
+    complianceStatus: 'Compliant',
+    technicalScore: 87,
+    supplierRating: 79,
+    paymentTerms: '21 days',
+    notes: 'Strong delivery date, slightly higher unit price.',
+    expiryDate: '2026-05-23',
+    category: 'Equipment Spares',
+  },
+  {
+    id: 'OFF-1015',
+    tenderId: 'TEN-2407',
+    lineId: 'TEN-2407-L2',
+    supplierCode: 'SUPPLIER 3',
+    supplierName: 'ANUDHA LTD',
+    currency: 'TZS',
+    itemCode: 'ACCESORY018',
+    description: 'ELECTRODE CABLE',
+    quantity: 8,
+    units: 'each',
+    price: 16800,
+    leadTimeDays: 8,
+    complianceStatus: 'Clarification',
+    technicalScore: 73,
+    supplierRating: 79,
+    paymentTerms: '21 days',
+    notes: 'Lowest cable price, but compatibility confirmation is still pending.',
+    expiryDate: '2026-05-23',
+    category: 'Medical Consumables',
+  },
+  {
+    id: 'OFF-1016',
+    tenderId: 'TEN-2407',
+    lineId: 'TEN-2407-L1',
+    supplierCode: 'SUPPLIER 4',
+    supplierName: 'ACTION MEDEOR',
+    currency: 'TZS',
+    itemCode: 'ACCESORY016',
+    description: 'GREASE',
+    quantity: 12,
+    units: 'kgs',
+    price: 8400,
+    leadTimeDays: 9,
+    complianceStatus: 'Clarification',
+    technicalScore: 82,
+    supplierRating: 76,
+    paymentTerms: '45 days',
+    notes: 'Best price and payment terms, delayed delivery window.',
+    expiryDate: '2026-05-22',
+    category: 'Equipment Spares',
+  },
+  {
+    id: 'OFF-1017',
+    tenderId: 'TEN-2407',
+    lineId: 'TEN-2407-L2',
+    supplierCode: 'SUPPLIER 4',
+    supplierName: 'ACTION MEDEOR',
+    currency: 'TZS',
+    itemCode: 'ACCESORY018',
+    description: 'ELECTRODE CABLE',
+    quantity: 8,
+    units: 'each',
+    price: 19100,
+    leadTimeDays: 4,
+    complianceStatus: 'Compliant',
+    technicalScore: 91,
+    supplierRating: 76,
+    paymentTerms: '45 days',
+    notes: 'Fastest cable delivery with confirmed compatibility.',
+    expiryDate: '2026-05-22',
     category: 'Medical Consumables',
   },
   {
     id: 'OFF-1018',
     tenderId: 'TEN-2411',
+    lineId: 'TEN-2411-L1',
     supplierCode: 'SUPPLIER',
     supplierName: 'PRIMECARE MEDICAL EQUIPMENT SUPPLY',
     currency: 'TZS',
@@ -507,12 +673,40 @@ const initialOffers: SupplierOffer[] = [
     quantity: 320,
     units: 'vial',
     price: 2150,
+    leadTimeDays: 2,
+    complianceStatus: 'Clarification',
+    technicalScore: 84,
+    supplierRating: 82,
+    paymentTerms: '14 days',
+    notes: 'Fastest delivery, pending batch certificate clarification.',
+    expiryDate: '2026-05-21',
+    category: 'Pharmacy',
+  },
+  {
+    id: 'OFF-1019',
+    tenderId: 'TEN-2411',
+    lineId: 'TEN-2411-L1',
+    supplierCode: 'SUPPLIER 2',
+    supplierName: 'MSD MEDICAL STORE DEPARTMENT',
+    currency: 'TZS',
+    itemCode: 'PHARM-221',
+    description: 'Ceftriaxone injection 1g',
+    quantity: 320,
+    units: 'vial',
+    price: 2320,
+    leadTimeDays: 1,
+    complianceStatus: 'Compliant',
+    technicalScore: 96,
+    supplierRating: 91,
+    paymentTerms: '30 days',
+    notes: 'Compliant public supplier with fastest delivery and batch certificate attached.',
     expiryDate: '2026-05-21',
     category: 'Pharmacy',
   },
   {
     id: 'OFF-1021',
     tenderId: 'TEN-2415',
+    lineId: 'TEN-2415-L1',
     supplierCode: 'SUPPLIER 2',
     supplierName: 'MSD MEDICAL STORE DEPARTMENT',
     currency: 'TZS',
@@ -521,8 +715,159 @@ const initialOffers: SupplierOffer[] = [
     quantity: 40,
     units: 'ream',
     price: 11800,
+    leadTimeDays: 7,
+    complianceStatus: 'Compliant',
+    technicalScore: 95,
+    supplierRating: 91,
+    paymentTerms: '30 days',
+    notes: 'Framework supplier; price includes delivery.',
     expiryDate: '2026-05-28',
     category: 'Administration',
+  },
+  {
+    id: 'OFF-1022',
+    tenderId: 'TEN-2415',
+    lineId: 'TEN-2415-L1',
+    supplierCode: 'SUPPLIER 1',
+    supplierName: "ZEEPY'I PHARMACEUTICALS LTD",
+    currency: 'TZS',
+    itemCode: 'OFFICE-041',
+    description: 'A4 printing paper ream',
+    quantity: 40,
+    units: 'ream',
+    price: 12400,
+    leadTimeDays: 3,
+    complianceStatus: 'Compliant',
+    technicalScore: 88,
+    supplierRating: 80,
+    paymentTerms: '14 days',
+    notes: 'Shorter delivery cycle, higher unit price and tighter payment terms.',
+    expiryDate: '2026-05-27',
+    category: 'Administration',
+  },
+];
+
+const initialTenders: Tender[] = [
+  {
+    id: 'tender-2407',
+    reference: 'TEN-2407',
+    title: 'Equipment spares and medical cable replenishment',
+    status: 'Evaluation',
+    method: 'RFQ',
+    category: 'Medical Consumables',
+    location: 'ADMINISTRATION',
+    currency: 'TZS',
+    requiredDate: '2026-05-29',
+    submissionDeadline: '2026-05-24',
+    estimatedValue: 310000,
+    createdBy: 'Procurement Lead',
+    evaluationWeights: { price: 45, delivery: 20, compliance: 25, performance: 10 },
+    lines: [
+      {
+        id: 'TEN-2407-L1',
+        itemCode: 'ACCESORY016',
+        description: 'GREASE',
+        category: 'Equipment Spares',
+        quantity: 12,
+        units: 'kgs',
+        requiredDate: '2026-05-29',
+        technicalRequirement: 'Medical equipment compatible lubricant.',
+        glCode: '5500',
+      },
+      {
+        id: 'TEN-2407-L2',
+        itemCode: 'ACCESORY018',
+        description: 'ELECTRODE CABLE',
+        category: 'Medical Consumables',
+        quantity: 8,
+        units: 'each',
+        requiredDate: '2026-05-29',
+        technicalRequirement: 'Compatible with theatre monitoring equipment.',
+        glCode: '5500',
+      },
+    ],
+    suppliers: [
+      { supplierCode: 'AFRI D10', supplierName: 'AFRI DENTAL PRODUCTS', status: 'Responded', invitedAt: '2026-05-16 09:12', respondedAt: '2026-05-17 11:25' },
+      { supplierCode: 'SUPPLIER 3', supplierName: 'ANUDHA LTD', status: 'Responded', invitedAt: '2026-05-16 09:12', respondedAt: '2026-05-17 12:08' },
+      { supplierCode: 'SUPPLIER 4', supplierName: 'ACTION MEDEOR', status: 'Responded', invitedAt: '2026-05-16 09:12', respondedAt: '2026-05-17 12:42' },
+    ],
+    auditEvents: [
+      { label: 'Tender moved to evaluation after supplier response', by: 'Procurement Lead', at: 'Today 11:25' },
+      { label: 'Suppliers invited for RFQ', by: 'Procurement Lead', at: '16 May 2026 09:12' },
+    ],
+  },
+  {
+    id: 'tender-2411',
+    reference: 'TEN-2411',
+    title: 'Urgent pharmacy antibiotic replenishment',
+    status: 'Offers Received',
+    method: 'Restricted Tender',
+    category: 'Pharmacy',
+    location: 'PHARMACY',
+    currency: 'TZS',
+    requiredDate: '2026-05-22',
+    submissionDeadline: '2026-05-21',
+    estimatedValue: 688000,
+    createdBy: 'Stores Manager',
+    evaluationWeights: { price: 35, delivery: 35, compliance: 20, performance: 10 },
+    lines: [
+      {
+        id: 'TEN-2411-L1',
+        itemCode: 'PHARM-221',
+        description: 'Ceftriaxone injection 1g',
+        category: 'Pharmacy',
+        quantity: 320,
+        units: 'vial',
+        requiredDate: '2026-05-22',
+        technicalRequirement: 'Batch certificate required before award.',
+        glCode: '5500',
+      },
+    ],
+    suppliers: [
+      { supplierCode: 'SUPPLIER', supplierName: 'PRIMECARE MEDICAL EQUIPMENT SUPPLY', status: 'Responded', invitedAt: '2026-05-17 08:40', respondedAt: '2026-05-17 13:05' },
+      { supplierCode: 'SUPPLIER 2', supplierName: 'MSD MEDICAL STORE DEPARTMENT', status: 'Responded', invitedAt: '2026-05-17 08:40', respondedAt: '2026-05-17 13:18' },
+    ],
+    auditEvents: [
+      { label: 'Offer received with compliance clarification required', by: 'Procurement Lead', at: 'Today 13:05' },
+      { label: 'Emergency restricted tender published', by: 'Stores Manager', at: 'Today 08:40' },
+    ],
+  },
+  {
+    id: 'tender-2415',
+    reference: 'TEN-2415',
+    title: 'Administration stationery framework order',
+    status: 'Award Recommended',
+    method: 'RFQ',
+    category: 'Administration',
+    location: 'ADMINISTRATION',
+    currency: 'TZS',
+    requiredDate: '2026-05-31',
+    submissionDeadline: '2026-05-28',
+    estimatedValue: 472000,
+    createdBy: 'Administration',
+    evaluationWeights: { price: 60, delivery: 10, compliance: 20, performance: 10 },
+    lines: [
+      {
+        id: 'TEN-2415-L1',
+        itemCode: 'OFFICE-041',
+        description: 'A4 printing paper ream',
+        category: 'Administration',
+        quantity: 40,
+        units: 'ream',
+        requiredDate: '2026-05-31',
+        technicalRequirement: '80 gsm white paper, boxed delivery.',
+        glCode: '5500',
+      },
+    ],
+    suppliers: [
+      { supplierCode: 'SUPPLIER 2', supplierName: 'MSD MEDICAL STORE DEPARTMENT', status: 'Responded', invitedAt: '2026-05-15 10:20', respondedAt: '2026-05-16 14:15' },
+      { supplierCode: 'SUPPLIER 1', supplierName: "ZEEPY'I PHARMACEUTICALS LTD", status: 'Responded', invitedAt: '2026-05-15 10:20', respondedAt: '2026-05-16 15:02' },
+      { supplierCode: 'SUPPLIER 3', supplierName: 'ANUDHA LTD', status: 'Declined', invitedAt: '2026-05-15 10:20' },
+    ],
+    auditEvents: [
+      { label: 'Award recommendation prepared for framework supplier', by: 'Procurement Lead', at: '16 May 2026 14:40' },
+      { label: 'Supplier offers received', by: 'Administration', at: '16 May 2026 14:15' },
+    ],
   },
 ];
 
@@ -587,6 +932,78 @@ function orderTotal(order: PurchaseOrder) {
 
 function offerTotal(offer: SupplierOffer) {
   return offer.quantity * offer.price;
+}
+
+function complianceScoreValue(offer: SupplierOffer) {
+  if (offer.complianceStatus === 'Compliant') return offer.technicalScore;
+  if (offer.complianceStatus === 'Clarification') return Math.min(78, offer.technicalScore);
+  return Math.min(45, offer.technicalScore);
+}
+
+function weightedOfferScore(offer: SupplierOffer, tender: Tender, lineOffers: SupplierOffer[]) {
+  const lowestPrice = Math.min(...lineOffers.map((candidate) => candidate.price));
+  const fastestLead = Math.min(...lineOffers.map((candidate) => candidate.leadTimeDays));
+  const priceScore = Math.round((lowestPrice / Math.max(offer.price, 1)) * 100);
+  const deliveryScore = Math.round((fastestLead / Math.max(offer.leadTimeDays, 1)) * 100);
+  const complianceScore = complianceScoreValue(offer);
+  const performanceScore = offer.supplierRating;
+  const weights = tender.evaluationWeights;
+  const score = Math.round(
+    (priceScore * weights.price +
+      deliveryScore * weights.delivery +
+      complianceScore * weights.compliance +
+      performanceScore * weights.performance) /
+      100
+  );
+
+  return { score, priceScore, deliveryScore, complianceScore, performanceScore };
+}
+
+function evaluationForOffer(offer: SupplierOffer, tender: Tender, lineOffers: SupplierOffer[], rank: number): OfferEvaluation {
+  const score = weightedOfferScore(offer, tender, lineOffers);
+  const recommendation =
+    offer.complianceStatus === 'Non-compliant'
+      ? 'Reject'
+      : rank === 1 && offer.complianceStatus === 'Compliant'
+        ? 'Recommended'
+        : rank <= 2
+          ? 'Viable'
+          : 'Review';
+
+  return { ...score, rank, recommendation };
+}
+
+function scoreTone(score: number) {
+  if (score >= 86) return 'text-emerald-700 dark:text-emerald-200';
+  if (score >= 72) return 'text-amber-700 dark:text-amber-200';
+  return 'text-rose-700 dark:text-rose-200';
+}
+
+function tenderRiskTone(level: TenderRiskLevel) {
+  if (level === 'Low') return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-100';
+  if (level === 'Moderate') return 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100';
+  return 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-100';
+}
+
+function tenderStatusTone(status: TenderStatus) {
+  if (status === 'PO Created' || status === 'Closed' || status === 'Approved') return 'bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-900';
+  if (status === 'Award Recommended' || status === 'Evaluation') return 'bg-purple-50 text-purple-800 ring-purple-200 dark:bg-purple-950/40 dark:text-purple-100 dark:ring-purple-900';
+  if (status === 'Offers Received' || status === 'Supplier Invited' || status === 'Published') return 'bg-blue-50 text-blue-800 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-100 dark:ring-blue-900';
+  if (status === 'Cancelled') return 'bg-rose-50 text-rose-800 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-100 dark:ring-rose-900';
+  return 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700';
+}
+
+function complianceTone(status: OfferComplianceStatus) {
+  if (status === 'Compliant') return 'bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-900';
+  if (status === 'Clarification') return 'bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-900';
+  return 'bg-rose-50 text-rose-800 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-100 dark:ring-rose-900';
+}
+
+function invitationTone(status: TenderInvitationStatus) {
+  if (status === 'Responded') return 'bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-900';
+  if (status === 'Viewed') return 'bg-blue-50 text-blue-800 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-100 dark:ring-blue-900';
+  if (status === 'Declined' || status === 'Expired') return 'bg-rose-50 text-rose-800 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-100 dark:ring-rose-900';
+  return 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700';
 }
 
 function orderBalance(order: PurchaseOrder) {
@@ -665,7 +1082,7 @@ function titleForRoute(pathname: string) {
 
 function descriptionForRoute(pathname: string) {
   if (pathname.includes('offersreceived')) {
-    return 'Review outstanding supplier offer lines, accept the best values into a purchase order, reject unsuitable lines, or defer offers for later.';
+    return 'Control tender dossiers, compare supplier responses, score commercial and technical risk, and convert approved award decisions into purchase orders.';
   }
   if (pathname.includes('po-header')) {
     return 'Start a supplier purchase order with delivery details, stock location, item lines, GL coding, and review-ready totals on one page.';
@@ -787,7 +1204,8 @@ export function PurchaseOrders() {
   const [lookupLocations, setLookupLocations] = useState<LookupOption[]>(locations);
   const [lookupCategories, setLookupCategories] = useState<LookupOption[]>(categoryOptions.filter((option) => option.value !== 'All'));
   const [offers, setOffers] = useState<SupplierOffer[]>(initialOffers);
-  const [offerSupplier, setOfferSupplier] = useState(initialOffers[0]?.supplierCode ?? '');
+  const [tenders, setTenders] = useState<Tender[]>(initialTenders);
+  const [selectedTenderId, setSelectedTenderId] = useState(initialTenders[0]?.id ?? '');
   const [offerDecisions, setOfferDecisions] = useState<Record<string, OfferDecision>>({});
   const [offerMessage, setOfferMessage] = useState('');
   const [poAuthLevels, setPoAuthLevels] = useState<PoAuthorisationLevel[]>([]);
@@ -829,13 +1247,7 @@ export function PurchaseOrders() {
   const isOffersRoute = routePath.includes('offersreceived');
   const isAuthoriseRoute = routePath.includes('po-authorisemyorders');
 
-  const offerSupplierOptions = useMemo(() => {
-    const bySupplier = new Map<string, LookupOption>();
-    offers.forEach((offer) => {
-      bySupplier.set(offer.supplierCode, { value: offer.supplierCode, label: offer.supplierName });
-    });
-    return [...bySupplier.values()];
-  }, [offers]);
+  const tenderOptions = useMemo(() => tenders.map((tender) => ({ value: tender.id, label: `${tender.reference} · ${tender.title}` })), [tenders]);
 
   useEffect(() => {
     let cancelled = false;
@@ -952,14 +1364,14 @@ export function PurchaseOrders() {
   }, []);
 
   useEffect(() => {
-    if (offerSupplierOptions.length === 0) {
-      setOfferSupplier('');
+    if (tenderOptions.length === 0) {
+      setSelectedTenderId('');
       return;
     }
-    if (!offerSupplierOptions.some((option) => option.value === offerSupplier)) {
-      setOfferSupplier(offerSupplierOptions[0].value);
+    if (!tenderOptions.some((option) => option.value === selectedTenderId)) {
+      setSelectedTenderId(tenderOptions[0].value);
     }
-  }, [offerSupplier, offerSupplierOptions]);
+  }, [selectedTenderId, tenderOptions]);
 
   const filteredOrders = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -1046,19 +1458,24 @@ export function PurchaseOrders() {
     return { hasQuantity, hasOverQuantity, canPost: hasQuantity && !hasOverQuantity };
   }, [drawerMode, receiptQty, selectedOrder]);
 
-  const selectedSupplierOffers = useMemo(() => offers.filter((offer) => offer.supplierCode === offerSupplier), [offerSupplier, offers]);
+  const selectedTender = useMemo(() => tenders.find((tender) => tender.id === selectedTenderId) ?? tenders[0] ?? null, [selectedTenderId, tenders]);
+  const selectedTenderOffers = useMemo(() => (
+    selectedTender ? offers.filter((offer) => offer.tenderId === selectedTender.reference) : []
+  ), [offers, selectedTender]);
 
   const offerSummary = useMemo(() => {
-    const expiringSoon = selectedSupplierOffers.filter((offer) => daysUntil(offer.expiryDate) <= 7).length;
+    const expiringSoon = selectedTenderOffers.filter((offer) => daysUntil(offer.expiryDate) <= 7).length;
+    const uniqueSuppliers = new Set(selectedTenderOffers.map((offer) => offer.supplierCode));
     return {
-      lineCount: selectedSupplierOffers.length,
-      totalValue: selectedSupplierOffers.reduce((sum, offer) => sum + offerTotal(offer), 0),
-      acceptedCount: selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'accept').length,
-      rejectedCount: selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'reject').length,
+      lineCount: selectedTenderOffers.length,
+      totalValue: selectedTenderOffers.reduce((sum, offer) => sum + offerTotal(offer), 0),
+      acceptedCount: selectedTenderOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'accept').length,
+      rejectedCount: selectedTenderOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'reject').length,
       expiringSoon,
-      currency: selectedSupplierOffers[0]?.currency ?? 'TZS',
+      supplierCount: uniqueSuppliers.size,
+      currency: selectedTender?.currency ?? selectedTenderOffers[0]?.currency ?? 'TZS',
     };
-  }, [offerDecisions, selectedSupplierOffers]);
+  }, [offerDecisions, selectedTender, selectedTenderOffers]);
 
   const columns: AdvancedTableColumn<PurchaseOrder>[] = [
       {
@@ -1340,59 +1757,88 @@ export function PurchaseOrders() {
   }
 
   function processSupplierOffers() {
-    const accepted = selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'accept');
-    const rejected = selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'reject');
-    const deferred = selectedSupplierOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'defer');
+    if (!selectedTender) {
+      setOfferMessage('Select a tender before processing award decisions.');
+      return;
+    }
+
+    const accepted = selectedTenderOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'accept');
+    const rejected = selectedTenderOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'reject');
+    const deferred = selectedTenderOffers.filter((offer) => (offerDecisions[offer.id] ?? 'defer') === 'defer');
 
     if (accepted.length === 0 && rejected.length === 0) {
       setOfferMessage('Choose at least one offer to accept or reject. Deferred lines remain outstanding.');
       return;
     }
 
+    const duplicateAwards = selectedTender.lines.filter((line) => accepted.filter((offer) => offer.lineId === line.id).length > 1);
+    if (duplicateAwards.length > 0) {
+      setOfferMessage(`Only one supplier can be awarded per tender line. Review: ${duplicateAwards.map((line) => line.itemCode).join(', ')}.`);
+      return;
+    }
+
+    const nonCompliantAwards = accepted.filter((offer) => offer.complianceStatus === 'Non-compliant');
+    if (nonCompliantAwards.length > 0) {
+      setOfferMessage(`Non-compliant offers cannot be awarded without an override workflow. Defer or reject: ${nonCompliantAwards.map((offer) => offer.id).join(', ')}.`);
+      return;
+    }
+
     if (accepted.length > 0) {
-      const supplier = lookupSuppliers.find((item) => item.value === offerSupplier);
-      const order: PurchaseOrder = {
-        id: `po-offer-${Date.now()}`,
-        orderNumber: String(621 + orders.length),
-        realOrderNumber: `PO-2026-${String(621 + orders.length).padStart(5, '0')}`,
-        supplierCode: offerSupplier,
-        supplierName: supplier?.label ?? accepted[0].supplierName,
-        supplierAddress: supplier?.address ?? '',
-        currency: accepted[0].currency,
-        exchangeRate: 1,
-        orderDate: new Date().toISOString().slice(0, 10),
-        deliveryDate: new Date().toISOString().slice(0, 10),
-        initiatedBy: 'John Doe',
-        reviewer: 'Procurement Lead',
-        location: draftLocation,
-        requisitionNo: accepted[0].tenderId,
-        paymentTerms: '30 days',
-        deliveryBy: 'Supplier',
-        comments: 'Automatically generated from accepted supplier offers.',
-        status: 'Pending Review',
-        allowPrint: false,
-        lines: accepted.map((offer) => ({
-          id: offer.id,
-          itemCode: offer.itemCode,
-          supplierItem: offer.itemCode,
-          description: offer.description,
-          category: offer.category,
-          supplierUnits: offer.units,
-          receivingUnits: offer.units,
-          conversionFactor: 1,
-          quantityOrdered: offer.quantity,
-          quantityReceived: 0,
-          quantityInvoiced: 0,
-          deliveryDate: new Date().toISOString().slice(0, 10),
-          unitPrice: offer.price,
-          taxRate: 0,
-          glCode: '5500',
-          completed: false,
-        })),
-        events: [{ label: 'Created from accepted supplier offers', by: 'John Doe', at: 'Today' }],
-      };
-      setOrders((current) => [order, ...current]);
-      setSelectedId(order.id);
+      const groups = accepted.reduce<Record<string, SupplierOffer[]>>((bySupplier, offer) => {
+        bySupplier[offer.supplierCode] = [...(bySupplier[offer.supplierCode] ?? []), offer];
+        return bySupplier;
+      }, {});
+      const baseOrderNumber = 621 + orders.length;
+      const createdOrders = Object.entries(groups).map(([supplierCode, supplierOffers], index): PurchaseOrder => {
+        const supplier = lookupSuppliers.find((item) => item.value === supplierCode);
+        const firstOffer = supplierOffers[0];
+        return {
+          id: `po-${selectedTender.reference.toLowerCase()}-${supplierCode.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${index}`,
+          orderNumber: String(baseOrderNumber + index),
+          realOrderNumber: `PO-2026-${String(baseOrderNumber + index).padStart(5, '0')}`,
+          supplierCode,
+          supplierName: supplier?.label ?? firstOffer.supplierName,
+          supplierAddress: supplier?.address ?? '',
+          currency: firstOffer.currency,
+          exchangeRate: 1,
+          orderDate: new Date().toISOString().slice(0, 10),
+          deliveryDate: selectedTender.requiredDate,
+          initiatedBy: 'John Doe',
+          reviewer: 'Procurement Lead',
+          location: selectedTender.location,
+          requisitionNo: selectedTender.reference,
+          paymentTerms: firstOffer.paymentTerms,
+          deliveryBy: 'Supplier',
+          comments: `Created from tender ${selectedTender.reference}. Award rationale captured in tender evaluation.`,
+          status: 'Pending Review',
+          allowPrint: false,
+          lines: supplierOffers.map((offer) => ({
+            id: offer.id,
+            itemCode: offer.itemCode,
+            supplierItem: offer.itemCode,
+            description: offer.description,
+            category: offer.category,
+            supplierUnits: offer.units,
+            receivingUnits: offer.units,
+            conversionFactor: 1,
+            quantityOrdered: offer.quantity,
+            quantityReceived: 0,
+            quantityInvoiced: 0,
+            deliveryDate: selectedTender.requiredDate,
+            unitPrice: offer.price,
+            taxRate: 0,
+            glCode: selectedTender.lines.find((line) => line.id === offer.lineId)?.glCode ?? '5500',
+            completed: false,
+          })),
+          events: [
+            { label: `Created from tender ${selectedTender.reference} award decision`, by: 'John Doe', at: 'Today' },
+            { label: 'Tender evaluation and award recommendation attached', by: 'Procurement Lead', at: 'Today' },
+          ],
+        };
+      });
+
+      setOrders((current) => [...createdOrders, ...current]);
+      setSelectedId(createdOrders[0]?.id ?? selectedId);
     }
 
     const processedIds = new Set([...accepted, ...rejected].map((offer) => offer.id));
@@ -1402,9 +1848,27 @@ export function PurchaseOrders() {
       processedIds.forEach((id) => delete next[id]);
       return next;
     });
+    setTenders((current) =>
+      current.map((tender) => {
+        if (tender.id !== selectedTender.id) return tender;
+        const nextStatus: TenderStatus = accepted.length > 0 ? 'PO Created' : rejected.length > 0 && deferred.length === 0 ? 'Closed' : 'Evaluation';
+        return {
+          ...tender,
+          status: nextStatus,
+          auditEvents: [
+            {
+              label: `${accepted.length} offers accepted, ${rejected.length} rejected, ${deferred.length} deferred`,
+              by: 'John Doe',
+              at: 'Today',
+            },
+            ...tender.auditEvents,
+          ],
+        };
+      })
+    );
     setOfferMessage(
       `${accepted.length} accepted, ${rejected.length} rejected, ${deferred.length} deferred. ${
-        accepted.length > 0 ? 'A pending-review purchase order was created.' : 'Rejected offers were removed.'
+        accepted.length > 0 ? 'Pending-review purchase order(s) were created by supplier.' : 'Rejected offers were removed.'
       }`
     );
   }
@@ -1533,7 +1997,7 @@ export function PurchaseOrders() {
                 <div className="flex flex-wrap gap-2">
                   <Chip icon={PackageCheck}>Purchasing</Chip>
                   <Chip icon={isCreatePoRoute ? Plus : isOffersRoute ? ClipboardCheck : isAuthoriseRoute ? ShieldCheck : FileText}>
-                    {isCreatePoRoute ? 'New PO' : isOffersRoute ? 'Supplier offers' : isAuthoriseRoute ? 'Authorise POs' : 'Purchase orders'}
+                    {isCreatePoRoute ? 'New PO' : isOffersRoute ? 'Tender awards' : isAuthoriseRoute ? 'Authorise POs' : 'Purchase orders'}
                   </Chip>
                   <Chip icon={ShieldCheck}>Receiving and bill matching</Chip>
                   <Chip icon={purchaseOrdersReady ? CheckCircle2 : AlertTriangle}>
@@ -1547,21 +2011,38 @@ export function PurchaseOrders() {
                   {pageDescription}
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <IconButton icon={RefreshCw} label="Refresh purchase orders" onClick={() => setReloadKey((value) => value + 1)} />
-                {isOffersRoute ? (
-                  <Button onClick={processSupplierOffers} disabled={selectedSupplierOffers.length === 0}>
-                    <Check className="mr-2 h-4 w-4" />
-                    Process offers
-                  </Button>
-                ) : isCreatePoRoute ? (
-                  <>
-                    <Button variant="secondary" onClick={() => saveDraftOrder('Draft')}>Save draft</Button>
-                    <Button onClick={() => saveDraftOrder('Pending Review')}>
+              <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
+                {isCreatePoRoute ? (
+                  <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)] gap-2 sm:w-[300px]">
+                    <button
+                      type="button"
+                      aria-label="Refresh purchase orders"
+                      title="Refresh purchase orders"
+                      onClick={() => setReloadKey((value) => value + 1)}
+                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent focus:ring-offset-2 focus:ring-offset-akiva-bg"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => saveDraftOrder('Draft')}
+                      className="h-11 w-full rounded-xl px-4 text-sm"
+                    >
+                      Save draft
+                    </Button>
+                    <Button
+                      onClick={() => saveDraftOrder('Pending Review')}
+                      className="col-span-2 h-11 w-full rounded-xl px-4 text-sm shadow-sm shadow-violet-950/10"
+                    >
                       <Send className="mr-2 h-4 w-4" />
                       Submit for review
                     </Button>
-                  </>
+                  </div>
+                ) : isOffersRoute ? (
+                  <Button onClick={processSupplierOffers} disabled={selectedTenderOffers.length === 0}>
+                    <Check className="mr-2 h-4 w-4" />
+                    Process award
+                  </Button>
                 ) : isAuthoriseRoute ? (
                   <Button variant="secondary" onClick={() => navigateTo('/configuration/purchases-payables/setup/po-authorisation-levels')}>
                     <ShieldCheck className="mr-2 h-4 w-4" />
@@ -1640,17 +2121,32 @@ export function PurchaseOrders() {
             <main className="space-y-4 lg:col-span-12">
               {isOffersRoute ? (
                 <OffersReceivedPanel
+                  tenders={tenders}
                   offers={offers}
-                  selectedSupplier={offerSupplier}
-                  supplierOptions={offerSupplierOptions}
-                  selectedOffers={selectedSupplierOffers}
+                  selectedTender={selectedTender}
+                  selectedTenderId={selectedTenderId}
+                  tenderOptions={tenderOptions}
+                  selectedOffers={selectedTenderOffers}
                   decisions={offerDecisions}
                   summary={offerSummary}
                   message={offerMessage}
-                  onSupplierChange={setOfferSupplier}
+                  onTenderChange={(tenderId) => {
+                    setSelectedTenderId(tenderId);
+                    setOfferMessage('');
+                  }}
                   onDecisionChange={(offerId, decision) => {
                     setOfferMessage('');
                     setOfferDecisions((current) => ({ ...current, [offerId]: decision }));
+                  }}
+                  onAcceptRecommended={(offerIds) => {
+                    setOfferMessage('');
+                    setOfferDecisions((current) => {
+                      const next = { ...current };
+                      selectedTenderOffers.forEach((offer) => {
+                        next[offer.id] = offerIds.includes(offer.id) ? 'accept' : 'defer';
+                      });
+                      return next;
+                    });
                   }}
                   onProcess={processSupplierOffers}
                 />
@@ -1984,20 +2480,25 @@ export function PurchaseOrders() {
 }
 
 function OffersReceivedPanel({
+  tenders,
   offers,
-  selectedSupplier,
-  supplierOptions,
+  selectedTender,
+  selectedTenderId,
+  tenderOptions,
   selectedOffers,
   decisions,
   summary,
   message,
-  onSupplierChange,
+  onTenderChange,
   onDecisionChange,
+  onAcceptRecommended,
   onProcess,
 }: {
+  tenders: Tender[];
   offers: SupplierOffer[];
-  selectedSupplier: string;
-  supplierOptions: LookupOption[];
+  selectedTender: Tender | null;
+  selectedTenderId: string;
+  tenderOptions: LookupOption[];
   selectedOffers: SupplierOffer[];
   decisions: Record<string, OfferDecision>;
   summary: {
@@ -2006,24 +2507,77 @@ function OffersReceivedPanel({
     acceptedCount: number;
     rejectedCount: number;
     expiringSoon: number;
+    supplierCount: number;
     currency: PurchaseOrder['currency'];
   };
   message: string;
-  onSupplierChange: (value: string) => void;
+  onTenderChange: (value: string) => void;
   onDecisionChange: (offerId: string, decision: OfferDecision) => void;
+  onAcceptRecommended: (offerIds: string[]) => void;
   onProcess: () => void;
 }) {
-  if (offers.length === 0) {
+  if (tenders.length === 0 || offers.length === 0) {
     return (
       <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-6 text-center shadow-sm">
         <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
-        <h2 className="mt-3 text-lg font-semibold text-akiva-text">No outstanding supplier offers</h2>
+        <h2 className="mt-3 text-lg font-semibold text-akiva-text">No active tender offers</h2>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-akiva-text-muted">
-          Accepted and rejected offers have been cleared. Deferred offers will appear here when suppliers still have active tender lines.
+          Awarded, rejected, and closed tender lines have been cleared from the evaluation queue.
         </p>
       </section>
     );
   }
+
+  if (!selectedTender) {
+    return (
+      <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-6 text-center shadow-sm">
+        <AlertTriangle className="mx-auto h-10 w-10 text-amber-600" />
+        <h2 className="mt-3 text-lg font-semibold text-akiva-text">Select a tender dossier</h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-akiva-text-muted">
+          Tender evaluation needs a selected tender before supplier offers can be compared or awarded.
+        </p>
+      </section>
+    );
+  }
+
+  const evaluatedOffers = selectedOffers.map((offer) => {
+    const lineOffers = selectedOffers.filter((candidate) => candidate.lineId === offer.lineId);
+    const ranked = [...lineOffers].sort((a, b) => weightedOfferScore(b, selectedTender, lineOffers).score - weightedOfferScore(a, selectedTender, lineOffers).score);
+    const rank = ranked.findIndex((candidate) => candidate.id === offer.id) + 1;
+    return {
+      offer,
+      tenderLine: selectedTender.lines.find((line) => line.id === offer.lineId),
+      evaluation: evaluationForOffer(offer, selectedTender, lineOffers, rank),
+    };
+  }).sort((a, b) => a.offer.lineId.localeCompare(b.offer.lineId) || a.evaluation.rank - b.evaluation.rank);
+  const recommendedAwards = selectedTender.lines
+    .map((line) =>
+      evaluatedOffers
+        .filter((entry) => entry.offer.lineId === line.id && entry.offer.complianceStatus !== 'Non-compliant')
+        .sort((a, b) => b.evaluation.score - a.evaluation.score)[0]
+    )
+    .filter(Boolean) as typeof evaluatedOffers;
+  const recommendedOfferIds = recommendedAwards.map((entry) => entry.offer.id);
+  const recommendedAwardValue = recommendedAwards.reduce((sum, entry) => sum + offerTotal(entry.offer), 0);
+  const recommendedConfidence = recommendedAwards.length > 0
+    ? Math.round(recommendedAwards.reduce((sum, entry) => sum + entry.evaluation.score, 0) / recommendedAwards.length)
+    : 0;
+  const acceptedValue = selectedOffers
+    .filter((offer) => (decisions[offer.id] ?? 'defer') === 'accept')
+    .reduce((sum, offer) => sum + offerTotal(offer), 0);
+  const respondedSuppliers = selectedTender.suppliers.filter((supplier) => supplier.status === 'Responded').length;
+  const responseCoverage = selectedTender.suppliers.length > 0 ? Math.round((respondedSuppliers / selectedTender.suppliers.length) * 100) : 0;
+  const clarificationCount = selectedOffers.filter((offer) => offer.complianceStatus === 'Clarification').length;
+  const nonCompliantCount = selectedOffers.filter((offer) => offer.complianceStatus === 'Non-compliant').length;
+  const criticalExpiryCount = selectedOffers.filter((offer) => daysUntil(offer.expiryDate) <= 3).length;
+  const tenderRiskLevel: TenderRiskLevel =
+    nonCompliantCount > 0 || criticalExpiryCount > 0 || responseCoverage < 67
+      ? 'High'
+      : clarificationCount > 0 || responseCoverage < 100
+        ? 'Moderate'
+        : 'Low';
+  const savingsVsEstimate = selectedTender.estimatedValue - recommendedAwardValue;
+  const weighted = selectedTender.evaluationWeights;
 
   return (
     <div className="space-y-4">
@@ -2033,34 +2587,195 @@ function OffersReceivedPanel({
         </div>
       ) : null}
 
-      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-violet-50/60 to-cyan-50/70 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[minmax(240px,360px)_1fr_auto] lg:items-center">
-        <Field label="Supplier with outstanding offers">
+      <section className="grid gap-3 rounded-2xl border border-akiva-border bg-akiva-surface-raised/85 p-3 shadow-sm lg:grid-cols-[minmax(280px,420px)_1fr_auto] lg:items-center">
+        <Field label="Tender dossier">
           <SearchableSelect
-            value={selectedSupplier}
-            onChange={onSupplierChange}
-            options={supplierOptions}
+            value={selectedTenderId}
+            onChange={onTenderChange}
+            options={tenderOptions}
             inputClassName={inputClass}
-            placeholder="Select supplier"
+            placeholder="Select tender"
           />
         </Field>
         <div className="grid gap-2 sm:grid-cols-4">
-          <InfoTile label="Offer lines" value={String(summary.lineCount)} />
+          <InfoTile label="Tender status" value={selectedTender.status} />
+          <InfoTile label="Suppliers" value={`${respondedSuppliers}/${selectedTender.suppliers.length}`} />
           <InfoTile label="Offer value" value={money(summary.totalValue, summary.currency)} />
-          <InfoTile label="Accepted" value={String(summary.acceptedCount)} />
-          <InfoTile label="Expiring soon" value={String(summary.expiringSoon)} />
+          <InfoTile label="Award value" value={money(acceptedValue, summary.currency)} />
         </div>
-        <Button onClick={onProcess} disabled={selectedOffers.length === 0}>
-          <Check className="mr-2 h-4 w-4" />
-          Process
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+          <Button variant="secondary" onClick={() => onAcceptRecommended(recommendedOfferIds)} disabled={recommendedOfferIds.length === 0}>
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Accept recommended
+          </Button>
+          <Button onClick={onProcess} disabled={selectedOffers.length === 0}>
+            <Check className="mr-2 h-4 w-4" />
+            Process award
+          </Button>
+        </div>
+      </section>
+
+      <section className="grid gap-3 xl:grid-cols-[1.35fr_.65fr]">
+        <div className="rounded-2xl border border-akiva-border bg-gradient-to-r from-akiva-surface-raised via-akiva-surface-raised to-akiva-surface-muted/70 p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Award recommendation</p>
+              <h2 className="mt-1 text-base font-semibold text-akiva-text">
+                {recommendedAwards.length > 0
+                  ? `${recommendedAwards.length} line award ready for procurement review`
+                  : 'No award recommendation available'}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-akiva-text-muted">
+                The scorecard ranks each supplier by price, lead time, technical compliance, and supplier performance before a PO is generated.
+              </p>
+            </div>
+            <span className={`inline-flex shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${tenderRiskTone(tenderRiskLevel)}`}>
+              {tenderRiskLevel} award risk
+            </span>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-4">
+            <InfoTile label="Recommended" value={money(recommendedAwardValue, selectedTender.currency)} />
+            <InfoTile label="Confidence" value={`${recommendedConfidence}/100`} />
+            <InfoTile label="Response rate" value={`${responseCoverage}%`} />
+            <InfoTile label="Estimate variance" value={money(savingsVsEstimate, selectedTender.currency)} />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+          <h2 className="text-base font-semibold text-akiva-text">Award controls</h2>
+          <div className="mt-3 space-y-2 text-sm">
+            <div className="flex items-start gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <p className="text-akiva-text-muted">One awarded supplier is allowed per tender line before PO conversion.</p>
+            </div>
+            <div className="flex items-start gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-akiva-accent" />
+              <p className="text-akiva-text-muted">Non-compliant offers are blocked from award unless a future override workflow is configured.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+        <div className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{selectedTender.reference}</p>
+              <h2 className="mt-1 text-base font-semibold text-akiva-text">{selectedTender.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-akiva-text-muted">
+                {selectedTender.method} · {selectedTender.category} · {selectedTender.location} · deadline {formatDate(selectedTender.submissionDeadline)}
+              </p>
+            </div>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${tenderStatusTone(selectedTender.status)}`}>
+              {selectedTender.status}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-4">
+            <InfoTile label="Estimated value" value={money(selectedTender.estimatedValue, selectedTender.currency)} />
+            <InfoTile label="Required date" value={formatDate(selectedTender.requiredDate)} />
+            <InfoTile label="Offer responses" value={String(summary.lineCount)} />
+            <InfoTile label="Expiring soon" value={String(summary.expiringSoon)} />
+          </div>
+
+          <div className="mt-4 rounded-lg border border-akiva-border bg-akiva-surface p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Evaluation weights</p>
+            <div className="mt-2 grid gap-2 text-xs font-semibold text-akiva-text-muted sm:grid-cols-4">
+              <span>Price {weighted.price}%</span>
+              <span>Delivery {weighted.delivery}%</span>
+              <span>Compliance {weighted.compliance}%</span>
+              <span>Performance {weighted.performance}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-akiva-text">Supplier invitation control</h2>
+              <p className="mt-1 text-sm text-akiva-text-muted">Invitation status and audit-ready response tracking.</p>
+            </div>
+            <InfoTile label="Suppliers" value={String(summary.supplierCount)} />
+          </div>
+          <div className="mt-3 space-y-2">
+            {selectedTender.suppliers.map((supplier) => (
+              <div key={supplier.supplierCode} className="flex items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-akiva-text">{supplier.supplierName}</span>
+                  <span className="mt-0.5 block text-xs text-akiva-text-muted">Invited {supplier.invitedAt}{supplier.respondedAt ? ` · responded ${supplier.respondedAt}` : ''}</span>
+                </span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${invitationTone(supplier.status)}`}>
+                  {supplier.status}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Tender audit trace</p>
+            <div className="mt-2 space-y-2">
+              {selectedTender.auditEvents.slice(0, 3).map((event) => (
+                <div key={`${event.label}-${event.at}`} className="flex gap-2 text-xs leading-5">
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-akiva-accent" />
+                  <span className="min-w-0 text-akiva-text-muted">
+                    <span className="font-semibold text-akiva-text">{event.label}</span>
+                    <span className="block">{event.by} · {event.at}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-akiva-text">Tender lines</h2>
+            <p className="mt-1 text-sm text-akiva-text-muted">Required items, quantities, technical constraints, and GL coding.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs font-semibold">
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900">{summary.acceptedCount} accepted</span>
+            <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900">{summary.rejectedCount} rejected</span>
+          </div>
+        </div>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-akiva-border">
+          <table className="w-full min-w-[760px] table-fixed">
+            <thead className="bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-text-muted">
+              <tr>
+                <th className="w-36 px-3 py-2 text-left">Item</th>
+                <th className="px-3 py-2 text-left">Requirement</th>
+                <th className="w-32 px-3 py-2 text-right">Quantity</th>
+                <th className="w-36 px-3 py-2 text-left">Required</th>
+                <th className="w-24 px-3 py-2 text-left">GL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedTender.lines.map((line) => (
+                <tr key={line.id} className="border-t border-akiva-border">
+                  <td className="px-3 py-2">
+                    <p className="font-mono text-sm font-semibold text-akiva-text">{line.itemCode}</p>
+                    <p className="mt-1 text-xs text-akiva-text-muted">{line.category}</p>
+                  </td>
+                  <td className="px-3 py-2">
+                    <p className="text-sm font-semibold text-akiva-text">{line.description}</p>
+                    <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{line.technicalRequirement}</p>
+                  </td>
+                  <td className="px-3 py-2 text-right text-sm font-semibold text-akiva-text">{line.quantity} {line.units}</td>
+                  <td className="px-3 py-2 text-sm text-akiva-text-muted">{formatDate(line.requiredDate)}</td>
+                  <td className="px-3 py-2 font-mono text-sm text-akiva-text-muted">{line.glCode}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 shadow-sm">
         <div className="border-b border-akiva-border px-4 py-3">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-akiva-text">Offer lines from selected supplier</h2>
-              <p className="mt-1 text-sm text-akiva-text-muted">Accept converts lines into a pending-review PO, reject clears them, defer leaves them outstanding.</p>
+              <h2 className="text-base font-semibold text-akiva-text">Offer comparison and award decision</h2>
+              <p className="mt-1 text-sm text-akiva-text-muted">Score combines price, lead time, compliance, and supplier performance. Accepted awards create pending-review POs grouped by supplier.</p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs font-semibold">
               <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900">Accept</span>
@@ -2070,35 +2785,73 @@ function OffersReceivedPanel({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] table-fixed">
-            <thead className="bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-text-muted">
+        <div className="max-h-[560px] overflow-auto">
+          <table className="w-full min-w-[1180px] table-fixed">
+            <thead className="sticky top-0 z-10 bg-akiva-table-header text-xs uppercase tracking-wide text-akiva-text-muted">
               <tr>
                 <th className="w-28 px-4 py-3 text-left">Offer ID</th>
-                <th className="w-28 px-4 py-3 text-left">Tender</th>
-                <th className="w-64 px-4 py-3 text-left">Item</th>
+                <th className="w-56 px-4 py-3 text-left">Supplier</th>
+                <th className="w-64 px-4 py-3 text-left">Tender line</th>
                 <th className="w-28 px-4 py-3 text-right">Quantity</th>
                 <th className="w-32 px-4 py-3 text-right">Price</th>
                 <th className="w-32 px-4 py-3 text-right">Total</th>
+                <th className="w-32 px-4 py-3 text-left">Compliance</th>
+                <th className="w-32 px-4 py-3 text-right">Score</th>
                 <th className="w-32 px-4 py-3 text-left">Expires</th>
                 <th className="w-72 px-4 py-3 text-left">Decision</th>
               </tr>
             </thead>
             <tbody>
-              {selectedOffers.map((offer) => {
+              {evaluatedOffers.map(({ offer, tenderLine, evaluation }) => {
                 const decision = decisions[offer.id] ?? 'defer';
                 const days = daysUntil(offer.expiryDate);
+                const lineOffers = selectedOffers.filter((candidate) => candidate.lineId === offer.lineId);
+                const lowestLinePrice = Math.min(...lineOffers.map((candidate) => candidate.price));
+                const priceVariance = offer.price - lowestLinePrice;
+                const recommended = recommendedOfferIds.includes(offer.id);
                 return (
-                  <tr key={offer.id} className="border-t border-akiva-border">
+                  <tr
+                    key={offer.id}
+                    className={`border-t border-akiva-border align-top ${
+                      decision === 'accept'
+                        ? 'bg-emerald-50/60 dark:bg-emerald-950/20'
+                        : recommended
+                          ? 'bg-akiva-accent-soft/30 dark:bg-akiva-accent-soft/10'
+                          : ''
+                    }`}
+                  >
                     <td className="px-4 py-3 font-mono text-sm font-semibold text-akiva-text">{offer.id}</td>
-                    <td className="px-4 py-3 font-mono text-sm text-akiva-text-muted">{offer.tenderId}</td>
+                    <td className="px-4 py-3">
+                      <p className="truncate text-sm font-semibold text-akiva-text">{offer.supplierName}</p>
+                      <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.paymentTerms} · lead {offer.leadTimeDays} days</p>
+                    </td>
                     <td className="px-4 py-3">
                       <p className="truncate text-sm font-semibold text-akiva-text">{offer.description}</p>
-                      <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.itemCode} · {offer.category}</p>
+                      <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.itemCode} · {tenderLine?.technicalRequirement ?? offer.category}</p>
+                      <p className="mt-1 truncate text-xs text-akiva-text-muted">{offer.notes}</p>
                     </td>
                     <td className="px-4 py-3 text-right text-sm">{offer.quantity} {offer.units}</td>
-                    <td className="px-4 py-3 text-right text-sm">{money(offer.price, offer.currency)}</td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      <span className="block">{money(offer.price, offer.currency)}</span>
+                      <span className="mt-1 block text-xs text-akiva-text-muted">
+                        {priceVariance === 0 ? 'Best price' : `+${money(priceVariance, offer.currency)}`}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-right text-sm font-semibold">{money(offerTotal(offer), offer.currency)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${complianceTone(offer.complianceStatus)}`}>
+                        {offer.complianceStatus}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <p className={`text-sm font-semibold ${scoreTone(evaluation.score)}`}>{evaluation.score}/100</p>
+                      <p className="mt-1 text-xs text-akiva-text-muted">Rank {evaluation.rank} · {evaluation.recommendation}</p>
+                      {recommended ? (
+                        <span className="mt-1 inline-flex rounded-full bg-akiva-accent px-2 py-0.5 text-[11px] font-semibold text-white">
+                          Recommended
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${
                         days <= 3
@@ -2115,6 +2868,7 @@ function OffersReceivedPanel({
                             key={option}
                             type="button"
                             onClick={() => onDecisionChange(offer.id, option)}
+                            aria-pressed={decision === option}
                             className={`h-9 rounded-md border px-2 text-xs font-semibold capitalize transition ${
                               decision === option
                                 ? option === 'accept'

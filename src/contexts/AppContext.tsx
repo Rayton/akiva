@@ -161,7 +161,7 @@ export function AppProvider({ children }: AppProviderProps) {
 
   const expandIconSidebar = () => {
     setIconSidebarExpanded(true);
-    setIconSidebarWidth(300);
+    setIconSidebarWidth(240);
   };
 
   const collapseIconSidebar = () => {

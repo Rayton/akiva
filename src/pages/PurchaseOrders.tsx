@@ -1570,23 +1570,6 @@ export function PurchaseOrders() {
                 />
               ) : isCreatePoRoute ? (
                 <>
-                  <section className="grid gap-3 rounded-2xl border border-akiva-border bg-gradient-to-r from-white via-emerald-50/60 to-sky-50/70 p-3 shadow-sm dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/80 lg:grid-cols-[1fr_auto] lg:items-center">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Create workflow</p>
-                      <h2 className="mt-1 text-base font-semibold text-akiva-text">Draft supplier, delivery, and item lines before review.</h2>
-                      <p className="mt-1 text-sm leading-5 text-akiva-text-muted">
-                        Save as draft when details are incomplete, or submit for review once supplier, location, quantities, prices, and GL codes are ready.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => saveDraftOrder('Draft')}>Save draft</Button>
-                      <Button size="sm" onClick={() => saveDraftOrder('Pending Review')}>
-                        <Send className="mr-2 h-4 w-4" />
-                        Submit
-                      </Button>
-                    </div>
-                  </section>
-
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                     <div className="min-w-0">{createPurchaseOrderPanel}</div>
                     <aside className="space-y-4">

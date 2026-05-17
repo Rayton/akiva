@@ -122,7 +122,16 @@ Do not use viewport-based font sizing. Keep letter spacing normal except upperca
 
 ## Buttons And Controls
 
-Use `src/components/common/Button.tsx` for standard text actions. Keep primary actions rose through `akiva-accent`.
+Use `src/components/common/Button.tsx` for standard text actions. Keep primary workflow actions on the enterprise purple `akiva-accent` system.
+
+Button hierarchy:
+
+- Primary workflow actions: `akiva-accent` with white text
+- Secondary actions: neutral surface, neutral border, `akiva-text`
+- Utility/table actions: neutral surface, neutral border, `akiva-text-muted`
+- Export actions: neutral subtle, not primary
+- Destructive actions: `akiva-danger`
+- Workflow state indicators: semantic status colors only
 
 Use icon-only circular buttons for common tools:
 
@@ -144,7 +153,7 @@ Controls should be familiar:
 
 ### Data Grid Standards
 
-Use dense rows by default for accounting, inventory, and procurement lists. Table headers must be sticky, filter inputs must be labelled, and row focus must remain visible for keyboard users. Numeric columns should be right-aligned and use tabular figures. Status cells must include text plus a visual marker, not color alone. Operational tables should support saved views, density switching, row selection, and bulk-action hooks where users review queues repeatedly.
+Use compact rows by default for accounting, inventory, and procurement lists. Table headers must be sticky, filter inputs must be labelled, and row focus must remain visible for keyboard users. Numeric columns should be right-aligned and use tabular figures. Status cells must include text plus a visual marker, not color alone. Operational tables should support saved views, three-mode density switching (`compact`, `comfortable`, `expanded`), row selection, and bulk-action hooks where users review queues repeatedly.
 
 Recommended advanced table:
 
@@ -260,7 +269,7 @@ Toast conventions:
 - Shape: `rounded-lg border px-4 py-3 text-sm shadow-xl`
 - Layout: icon, message text, dismiss button
 - Success: emerald tones with `CheckCircle2`
-- Error: rose tones with `AlertTriangle`
+- Error: red tones with `AlertTriangle`
 
 - Accessibility: `role="status"` for success and `role="alert"` for errors
 - Behavior: allow manual dismissal and auto-dismiss after about 7 seconds
@@ -283,7 +292,7 @@ Recommended toast:
 
 ## AI-Ready ERP Patterns
 
-Use AI surfaces as operational work queues, not decorative chat widgets. AI panels should show recommended actions, affected document numbers, financial impact, confidence or risk language, and a clear human approval path. Keep them adjacent to the workflow they affect, such as approval queues, supplier exposure, reorder decisions, reconciliations, and anomaly reviews.
+Use AI surfaces as operational work queues, not decorative chat widgets. AI panels should show recommended actions, affected document numbers, financial impact, confidence, impact score, risk severity, recommended sequence, expected resolution value, operational reasoning, and a clear human approval path. Keep them adjacent to the workflow they affect, such as approval queues, supplier exposure, reorder decisions, reconciliations, and anomaly reviews.
 
 ## Cards And KPIs
 
@@ -293,6 +302,8 @@ Metric cards should include:
 - Large value
 - Muted detail
 - Optional status/change pill with icon
+- Semantic left accent or border emphasis for high-risk finance and operations metrics
+- Stronger visual priority for cash exposure, blocked approvals, overdue receivables, and stockout risk
 - Icon in a circular token area
 
 Use this structure:
@@ -351,6 +362,7 @@ Chart colors should come from CSS variables:
 - Muted series: `var(--akiva-chart-muted)` or `var(--akiva-chart-ink)`
 - Brand series: `var(--akiva-chart-brand)`
 - Thresholds and operational benchmarks: `ReferenceLine` with semantic colors and short labels
+- Forecast overlays: dashed semantic lines, labelled as forecast or projected
 - Anomaly markers: pair color with labels, icons, or callout rows so meaning is not color-only
 - Tooltip background/border/text: `--akiva-chart-tooltip-*`
 
@@ -363,7 +375,7 @@ Keep charts compact and framed by a useful analytical panel. Avoid decorative ch
 - Use `min-h-11` controls for touch targets
 - Mobile inputs should remain at least 16px text to avoid browser zoom
 - Primary submit action belongs at the end of the form or in a sticky drawer footer
-- Validation and error text should use rose/red tones and plain language
+- Validation and error text should use red tones and plain language
 
 ## Responsive Rules
 

@@ -435,7 +435,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
               : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
           }`}
         >
-          <ItemIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${isCurrentBranchActive ? 'text-rose-600 dark:text-rose-300' : 'text-akiva-text-muted'}`} />
+          <ItemIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${isCurrentBranchActive ? 'text-akiva-accent-text' : 'text-akiva-text-muted'}`} />
           <span className="truncate font-medium flex-1 text-left">{categoryLabel}</span>
           <ChevronUp className={`w-3 h-3 transition-transform duration-200 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
         </button>
@@ -459,7 +459,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                           : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
                       }`}
                     >
-                      <ChildIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${childBranchActive ? 'text-rose-600 dark:text-rose-300' : 'text-akiva-text-muted'}`} />
+                      <ChildIcon weight="regular" className={`w-4 h-4 flex-shrink-0 ${childBranchActive ? 'text-akiva-accent-text' : 'text-akiva-text-muted'}`} />
                       <span className="truncate flex-1 text-left">{childLabel}</span>
                       <ChevronUp className={`w-3 h-3 transition-transform duration-200 flex-shrink-0 ${childExpanded ? 'rotate-180' : ''}`} />
                     </button>
@@ -474,7 +474,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                               onClick={() => setCurrentPage(grandChildPageId)}
                               className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-all duration-200 rounded text-left ${
                                 nodeMatchesPage(grandChild, currentPage)
-                                  ? 'bg-rose-50 text-rose-700 font-medium dark:bg-rose-950/40 dark:text-rose-300'
+                                  ? 'bg-akiva-accent-soft text-akiva-accent-text font-medium'
                                   : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
                               }`}
                             >
@@ -497,7 +497,7 @@ function MenuCategoryItem({ category, currentPage, setCurrentPage, expandedSubIt
                   onClick={() => setCurrentPage(childPageId)}
                   className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-all duration-200 rounded text-left ${
                     nodeMatchesPage(child, currentPage)
-                      ? 'bg-rose-50 text-rose-700 font-medium dark:bg-rose-950/40 dark:text-rose-300'
+                      ? 'bg-akiva-accent-soft text-akiva-accent-text font-medium'
                       : 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800/80 dark:hover:text-white'
                   }`}
                 >
@@ -908,7 +908,7 @@ function Sidebar() {
       >
         {/* Resize Handle */}
         <div
-        className="absolute bottom-0 right-0 top-0 z-10 w-1 cursor-col-resize transition-all duration-200 hover:w-1.5 hover:bg-rose-500 dark:hover:bg-rose-400"
+        className="absolute bottom-0 right-0 top-0 z-10 w-1 cursor-col-resize transition-all duration-200 hover:w-1.5 hover:bg-akiva-accent"
         onMouseDown={handleIconMouseDown}
         />
 
@@ -960,7 +960,7 @@ function Sidebar() {
             {/* First sidebar: main menus from menus table (parent = -1) */}
             {menuLoading && (
               <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
+                <Loader2 className="w-5 h-5 animate-spin text-akiva-accent-text" />
               </div>
             )}
 	            {!menuLoading && primaryMainMenus.length === 0 && (
@@ -983,7 +983,7 @@ function Sidebar() {
 		                    }}
 	                    className={`flex items-center rounded-full transition-all duration-300 ${
                       isActive
-                        ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/25 dark:bg-rose-500 dark:shadow-rose-500/20'
+                        ? 'bg-akiva-accent text-white shadow-lg shadow-violet-900/20 dark:bg-akiva-accent dark:shadow-black/25'
                         : iconSidebarExpanded
                           ? 'text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800 dark:hover:text-white'
                           : 'bg-white/86 text-slate-700 shadow-sm shadow-slate-200/70 hover:bg-white hover:text-slate-950 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white'
@@ -1008,7 +1008,7 @@ function Sidebar() {
 	                onMouseLeave={hideRailTooltip}
 	                className={`relative flex items-center transition-all duration-300 ${
 	                  iconSidebarExpanded
-	                    ? 'h-10 w-full justify-start gap-3 rounded-lg bg-rose-600 px-3 text-white hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400'
+	                    ? 'h-10 w-full justify-start gap-3 rounded-lg bg-akiva-accent px-3 text-white hover:bg-akiva-accent-strong dark:bg-akiva-accent dark:hover:bg-akiva-accent-strong'
 	                    : 'mx-auto h-11 w-11 justify-center rounded-full bg-white/86 text-slate-700 shadow-sm shadow-slate-200/70 hover:bg-white hover:text-slate-950 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white'
 	                }`}
 	              >
@@ -1016,7 +1016,7 @@ function Sidebar() {
                 {iconSidebarExpanded && iconSidebarWidth > 132 && (
                   <span className="truncate text-sm font-medium">Notifications</span>
 	                )}
-	                <span className="absolute right-1.5 top-1.5 h-3 w-3 rounded-full bg-rose-600 ring-2 ring-white dark:ring-slate-900" />
+	                <span className="absolute right-1.5 top-1.5 h-3 w-3 rounded-full bg-akiva-danger ring-2 ring-white dark:ring-slate-900" />
 	              </button>
 	            </div>
 	            
@@ -1029,8 +1029,8 @@ function Sidebar() {
 	                className={`flex items-center transition-all duration-300 ${
 	                  selectedMainMenuId === configurationMainMenu?.id
 	                    ? iconSidebarExpanded
-	                      ? 'h-10 w-full justify-start gap-3 rounded-lg bg-rose-600 px-3 text-white shadow-lg shadow-rose-500/25 dark:bg-rose-500 dark:shadow-rose-500/20'
-	                      : 'mx-auto h-11 w-11 justify-center rounded-full bg-rose-600 text-white shadow-lg shadow-rose-500/25 dark:bg-rose-500 dark:shadow-rose-500/20'
+	                      ? 'h-10 w-full justify-start gap-3 rounded-lg bg-akiva-accent px-3 text-white shadow-lg shadow-violet-900/20 dark:bg-akiva-accent dark:shadow-black/25'
+	                      : 'mx-auto h-11 w-11 justify-center rounded-full bg-akiva-accent text-white shadow-lg shadow-violet-900/20 dark:bg-akiva-accent dark:shadow-black/25'
 	                    : iconSidebarExpanded
 	                      ? 'h-10 w-full justify-start gap-3 rounded-lg px-3 text-akiva-text-muted hover:bg-white/70 hover:text-akiva-text dark:text-akiva-text-muted dark:hover:bg-slate-800 dark:hover:text-white'
 	                      : 'mx-auto h-11 w-11 justify-center rounded-full bg-white/86 text-slate-700 shadow-sm shadow-slate-200/70 hover:bg-white hover:text-slate-950 dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800 dark:hover:text-white'
@@ -1075,7 +1075,7 @@ function Sidebar() {
       >
         {/* Resize Handle */}
         <div
-          className="absolute bottom-0 right-0 top-0 z-10 w-1 cursor-col-resize transition-all duration-200 hover:w-1.5 hover:bg-rose-500 dark:hover:bg-rose-400"
+          className="absolute bottom-0 right-0 top-0 z-10 w-1 cursor-col-resize transition-all duration-200 hover:w-1.5 hover:bg-akiva-accent"
           onMouseDown={handleMainMouseDown}
         />
 
@@ -1116,7 +1116,7 @@ function Sidebar() {
               <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
               {menuLoading && (
                 <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
+                    <Loader2 className="w-5 h-5 animate-spin text-akiva-accent-text" />
                   <span className="ml-2 text-sm text-akiva-text-muted">Loading...</span>
                 </div>
               )}
@@ -1130,9 +1130,9 @@ function Sidebar() {
                       <button
                         type="button"
                         onClick={handleDisplayedMainMenuTitleClick}
-                        className={`rounded text-left font-semibold no-underline transition hover:no-underline focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950 ${
+                        className={`rounded text-left font-semibold no-underline transition hover:no-underline focus:outline-none focus:ring-2 focus:ring-akiva-accent focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950 ${
                           isDisplayedMainMenuDashboardActive
-                            ? 'text-rose-600 hover:text-rose-700 dark:text-rose-300 dark:hover:text-rose-200'
+                            ? 'text-akiva-accent-text hover:text-akiva-accent-strong dark:hover:text-white'
                             : 'text-inherit hover:text-slate-700 dark:hover:text-slate-200'
                         }`}
                       >

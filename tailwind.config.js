@@ -45,24 +45,23 @@ export default {
           'table-row-hover': 'var(--akiva-table-row-hover)',
           'table-stripe': 'var(--akiva-table-stripe)',
         },
-        // Brand colors - update these values to change the brand color
+        // Brand colors - enterprise purple identity, aligned with akiva accent tokens.
         brand: {
-          50: 'rgba(236, 72, 153, 0.1)',
-          100: '#fce7f3', // Pink 100 - light mode background
-          200: '#fbcfe8', // Pink 200 - light mode background
-          300: '#f9a8d4', // Pink 300
-          400: '#f472b6', // Pink 400
-          500: '#ec4899', // Pink 500 - main brand color
-          600: '#db2777', // Pink 600
-          700: '#be185d', // Pink 700
-          800: '#9d174d', // Pink 800 - dark mode background
-          900: '#831843', // Pink 900 - dark mode background
-          // Dark mode specific - lighter variants for better readability
-          'dark-100': 'rgba(236, 72, 153, 0.15)',
-          'dark-200': 'rgba(236, 72, 153, 0.25)',
-          'dark-300': 'rgba(236, 72, 153, 0.35)',
-          'dark-text': '#f9a8d4', // Pink 400 - readable text on dark
-          'dark-text-muted': '#f472b6', // Pink 400 - muted readable text
+          50: 'rgba(109, 40, 217, 0.08)',
+          100: '#ede9fe',
+          200: '#ddd6fe',
+          300: '#c4b5fd',
+          400: '#a78bfa',
+          500: '#7c3aed',
+          600: '#6d28d9',
+          700: '#5b21b6',
+          800: '#4c1d95',
+          900: '#3b0764',
+          'dark-100': 'rgba(109, 40, 217, 0.18)',
+          'dark-200': 'rgba(109, 40, 217, 0.28)',
+          'dark-300': 'rgba(109, 40, 217, 0.38)',
+          'dark-text': '#ddd6fe',
+          'dark-text-muted': '#c4b5fd',
         },
         
         // Custom amber color
@@ -102,7 +101,7 @@ export default {
         'dark-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
         'glow-blue': '0 0 20px rgba(96, 165, 250, 0.4)',
         'glow-green': '0 0 20px rgba(74, 222, 128, 0.4)',
-        'glow-brand': '0 0 20px rgba(236, 72, 153, 0.4)',
+        'glow-brand': '0 0 20px rgba(109, 40, 217, 0.28)',
       },
       
       // Animation utilities for smooth transitions

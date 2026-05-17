@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   Cell,
   Line,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -62,6 +63,11 @@ const chartTooltipContentStyle = {
 const chartTooltipTextStyle = {
   color: 'var(--akiva-chart-tooltip-text)',
   fontWeight: 600,
+};
+
+const formatTooltipValue = (value: unknown) => {
+  if (typeof value === 'number') return currency.format(value);
+  return String(value ?? '');
 };
 
 const executiveMetrics = [
@@ -123,15 +129,17 @@ const operatingFlow = [
 ];
 
 const cashTrend = [
-  { month: 'Jan', cash: 96000, receivables: 128000, payables: 82000 },
-  { month: 'Feb', cash: 106000, receivables: 135000, payables: 89000 },
-  { month: 'Mar', cash: 99000, receivables: 149000, payables: 93000 },
-  { month: 'Apr', cash: 119000, receivables: 141000, payables: 102000 },
-  { month: 'May', cash: 132000, receivables: 153000, payables: 110000 },
-  { month: 'Jun', cash: 151000, receivables: 160000, payables: 116000 },
-  { month: 'Jul', cash: 146000, receivables: 158000, payables: 106000 },
-  { month: 'Aug', cash: 176000, receivables: 166000, payables: 122000 },
-  { month: 'Sep', cash: 214870, receivables: 156841, payables: 84200 },
+  { month: 'Jan', cash: 96000, receivables: 128000, payables: 82000, forecastCash: null },
+  { month: 'Feb', cash: 106000, receivables: 135000, payables: 89000, forecastCash: null },
+  { month: 'Mar', cash: 99000, receivables: 149000, payables: 93000, forecastCash: null },
+  { month: 'Apr', cash: 119000, receivables: 141000, payables: 102000, forecastCash: null },
+  { month: 'May', cash: 132000, receivables: 153000, payables: 110000, forecastCash: null },
+  { month: 'Jun', cash: 151000, receivables: 160000, payables: 116000, forecastCash: null },
+  { month: 'Jul', cash: 146000, receivables: 158000, payables: 106000, forecastCash: null },
+  { month: 'Aug', cash: 176000, receivables: 166000, payables: 122000, forecastCash: 176000 },
+  { month: 'Sep', cash: 214870, receivables: 156841, payables: 84200, forecastCash: 214870 },
+  { month: 'Oct', cash: null, receivables: 151000, payables: 116000, forecastCash: 204000 },
+  { month: 'Nov', cash: null, receivables: 146000, payables: 126000, forecastCash: 188000 },
 ];
 
 const supplierExposure = [
@@ -185,7 +193,14 @@ const aiControlBrief = [
   {
     title: 'Defer non-critical payment batch',
     detail: 'Preserves $31k cash until receivables follow-up clears.',
-    confidence: 'High confidence',
+    priority: 1,
+    confidence: '92%',
+    impactScore: '8.7',
+    businessImpact: '$31k liquidity protected',
+    severity: 'Medium cash pressure',
+    sequence: 'After 14:00 AR calls',
+    resolutionValue: '2.1 days runway',
+    reasoning: 'Deferral stays inside supplier SLA while protecting the cash floor for payroll and critical medical supply orders.',
     approval: 'CFO review',
     icon: Banknote,
     tone: 'warning' as const,
@@ -193,7 +208,14 @@ const aiControlBrief = [
   {
     title: 'Escalate supplier PO approval',
     detail: 'Medical consumables are blocking replenishment for two locations.',
-    confidence: 'High confidence',
+    priority: 2,
+    confidence: '89%',
+    impactScore: '9.1',
+    businessImpact: '$44.9k replenishment unblocked',
+    severity: 'High stockout exposure',
+    sequence: 'Before next GRN cut-off',
+    resolutionValue: '18 stockout lines cleared',
+    reasoning: 'Approval aging exceeds SLA and the same supplier holds the highest open commitment concentration.',
     approval: 'Procurement director',
     icon: ShieldCheck,
     tone: 'pending' as const,
@@ -201,7 +223,14 @@ const aiControlBrief = [
   {
     title: 'Create transfer before purchase',
     detail: 'Theatre Store has surplus of two low-stock central-store items.',
-    confidence: 'Medium confidence',
+    priority: 3,
+    confidence: '76%',
+    impactScore: '7.4',
+    businessImpact: '$8.6k purchase avoided',
+    severity: 'Low procurement risk',
+    sequence: 'Before new PO creation',
+    resolutionValue: '2 items rebalanced',
+    reasoning: 'Internal stock can cover central demand faster than supplier lead time with no negative location balance.',
     approval: 'Stores manager',
     icon: PackageCheck,
     tone: 'info' as const,
@@ -233,6 +262,15 @@ function dotClass(tone: RiskTone): string {
   return 'bg-slate-500 dark:bg-slate-300';
 }
 
+function toneTextClass(tone: RiskTone): string {
+  if (tone === 'danger') return 'text-red-700 dark:text-red-200';
+  if (tone === 'warning') return 'text-orange-700 dark:text-orange-200';
+  if (tone === 'pending') return 'text-purple-700 dark:text-purple-200';
+  if (tone === 'success') return 'text-emerald-700 dark:text-emerald-200';
+  if (tone === 'info') return 'text-blue-700 dark:text-blue-200';
+  return 'text-akiva-text-muted';
+}
+
 function IconButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <button
@@ -255,6 +293,15 @@ function StatusBadge({ tone, children }: { tone: RiskTone; children: string }) {
   );
 }
 
+function MetricStatusPill({ tone, children }: { tone: RiskTone; children: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+      <span className={`akiva-status-dot ${dotClass(tone)}`} />
+      {children}
+    </span>
+  );
+}
+
 function MetricCard({
   label,
   value,
@@ -271,19 +318,20 @@ function MetricCard({
   icon: LucideIcon;
 }) {
   return (
-    <article className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
+    <article className="relative overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
+      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${dotClass(tone)}`} aria-hidden="true" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{label}</p>
+          <p className="text-xs font-semibold uppercase tracking-normal text-akiva-text-muted">{label}</p>
           <p className="akiva-financial-value mt-2 truncate text-2xl font-semibold text-akiva-text">{value}</p>
         </div>
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${toneClasses(tone)}`}>
-          <Icon className="h-5 w-5" />
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-muted ${toneTextClass(tone)}`}>
+          <Icon className="h-4 w-4" />
         </span>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3">
         <p className="text-sm leading-5 text-akiva-text-muted">{detail}</p>
-        <StatusBadge tone={tone}>{status}</StatusBadge>
+        <MetricStatusPill tone={tone}>{status}</MetricStatusPill>
       </div>
     </article>
   );
@@ -436,7 +484,7 @@ export function Dashboard() {
                 <IconButton icon={FileSearch} label="Open audit trail" />
                 <button
                   type="button"
-                  className="inline-flex min-h-10 items-center gap-2 rounded-full bg-akiva-accent px-4 text-sm font-semibold text-white shadow-sm shadow-rose-900/20 transition hover:bg-akiva-accent-strong"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-full bg-akiva-accent px-4 text-sm font-semibold text-white shadow-sm shadow-violet-900/20 transition hover:bg-akiva-accent-strong"
                 >
                   <Sparkles className="h-4 w-4" />
                   Review Risks
@@ -463,16 +511,18 @@ export function Dashboard() {
                       <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--akiva-chart-muted)' }} />
                       <YAxis tickFormatter={(value: number) => compactCurrency.format(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} width={58} />
                       <Tooltip
-                        formatter={(value: number) => currency.format(value)}
+                        formatter={formatTooltipValue}
                         contentStyle={chartTooltipContentStyle}
                         labelStyle={chartTooltipTextStyle}
                         itemStyle={chartTooltipTextStyle}
                       />
-                      <Area type="monotone" dataKey="receivables" name="Receivables" stroke="var(--akiva-chart-warning)" strokeWidth={2} fill="rgba(180, 83, 9, 0.12)" />
-                      <Area type="monotone" dataKey="payables" name="Payables" stroke="var(--akiva-chart-danger)" strokeWidth={2} fill="rgba(190, 18, 60, 0.1)" />
+                      <Area type="monotone" dataKey="receivables" name="Receivables" stroke="var(--akiva-chart-warning)" strokeWidth={2} fill="rgba(217, 119, 6, 0.12)" />
+                      <Area type="monotone" dataKey="payables" name="Payables" stroke="var(--akiva-chart-danger)" strokeWidth={2} fill="rgba(220, 38, 38, 0.1)" />
                       <Line type="monotone" dataKey="cash" name="Cash" stroke="var(--akiva-chart-ink)" strokeWidth={3} dot={false} />
+                      <Line type="monotone" dataKey="forecastCash" name="Forecast cash" stroke="var(--akiva-chart-pending)" strokeWidth={2.5} strokeDasharray="6 6" dot={false} />
                       <ReferenceLine y={120000} stroke="var(--akiva-chart-danger)" strokeDasharray="5 5" label={{ value: 'Cash floor', fill: 'var(--akiva-chart-danger)', fontSize: 11 }} />
                       <ReferenceLine y={160000} stroke="var(--akiva-chart-warning)" strokeDasharray="4 6" label={{ value: 'AR review', fill: 'var(--akiva-chart-warning)', fontSize: 11 }} />
+                      <ReferenceDot x="Sep" y={156841} r={5} fill="var(--akiva-chart-warning)" stroke="var(--akiva-chart-tooltip-bg)" strokeWidth={2} label={{ value: 'AR anomaly', fill: 'var(--akiva-chart-warning)', fontSize: 11, position: 'top' }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -484,7 +534,7 @@ export function Dashboard() {
                     Receivables crossed review benchmark
                   </div>
                   <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-                    Drilldown ready for AR and AP ledgers
+                    Forecast overlay shows cash compression by Nov
                   </div>
                 </div>
               </Panel>
@@ -506,11 +556,12 @@ export function Dashboard() {
                         <XAxis type="number" tickFormatter={(value: number) => compactCurrency.format(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
                         <YAxis type="category" dataKey="supplier" width={132} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
                         <Tooltip
-                          formatter={(value: number) => currency.format(value)}
+                          formatter={formatTooltipValue}
                           contentStyle={chartTooltipContentStyle}
                           labelStyle={chartTooltipTextStyle}
                           itemStyle={chartTooltipTextStyle}
                         />
+                        <ReferenceLine x={75000} stroke="var(--akiva-chart-warning)" strokeDasharray="5 5" label={{ value: 'Exposure limit', fill: 'var(--akiva-chart-warning)', fontSize: 11, position: 'insideTopRight' }} />
                         <Bar dataKey="value" name="Open commitment" radius={[0, 8, 8, 0]} barSize={22}>
                           {supplierExposure.map((row) => (
                             <Cell key={row.supplier} fill={row.color} />
@@ -575,12 +626,35 @@ export function Dashboard() {
                             <Icon className="h-4 w-4" />
                           </span>
                           <span className="min-w-0">
-                            <span className="block text-sm font-semibold text-akiva-text">{item.title}</span>
-                            <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{item.detail}</span>
-                            <span className="mt-2 flex flex-wrap gap-2">
-                              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClasses(item.tone)}`}>{item.confidence}</span>
-                              <span className="rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">{item.approval}</span>
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClasses(item.tone)}`}>P{item.priority}</span>
+                              <span className="block text-sm font-semibold text-akiva-text">{item.title}</span>
                             </span>
+                            <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{item.detail}</span>
+                            <span className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
+                                <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">Confidence</span>
+                                <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{item.confidence}</span>
+                              </span>
+                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
+                                <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">Impact</span>
+                                <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{item.impactScore}/10</span>
+                              </span>
+                            </span>
+                            <span className="mt-2 block rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1.5 text-[11px] leading-5 text-akiva-text-muted">
+                              <span className="font-semibold text-akiva-text">{item.businessImpact}</span>
+                              <span className="mx-1 text-akiva-border-strong">|</span>
+                              {item.severity}
+                              <span className="mx-1 text-akiva-border-strong">|</span>
+                              {item.resolutionValue}
+                            </span>
+                            <span className="mt-2 block text-[11px] leading-5 text-akiva-text-muted">
+                              <span className="font-semibold text-akiva-text">Sequence:</span> {item.sequence}
+                            </span>
+                            <span className="mt-1 block text-[11px] leading-5 text-akiva-text-muted">
+                              <span className="font-semibold text-akiva-text">Reason:</span> {item.reasoning}
+                            </span>
+                            <span className="mt-2 inline-flex rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">{item.approval}</span>
                           </span>
                         </div>
                       </button>

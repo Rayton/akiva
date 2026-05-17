@@ -30,7 +30,7 @@ interface AdvancedTableProps<T> {
   emptyMessage?: string;
   loading?: boolean;
   loadingMessage?: string;
-  density?: 'compact' | 'comfortable';
+  density?: Density;
   maxTableHeight?: string;
   enableDensityToggle?: boolean;
   enableSavedViews?: boolean;
@@ -62,7 +62,51 @@ type SortState = {
   direction: SortDirection;
 };
 
-type Density = 'compact' | 'comfortable';
+type Density = 'compact' | 'comfortable' | 'expanded';
+
+const DENSITY_OPTIONS: Array<{ value: Density; label: string }> = [
+  { value: 'compact', label: 'Compact' },
+  { value: 'comfortable', label: 'Comfortable' },
+  { value: 'expanded', label: 'Expanded' },
+];
+
+const DENSITY_CLASSES: Record<Density, {
+  header: string;
+  filter: string;
+  body: string;
+  selection: string;
+  filterInput: string;
+  bodyText: string;
+  headerOffset: string;
+}> = {
+  compact: {
+    header: 'px-2.5 py-1.5',
+    filter: 'px-2.5 py-1.5',
+    body: 'px-2.5 py-1.5',
+    selection: 'px-2.5 py-1.5',
+    filterInput: 'h-7',
+    bodyText: 'text-[13px]',
+    headerOffset: '32px',
+  },
+  comfortable: {
+    header: 'px-3 py-2',
+    filter: 'px-3 py-2',
+    body: 'px-3 py-2',
+    selection: 'px-3 py-2',
+    filterInput: 'h-8',
+    bodyText: 'text-sm',
+    headerOffset: '37px',
+  },
+  expanded: {
+    header: 'px-4 py-3',
+    filter: 'px-4 py-2.5',
+    body: 'px-4 py-3',
+    selection: 'px-4 py-3',
+    filterInput: 'h-9',
+    bodyText: 'text-sm',
+    headerOffset: '45px',
+  },
+};
 
 type SavedView = {
   name: string;
@@ -349,7 +393,7 @@ export function AdvancedTable<T>({
 
   const stickyFilterClass = (column: AdvancedTableColumn<T>) =>
     isStickyRightColumn(column)
-      ? 'sticky right-0 top-[37px] z-30 border-l border-akiva-border bg-akiva-surface-raised shadow-[-10px_0_18px_rgba(15,23,42,0.08)]'
+      ? 'sticky right-0 z-30 border-l border-akiva-border bg-akiva-surface-raised shadow-[-10px_0_18px_rgba(15,23,42,0.08)]'
       : '';
 
   const stickyCellClass = (column: AdvancedTableColumn<T>) =>
@@ -361,9 +405,11 @@ export function AdvancedTable<T>({
     setPageIndex(0);
   }, [activeSearch, filters, sort]);
 
-  const headerCellClass = activeDensity === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
-  const filterCellClass = activeDensity === 'compact' ? 'px-3 py-2' : 'px-4 py-2.5';
-  const bodyCellClass = activeDensity === 'compact' ? 'px-3 py-2' : 'px-4 py-3';
+  const densityClasses = DENSITY_CLASSES[activeDensity];
+  const headerCellClass = densityClasses.header;
+  const filterCellClass = densityClasses.filter;
+  const bodyCellClass = densityClasses.body;
+  const filterTopStyle = { top: densityClasses.headerOffset };
 
   const saveCurrentView = () => {
     const view: SavedView = {
@@ -451,22 +497,37 @@ export function AdvancedTable<T>({
             onClick={() => setShowColumnsPanel((previous) => !previous)}
             aria-expanded={showColumnsPanel}
             aria-controls={`${tableId}-columns-panel`}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-accent-text shadow-sm hover:bg-akiva-accent-soft"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
           >
             <Columns3 className="h-3.5 w-3.5" />
             Columns
           </button>
           {enableDensityToggle ? (
-            <button
-              type="button"
-              onClick={() => setActiveDensity((current) => current === 'compact' ? 'comfortable' : 'compact')}
-              aria-pressed={activeDensity === 'comfortable'}
-              title="Toggle row density"
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
+            <div
+              role="group"
+              aria-label="Table row density"
+              className="inline-flex min-h-9 items-center gap-1 rounded-md border border-akiva-border bg-akiva-surface-raised p-1 text-xs font-semibold shadow-sm"
             >
-              <Rows3 className="h-3.5 w-3.5" />
-              {activeDensity === 'compact' ? 'Dense' : 'Comfort'}
-            </button>
+              <Rows3 className="ml-1 h-3.5 w-3.5 text-akiva-text-muted" aria-hidden="true" />
+              {DENSITY_OPTIONS.map((option) => {
+                const active = activeDensity === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setActiveDensity(option.value)}
+                    aria-pressed={active}
+                    className={`min-h-7 rounded px-2 text-xs font-semibold ${
+                      active
+                        ? 'bg-akiva-surface-muted text-akiva-text shadow-sm'
+                        : 'text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
           ) : null}
           {enableSavedViews ? (
             <>
@@ -499,7 +560,7 @@ export function AdvancedTable<T>({
                 onClick={onExportExcel}
                 aria-label={`Export ${ariaLabel ?? tableId} to Excel`}
                 title="Export to Excel"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-accent-text shadow-sm hover:bg-akiva-accent-soft"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 Excel
@@ -509,7 +570,7 @@ export function AdvancedTable<T>({
                 onClick={onExportPdf}
                 aria-label={`Export ${ariaLabel ?? tableId} to PDF`}
                 title="Export to PDF"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-accent-text shadow-sm hover:bg-akiva-accent-soft"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
               >
                 <FileText className="h-3.5 w-3.5" />
                 PDF
@@ -542,11 +603,11 @@ export function AdvancedTable<T>({
         </div>
       </div>
 
-      {selectableRows && selectedKeys.length > 0 ? (
+      {selectableRows && selectedRows.length > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-akiva-pending bg-akiva-pending-soft px-3 py-2 text-xs font-semibold text-akiva-text shadow-sm">
           <span className="inline-flex items-center gap-2">
             <CheckSquare className="h-4 w-4 text-akiva-accent-text" />
-            {selectedKeys.length} selected on this view
+            {selectedRows.length} selected on current page
           </span>
           {bulkActions.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -603,7 +664,7 @@ export function AdvancedTable<T>({
           <thead>
             <tr className="bg-akiva-table-header text-left text-xs uppercase tracking-wide text-akiva-text-muted">
               {selectableRows ? (
-                <th className="sticky left-0 top-0 z-40 w-[52px] border-b border-r border-akiva-border bg-akiva-table-header px-3 py-2 text-center">
+                <th className={`sticky left-0 top-0 z-40 w-[52px] border-b border-r border-akiva-border bg-akiva-table-header text-center ${densityClasses.selection}`}>
                   <input
                     type="checkbox"
                     checked={allPageRowsSelected}
@@ -661,10 +722,17 @@ export function AdvancedTable<T>({
             </tr>
             <tr className="bg-akiva-surface-raised">
               {selectableRows ? (
-                <th className="sticky left-0 top-[37px] z-30 w-[52px] border-b border-r border-akiva-border bg-akiva-surface-raised px-3 py-2" />
+                <th
+                  className={`sticky left-0 z-30 w-[52px] border-b border-r border-akiva-border bg-akiva-surface-raised ${densityClasses.selection}`}
+                  style={filterTopStyle}
+                />
               ) : null}
               {visibleColumns.map((column) => (
-                <th key={`${column.id}-filter`} className={`sticky top-[37px] z-20 border-b border-akiva-border bg-akiva-surface-raised ${filterCellClass} ${alignClass(column.align)} ${stickyFilterClass(column)}`}>
+                <th
+                  key={`${column.id}-filter`}
+                  className={`sticky z-20 border-b border-akiva-border bg-akiva-surface-raised ${filterCellClass} ${alignClass(column.align)} ${stickyFilterClass(column)}`}
+                  style={filterTopStyle}
+                >
                   {column.filterable === false ? null : (
                     <input
                       value={filters[column.id] ?? ''}
@@ -676,7 +744,7 @@ export function AdvancedTable<T>({
                       }
                       placeholder={`Filter ${column.header}`}
                       aria-label={`Filter ${column.header}`}
-                      className="h-8 w-full rounded-md border border-akiva-border bg-akiva-surface px-2 text-xs font-medium text-akiva-text placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                      className={`${densityClasses.filterInput} w-full rounded-md border border-akiva-border bg-akiva-surface px-2 text-xs font-medium text-akiva-text placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent`}
                     />
                   )}
                 </th>
@@ -705,7 +773,7 @@ export function AdvancedTable<T>({
                   className="group border-t border-akiva-border odd:bg-akiva-surface-raised even:bg-akiva-table-stripe hover:bg-akiva-table-row-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-akiva-accent"
                 >
                   {selectableRows ? (
-                    <td className="sticky left-0 z-20 border-r border-akiva-border bg-inherit px-3 py-2 text-center group-hover:bg-akiva-table-row-hover">
+                    <td className={`sticky left-0 z-20 border-r border-akiva-border bg-inherit text-center group-hover:bg-akiva-table-row-hover ${densityClasses.selection}`}>
                       <input
                         type="checkbox"
                         checked={selectedKeySet.has(rowKeyFor(row, index))}
@@ -718,7 +786,7 @@ export function AdvancedTable<T>({
                   {visibleColumns.map((column) => {
                     const value = column.accessor(row);
                     return (
-                      <td key={column.id} className={`${bodyCellClass} text-sm text-akiva-text ${alignClass(column.align)} ${stickyCellClass(column)}`}>
+                      <td key={column.id} className={`${bodyCellClass} ${densityClasses.bodyText} text-akiva-text ${alignClass(column.align)} ${stickyCellClass(column)}`}>
                         {column.cell ? column.cell(row) : asText(value)}
                       </td>
                     );

@@ -312,14 +312,36 @@ function isPurchaseOrderMenuSlug(slug: string): boolean {
   return (
     key === 'poselectospurchorder' ||
     key.includes('poselectospurchorder') ||
+    key.includes('poselectpurchorder') ||
     key === 'poheader' ||
     key === 'poitems' ||
+    key.includes('offersreceived') ||
+    key.includes('poauthorisemyorders') ||
+    key.includes('shiptselect') ||
     key === 'purchaseorders' ||
     key.includes('purchorder') ||
     key.includes('goodsreceived') ||
     key.includes('reprintgrn') ||
     key.includes('outstandinggrns') ||
     key.includes('suppinvgrns')
+  );
+}
+
+function isSupplierPayablesMenuSlug(slug: string, caption = ''): boolean {
+  const key = normalizedSlugKey(`${slug} ${caption}`);
+  return (
+    key.includes('supplierselect') ||
+    key.includes('supplierallocations') ||
+    key.includes('supplierallocatedinquiry') ||
+    key.includes('agedsuppliers') ||
+    key.includes('paymentrun') ||
+    key.includes('remittances') ||
+    key.includes('priorsupplierbalances') ||
+    key.includes('supplierdailytransactions') ||
+    key.includes('suppliertransactions') ||
+    key.includes('addsupplier') ||
+    key.includes('suppliermaintenance') ||
+    key.includes('factorcompanies')
   );
 }
 
@@ -1227,6 +1249,10 @@ function AppContent() {
         return <StockUsage />;
       }
 
+      if (isSupplierPayablesMenuSlug(menuSlug, currentMenuCaption)) {
+        return <AccountsPayable />;
+      }
+
       if (isReverseGrnMenuSlug(menuSlug)) {
         return <ReverseGoodsReceived />;
       }
@@ -1412,6 +1438,7 @@ function AppContent() {
       case 'sales-orders':
         return <SalesOrders mode="transactions" sourceSlug="sales-orders" />;
       case 'purchase-orders':
+      case 'outstanding-grns':
         return <PurchaseOrders />;
       case 'financial-reports':
         return <FinancialReports />;
@@ -1539,6 +1566,19 @@ function AppContent() {
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Purchase Invoices</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Process supplier invoices and bills</p></div>;
       case 'supplier-payments':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Supplier Payments</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage payments to suppliers</p></div>;
+      case 'supplier-select':
+      case 'supplier-allocations':
+      case 'supplier-allocated-inquiry':
+      case 'aged-suppliers':
+      case 'payment-run':
+      case 'remittances':
+      case 'prior-supplier-balances':
+      case 'supplier-daily-transactions':
+      case 'supplier-transactions':
+      case 'add-supplier':
+      case 'supplier-maintenance':
+      case 'factor-companies':
+        return <AccountsPayable />;
       case 'grn':
         return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Goods Received Notes</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Record goods received from suppliers</p></div>;
       case 'reversegrn':

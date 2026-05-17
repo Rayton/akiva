@@ -221,7 +221,8 @@ function LabelPreview({ label }: { label: LabelTemplate }) {
                       nextField ? nextField.vPos - field.vPos - 1 : label.height - field.vPos - 1,
                     ),
                   );
-                  const fontSize = Math.max(6, Math.min(18, field.fontSize * scale * 0.9));
+                  const availableHeightPx = availableHeight * scale;
+                  const fontSize = Math.max(6, Math.min(18, field.fontSize * scale * 0.9, availableHeightPx / 1.05));
                   const barcodeHeight = Math.max(10, Math.min(availableHeight * scale, 22 * scale));
 
                   return (
@@ -233,7 +234,7 @@ function LabelPreview({ label }: { label: LabelTemplate }) {
                         left: field.hPos * scale,
                         top: field.vPos * scale,
                         width: remainingWidth * scale,
-                        maxHeight: availableHeight * scale,
+                        maxHeight: availableHeightPx,
                         overflow: 'hidden',
                       }}
                     >

@@ -752,10 +752,16 @@ function Sidebar() {
 	    hideRailTooltip();
 	  };
 
-	  const handleSettingsClick = () => {
-	    if (!configurationMainMenu) return;
-	    handleMainMenuClick(mainMenuPageId(configurationMainMenu.id));
-	  };
+  const handleSettingsClick = () => {
+    if (!configurationMainMenu) return;
+    handleMainMenuClick(mainMenuPageId(configurationMainMenu.id));
+  };
+
+  const handleDisplayedMainMenuTitleClick = () => {
+    if (!displayedMainMenu) return;
+    if (normalizedSlugKey(displayedMainMenu.caption) !== 'inventory') return;
+    handleMainMenuClick(mainMenuPageId(displayedMainMenu.id));
+  };
 
 	  const showRailTooltip = useCallback((label: string, event: React.MouseEvent<HTMLElement>) => {
 	    if (iconSidebarExpanded) return;
@@ -1113,7 +1119,17 @@ function Sidebar() {
               {!menuLoading && displayedMainMenu && (
                 <>
                   <div className="mb-3 flex-shrink-0 border-b border-white/70 pb-3 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
-                    {displayedMainMenu.caption}
+                    {normalizedSlugKey(displayedMainMenu.caption) === 'inventory' ? (
+                      <button
+                        type="button"
+                        onClick={handleDisplayedMainMenuTitleClick}
+                        className="rounded text-left font-semibold text-inherit underline-offset-4 transition hover:text-rose-600 hover:underline focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950"
+                      >
+                        {displayedMainMenu.caption}
+                      </button>
+                    ) : (
+                      displayedMainMenu.caption
+                    )}
                   </div>
                   <div className="space-y-1 flex-1 min-h-0">
                     {displayedMainMenu.children && displayedMainMenu.children.length > 0 ? (

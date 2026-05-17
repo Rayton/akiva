@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\InventoryDashboardController;
 use App\Http\Controllers\Api\InventoryItemController;
 use App\Http\Controllers\Api\MarkupPriceController;
 use App\Http\Controllers\Api\SalesCategoryController;
+use App\Http\Controllers\Api\UserLocationController;
 use App\Http\Controllers\Api\AllInventoryUsageController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
@@ -156,6 +157,10 @@ Route::prefix('inventory')->group(function () {
     Route::get('/prices/markup/workbench', [MarkupPriceController::class, 'workbench']);
     Route::post('/prices/markup/preview', [MarkupPriceController::class, 'preview']);
     Route::post('/prices/markup/apply', [MarkupPriceController::class, 'apply']);
+    Route::get('/user-locations/workbench', [UserLocationController::class, 'workbench']);
+    Route::post('/user-locations', [UserLocationController::class, 'store']);
+    Route::put('/user-locations/{userId}/{locationCode}', [UserLocationController::class, 'update']);
+    Route::delete('/user-locations/{userId}/{locationCode}', [UserLocationController::class, 'destroy']);
     Route::get('/sales-categories', [SalesCategoryController::class, 'index']);
     Route::post('/sales-categories', [SalesCategoryController::class, 'store']);
     Route::put('/sales-categories/{id}', [SalesCategoryController::class, 'update']);

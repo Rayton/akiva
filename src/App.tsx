@@ -12,6 +12,7 @@ import { Inventory } from './pages/Inventory';
 import { InventoryItems } from './pages/InventoryItems';
 import { MarkupPrices } from './pages/MarkupPrices';
 import { SalesCategories } from './pages/SalesCategories';
+import { UserLocations } from './pages/UserLocations';
 import { SalesOrders } from './pages/SalesOrders';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { InventoryTransfer } from './pages/InventoryTransfer';
@@ -603,6 +604,16 @@ function isSalesCategoriesMenuSlug(slug: string): boolean {
   return key === 'salescategories' || key.includes('salescategories');
 }
 
+function isUserLocationsMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'userlocations' || key.includes('userlocations');
+}
+
+function isLocationUsersMenuSlug(slug: string): boolean {
+  const key = normalizedSlugKey(slug);
+  return key === 'locationusers' || key.includes('locationusers');
+}
+
 function isMarkupPricesMenuSlug(slug: string): boolean {
   const key = normalizedSlugKey(slug);
   return (
@@ -693,6 +704,14 @@ function resolveGeneralLedgerSetupTab(slug: string) {
 
 function knownSettingsViewFromPath(pathname: string) {
   const pathKey = normalizedSlugKey(pathname);
+
+  if (isUserLocationsMenuSlug(pathname)) {
+    return <UserLocations initialMode="user" />;
+  }
+
+  if (isLocationUsersMenuSlug(pathname)) {
+    return <UserLocations initialMode="location" />;
+  }
 
   if (pathKey.includes('configurationgeneralledgersetup')) {
     return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(pathname)} />;
@@ -1037,6 +1056,14 @@ function AppContent() {
         return <MarkupPrices />;
       }
 
+      if (isUserLocationsMenuSlug(menuSlug)) {
+        return <UserLocations initialMode="user" />;
+      }
+
+      if (isLocationUsersMenuSlug(menuSlug)) {
+        return <UserLocations initialMode="location" />;
+      }
+
       if (isSalesCategoriesMenuSlug(menuSlug)) {
         return <SalesCategories />;
       }
@@ -1282,6 +1309,14 @@ function AppContent() {
       return <MarkupPrices />;
     }
 
+    if (isUserLocationsMenuSlug(locationPathname)) {
+      return <UserLocations initialMode="user" />;
+    }
+
+    if (isLocationUsersMenuSlug(locationPathname)) {
+      return <UserLocations initialMode="location" />;
+    }
+
     if (isSalesCategoriesMenuSlug(locationPathname)) {
       return <SalesCategories />;
     }
@@ -1309,6 +1344,12 @@ function AppContent() {
       case 'cost-based-prices':
       case 'costbasedprices':
         return <MarkupPrices />;
+      case 'userlocations':
+      case 'user-locations':
+        return <UserLocations initialMode="user" />;
+      case 'locationusers':
+      case 'location-users':
+        return <UserLocations initialMode="location" />;
       case 'salescategories':
       case 'sales-categories':
         return <SalesCategories />;

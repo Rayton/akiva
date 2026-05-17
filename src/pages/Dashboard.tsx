@@ -266,7 +266,7 @@ export function Dashboard() {
                   Sep 1 - Nov 30, 2023
                 </span>
               </div>
-              <h1 className="mt-4 text-[1.625rem] font-semibold tracking-normal text-akiva-text sm:text-[2rem] lg:text-[2.75rem]">
+              <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-[1.875rem] lg:text-[2.625rem]">
                 ERP overview
               </h1>
             </div>

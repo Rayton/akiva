@@ -370,7 +370,7 @@ export function ReorderLevelLocation() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">
                   Inventory / Location planning
                 </p>
-                <h1 className="mt-3 text-xl font-semibold tracking-normal text-akiva-text sm:text-[1.625rem] lg:text-[2rem]">
+                <h1 className="mt-3 text-lg font-semibold tracking-normal text-akiva-text sm:text-2xl lg:text-[1.875rem]">
                   Location Reorder Levels
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">

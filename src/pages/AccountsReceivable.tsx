@@ -88,7 +88,7 @@ export function AccountsReceivable() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Accounts Receivable</h1>
+          <h1 className="text-lg font-bold text-gray-900">Accounts Receivable</h1>
           <p className="text-gray-600">Manage customer accounts and outstanding balances</p>
         </div>
         <Button>

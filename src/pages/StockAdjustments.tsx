@@ -421,7 +421,7 @@ export function StockAdjustments() {
                     Stock corrections
                   </span>
                 </div>
-                <h1 className="mt-4 text-xl font-semibold tracking-normal text-akiva-text sm:text-[1.625rem] lg:text-[2rem]">
+                <h1 className="mt-4 text-lg font-semibold tracking-normal text-akiva-text sm:text-2xl lg:text-[1.875rem]">
                   Inventory Adjustments
                 </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">

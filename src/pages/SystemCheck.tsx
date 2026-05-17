@@ -177,7 +177,7 @@ export function SystemCheck() {
                   {summary ? statusLabel(summary.status) : 'System check'}
                 </span>
               </div>
-              <h1 className="mt-4 text-xl font-semibold tracking-normal text-akiva-text sm:text-[1.625rem] lg:text-[2rem]">
+              <h1 className="mt-4 text-lg font-semibold tracking-normal text-akiva-text sm:text-2xl lg:text-[1.875rem]">
                 System Check
               </h1>
               <p className="mt-2 text-sm text-akiva-text-muted">

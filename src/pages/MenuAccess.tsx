@@ -363,7 +363,7 @@ export function MenuAccess() {
                   User menus
                 </span>
               </div>
-              <h1 className="mt-4 text-xl font-semibold tracking-normal text-akiva-text sm:text-[1.625rem] lg:text-[2rem]">
+              <h1 className="mt-4 text-lg font-semibold tracking-normal text-akiva-text sm:text-2xl lg:text-[1.875rem]">
                 Menu Access
               </h1>
             </div>

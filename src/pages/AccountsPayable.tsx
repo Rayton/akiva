@@ -74,7 +74,7 @@ export function AccountsPayable() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Accounts Payable</h1>
+          <h1 className="text-lg font-bold text-gray-900">Accounts Payable</h1>
           <p className="text-gray-600">Manage supplier accounts and payment obligations</p>
         </div>
         <Button>

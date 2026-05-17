@@ -1012,7 +1012,7 @@ export function PurchaseOrders() {
                     {loadingOrders ? 'Updating purchase orders' : purchaseOrdersReady ? `${orders.length} purchase orders` : 'Purchase orders unavailable'}
                   </Chip>
                 </div>
-                <h1 className="mt-4 text-xl font-semibold tracking-normal text-akiva-text sm:text-[1.625rem] lg:text-[2rem]">
+                <h1 className="mt-4 text-lg font-semibold tracking-normal text-akiva-text sm:text-2xl lg:text-[1.875rem]">
                   Purchase Orders
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">

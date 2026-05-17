@@ -250,7 +250,7 @@ export function FinancialReports() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Financial Reports</h1>
+          <h1 className="text-lg font-bold text-gray-900">Financial Reports</h1>
           <p className="text-gray-600">Generate and view comprehensive financial reports</p>
         </div>
         <Button>

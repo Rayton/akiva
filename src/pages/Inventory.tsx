@@ -670,6 +670,8 @@ function MetricCard({
 }
 
 const attentionColors = ['#e11d48', '#f59e0b', '#2563eb'];
+const chartAxisTick = { fill: 'var(--akiva-chart-muted)', fontSize: 12, fontWeight: 600 };
+const chartCategoryTick = { fill: 'var(--akiva-text-muted)', fontSize: 12, fontWeight: 600 };
 
 function ChartPanel({
   title,
@@ -719,9 +721,9 @@ function CategoryValueChart({ rows, currency, loading }: { rows: CategoryValue[]
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 18, left: 8, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(148, 163, 184, 0.25)" />
-        <XAxis type="number" tickFormatter={(value) => formatCompactMoney(Number(value), currency)} tick={{ fill: '#8b6f7d', fontSize: 11 }} axisLine={false} tickLine={false} />
-        <YAxis type="category" dataKey="categoryLabel" width={108} tick={{ fill: '#3f2b36', fontSize: 11 }} axisLine={false} tickLine={false} />
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--akiva-chart-grid)" />
+        <XAxis type="number" tickFormatter={(value) => formatCompactMoney(Number(value), currency)} tick={chartAxisTick} axisLine={false} tickLine={false} />
+        <YAxis type="category" dataKey="categoryLabel" width={118} tick={chartCategoryTick} axisLine={false} tickLine={false} />
         <Tooltip cursor={{ fill: 'rgba(225, 29, 112, 0.06)' }} content={({ active, payload }) => {
           if (!active || !payload?.length) return null;
           const row = payload[0].payload as CategoryValue;
@@ -749,9 +751,9 @@ function MovementTrendChart({ rows, loading }: { rows: MovementTrend[]; loading:
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.25)" />
-        <XAxis dataKey="dateLabel" tick={{ fill: '#8b6f7d', fontSize: 11 }} axisLine={false} tickLine={false} minTickGap={14} />
-        <YAxis tickFormatter={(value) => formatNumber(Number(value), 0)} tick={{ fill: '#8b6f7d', fontSize: 11 }} axisLine={false} tickLine={false} />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--akiva-chart-grid)" />
+        <XAxis dataKey="dateLabel" tick={chartAxisTick} axisLine={false} tickLine={false} minTickGap={14} />
+        <YAxis tickFormatter={(value) => formatNumber(Number(value), 0)} tick={chartAxisTick} axisLine={false} tickLine={false} />
         <Tooltip cursor={{ fill: 'rgba(15, 23, 42, 0.04)' }} content={({ active, payload, label }) => {
           if (!active || !payload?.length) return null;
           const incoming = Number(payload.find((item) => item.dataKey === 'inQuantity')?.value ?? 0);

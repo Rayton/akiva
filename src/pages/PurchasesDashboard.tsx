@@ -118,9 +118,16 @@ interface RiskOrder {
 
 const pipelineColors = ['#2563eb', '#f59e0b', '#14b8a6', '#8b5cf6'];
 const supplierColors = ['#0ea5e9', '#f97316', '#22c55e', '#7c3aed', '#ef4444'];
+const chartAxisTick = { fill: 'var(--akiva-chart-muted)', fontSize: 12, fontWeight: 600 };
+const chartCategoryTick = { fill: 'var(--akiva-text-muted)', fontSize: 12, fontWeight: 600 };
 
 function chartColor(colors: string[], index: number): string {
   return colors[index % colors.length];
+}
+
+function shortChartLabel(label: string, maxLength = 22): string {
+  if (label.length <= maxLength) return label;
+  return `${label.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
 function navigate(path: string) {
@@ -498,10 +505,10 @@ function PipelineChart({ rows, currency, loading }: { rows: PipelineRow[]; curre
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 30, left: 12, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(148, 163, 184, 0.25)" />
-        <XAxis type="number" tick={{ fill: '#8b6f7d', fontSize: 11 }} axisLine={false} tickLine={false} />
-        <YAxis type="category" dataKey="label" width={82} tick={{ fill: '#3f2b36', fontSize: 11 }} axisLine={false} tickLine={false} />
+      <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 34, left: 10, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--akiva-chart-grid)" />
+        <XAxis type="number" tick={chartAxisTick} axisLine={false} tickLine={false} allowDecimals={false} />
+        <YAxis type="category" dataKey="label" width={92} tick={chartCategoryTick} axisLine={false} tickLine={false} />
         <Tooltip cursor={{ fill: 'rgba(37, 99, 235, 0.08)' }} content={({ active, payload }) => {
           if (!active || !payload?.length) return null;
           const row = payload[0].payload as PipelineRow;
@@ -517,7 +524,7 @@ function PipelineChart({ rows, currency, loading }: { rows: PipelineRow[]; curre
         }} />
         <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={22} background={{ fill: 'rgba(148, 163, 184, 0.14)', radius: 8 }}>
           {rows.map((row) => <Cell key={row.label} fill={row.color} />)}
-          <LabelList dataKey="count" position="right" className="fill-slate-700 text-[11px] font-semibold dark:fill-slate-200" />
+          <LabelList dataKey="count" position="right" fill="var(--akiva-text)" fontSize={12} fontWeight={700} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -528,14 +535,14 @@ function SupplierChart({ rows, currency, loading }: { rows: SupplierExposure[]; 
   if (rows.length === 0) {
     return <ChartEmptyState loading={loading} message="No supplier exposure found." />;
   }
-  const data = rows.map((row) => ({ ...row, supplierLabel: row.supplier.length > 18 ? `${row.supplier.slice(0, 18)}...` : row.supplier }));
+  const data = rows.map((row) => ({ ...row, supplierLabel: shortChartLabel(row.supplier, 24) }));
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 14, right: 14, left: -20, bottom: 18 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.25)" />
-        <XAxis dataKey="supplierLabel" tick={{ fill: '#8b6f7d', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} angle={-12} textAnchor="end" height={48} />
-        <YAxis tickFormatter={(value) => formatMoney(Number(value), currency)} tick={{ fill: '#8b6f7d', fontSize: 10 }} axisLine={false} tickLine={false} width={72} />
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 10, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--akiva-chart-grid)" />
+        <XAxis type="number" tickFormatter={(value) => formatMoney(Number(value), currency)} tick={chartAxisTick} axisLine={false} tickLine={false} />
+        <YAxis type="category" dataKey="supplierLabel" width={152} tick={chartCategoryTick} axisLine={false} tickLine={false} interval={0} />
         <Tooltip cursor={{ fill: 'rgba(15, 23, 42, 0.04)' }} content={({ active, payload }) => {
           if (!active || !payload?.length) return null;
           const row = payload[0].payload as SupplierExposure;
@@ -549,7 +556,7 @@ function SupplierChart({ rows, currency, loading }: { rows: SupplierExposure[]; 
             ),
           });
         }} />
-        <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={26} background={{ fill: 'rgba(148, 163, 184, 0.12)', radius: 8 }}>
+        <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={22} background={{ fill: 'rgba(148, 163, 184, 0.12)', radius: 8 }}>
           {data.map((row, index) => <Cell key={row.supplier} fill={chartColor(supplierColors, index)} />)}
         </Bar>
       </BarChart>

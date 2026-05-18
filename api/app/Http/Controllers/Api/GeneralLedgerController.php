@@ -416,6 +416,7 @@ class GeneralLedgerController extends Controller
         try {
             $result = DB::transaction(function () use ($tranDate, $narrative, $normalizedLines, $totalDebits) {
                 $periodNo = $this->resolvePeriodForDate($tranDate);
+                $this->assertPeriodAllowsPosting($periodNo, $tranDate);
 
                 $systype = DB::table('systypes')
                     ->where('typeid', 0)
@@ -1977,6 +1978,7 @@ class GeneralLedgerController extends Controller
                 }
 
                 $periodNo = $this->resolvePeriodForDate($tranDate);
+                $this->assertPeriodAllowsPosting($periodNo, $tranDate);
                 $isPayment = $kind === 'payment';
                 $typeId = $isPayment ? 1 : 2;
                 $typeName = $isPayment ? 'Payment - GL' : 'Receipt - GL';
@@ -3842,6 +3844,56 @@ class GeneralLedgerController extends Controller
         }
 
         return (int) $period;
+    }
+
+    private function assertPeriodAllowsPosting(int $periodNo, string $tranDate): void
+    {
+        if (Schema::hasTable('fiscal_periods')) {
+            $period = DB::table('fiscal_periods')
+                ->where('legacy_period_no', $periodNo)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($period) {
+                $status = strtolower(trim((string) $period->status));
+                $isOpenStatus = in_array($status, ['open', 'adjustment'], true);
+                $reopenedUntil = $period->reopened_until ? strtotime((string) $period->reopened_until) : null;
+
+                if (!$isOpenStatus) {
+                    throw new \RuntimeException(sprintf(
+                        'Posting is blocked because fiscal period %s is %s.',
+                        (string) ($period->name ?? $periodNo),
+                        $status === '' ? 'not open' : $status
+                    ));
+                }
+
+                if ($reopenedUntil !== null && $reopenedUntil < time()) {
+                    throw new \RuntimeException(sprintf(
+                        'Posting is blocked because the temporary reopen window for fiscal period %s has expired.',
+                        (string) ($period->name ?? $periodNo)
+                    ));
+                }
+
+                return;
+            }
+        }
+
+        if (!Schema::hasTable('config')) {
+            return;
+        }
+
+        $lockDate = trim((string) DB::table('config')->where('confname', 'ProhibitPostingsBefore')->value('confvalue'));
+        if ($lockDate === '' || $lockDate === '1900-01-01') {
+            return;
+        }
+
+        if ($tranDate <= $lockDate) {
+            throw new \RuntimeException(sprintf(
+                'Posting is blocked because %s is on or before the configured posting lock date %s.',
+                $tranDate,
+                $lockDate
+            ));
+        }
     }
 
     private function safePage(mixed $value): int

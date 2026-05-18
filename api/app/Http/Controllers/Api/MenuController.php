@@ -20,6 +20,7 @@ class MenuController extends Controller
                 ->get()
                 ->toArray();
             $menuItems = $this->withLegacyPurchasesMenu($menuItems);
+            $menuItems = $this->withEnterpriseConfigurationMenu($menuItems);
 
             $hierarchical = $this->buildTree($menuItems);
 
@@ -73,7 +74,7 @@ class MenuController extends Controller
                 ->orderBy('id', 'asc')
                 ->get()
                 ->toArray();
-            $items = collect($this->withLegacyPurchasesMenu($items))
+            $items = collect($this->withEnterpriseConfigurationMenu($this->withLegacyPurchasesMenu($items)))
                 ->where('parent', (int) $parentId)
                 ->values()
                 ->all();
@@ -133,6 +134,38 @@ class MenuController extends Controller
             ['Add Supplier', 'add-supplier'],
             ['Select Supplier', 'supplier-maintenance'],
             ['Factor Companies', 'factor-companies'],
+        ]);
+
+        return $items;
+    }
+
+    private function withEnterpriseConfigurationMenu(array $items): array
+    {
+        $configuration = $this->findMenuItem($items, -1, 'Configuration');
+        if (!$configuration) {
+            return $items;
+        }
+
+        $nextId = max(900000, ((int) max(array_map(fn ($item) => (int) $item->id, $items))) + 1);
+        $enterprise = $this->ensureMenuCategory($items, $nextId, (int) $configuration->id, 'Enterprise Controls');
+
+        $this->ensureMenuChildren($items, $nextId, (int) $enterprise->id, [
+            ['Enterprise Configuration', 'enterprise-configuration'],
+            ['Fiscal Years', 'fiscal-years'],
+            ['Fiscal Periods', 'fiscal-periods'],
+            ['Financial Dimensions', 'financial-dimensions'],
+            ['Dimension Values', 'dimension-values'],
+            ['Grants and Donors', 'grants-and-donors'],
+            ['Donors', 'donors'],
+            ['Grants', 'grants'],
+            ['Tax Rate Versions', 'tax-rate-versions'],
+            ['Currency Rates', 'currency-rates'],
+            ['Allocation Keys', 'allocation-keys'],
+            ['Allocation Key Lines', 'allocation-key-lines'],
+            ['Report Templates', 'report-templates'],
+            ['Audit Policies', 'audit-policies'],
+            ['Dashboard Templates', 'dashboard-templates'],
+            ['Notification Rules', 'notification-rules'],
         ]);
 
         return $items;

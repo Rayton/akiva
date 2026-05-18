@@ -49,6 +49,7 @@ import { UserManagement } from './pages/UserManagement';
 import { AccessPermissions } from './pages/AccessPermissions';
 import { MenuAccess } from './pages/MenuAccess';
 import { GeneralLedgerSetup } from './pages/GeneralLedgerSetup';
+import { EnterpriseConfiguration } from './pages/EnterpriseConfiguration';
 import { SalesReceivablesSetup } from './pages/SalesReceivablesSetup';
 import { PurchasesPayablesSetup } from './pages/PurchasesPayablesSetup';
 import { InventorySetup } from './pages/InventorySetup';
@@ -249,6 +250,32 @@ function isGeneralLedgerSetupMenuSlug(slug: string): boolean {
     key.includes('taxprovinces') ||
     key.includes('taxcategories') ||
     key.includes('periodsinquiry')
+  );
+}
+
+function isEnterpriseConfigurationMenuSlug(slug: string, caption = ''): boolean {
+  const slugKey = normalizedSlugKey(slug);
+  const captionKey = normalizedSlugKey(caption);
+  const key = normalizedSlugKey(`${slug} ${caption}`);
+  return (
+    slugKey === 'enterprise' ||
+    captionKey === 'enterprise' ||
+    key === 'enterprise' ||
+    key.includes('enterpriseconfiguration') ||
+    key.includes('enterpriseconfig') ||
+    key.includes('enterprisecontrols') ||
+    key.includes('fiscalyear') ||
+    key.includes('fiscalperiod') ||
+    key.includes('financialdimension') ||
+    key.includes('dimensionvalue') ||
+    key.includes('grantsanddonors') ||
+    key.includes('taxrateversion') ||
+    key.includes('currencyrate') ||
+    key.includes('allocationkey') ||
+    key.includes('reporttemplate') ||
+    key.includes('auditpolic') ||
+    key.includes('dashboardtemplate') ||
+    key.includes('notificationrule')
   );
 }
 
@@ -747,6 +774,33 @@ function resolveGeneralLedgerSetupTab(slug: string) {
   return 'bank-accounts' as const;
 }
 
+function resolveEnterpriseConfigurationEntity(slug: string, href = '', caption = '') {
+  const slugKey = normalizedSlugKey(slug);
+  const captionKey = normalizedSlugKey(caption);
+  const key = normalizedSlugKey(`${slug} ${href} ${caption}`);
+  if (slugKey === 'enterprise' || captionKey === 'enterprise' || key === 'enterprise' || key.includes('enterprisecontrols') || key.includes('enterpriseconfiguration')) return 'fiscal-periods' as const;
+  if (key.includes('fiscalyears') || key.includes('entityfiscalyears')) return 'fiscal-years' as const;
+  if (key.includes('financialdimensions') || key.includes('entityfinancialdimensions')) return 'financial-dimensions' as const;
+  if (key.includes('grantsanddonors') || key.includes('entitygrants') || key === 'grants') return 'grants' as const;
+  if (key.includes('dimensionvalues') || key.includes('entitydimensionvalues')) return 'dimension-values' as const;
+  if (key.includes('donors')) return 'donors' as const;
+  if (key.includes('currencyrates') || key.includes('entitycurrencyrates')) return 'currency-rates' as const;
+  if (key.includes('taxrateversions') || key.includes('entitytaxrateversions')) return 'tax-rate-versions' as const;
+  if (key.includes('allocationkeylines') || key.includes('entityallocationkeylines')) return 'allocation-key-lines' as const;
+  if (key.includes('allocationkeys') || key.includes('entityallocationkeys')) return 'allocation-keys' as const;
+  if (key.includes('reporttemplates') || key.includes('entityreporttemplates')) return 'report-templates' as const;
+  if (key.includes('auditpolicies') || key.includes('entityauditpolicies')) return 'audit-policies' as const;
+  if (key.includes('dashboardtemplates') || key.includes('entitydashboardtemplates')) return 'dashboard-templates' as const;
+  if (key.includes('notificationrules') || key.includes('entitynotificationrules')) return 'notification-rules' as const;
+  return 'fiscal-periods' as const;
+}
+
+function resolveEnterpriseConfigurationTitle(slug: string, href = '', caption = ''): string | undefined {
+  const key = normalizedSlugKey(`${slug} ${href} ${caption}`);
+  if (key.includes('grantsanddonors')) return 'Grants and Donors';
+  return undefined;
+}
+
 function knownSettingsViewFromPath(pathname: string) {
   const pathKey = normalizedSlugKey(pathname);
 
@@ -768,6 +822,15 @@ function knownSettingsViewFromPath(pathname: string) {
 
   if (pathKey.includes('configurationgeneralledgersetup')) {
     return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(pathname)} />;
+  }
+
+  if (pathKey.includes('configurationenterprise') || pathKey.includes('enterpriseconfiguration')) {
+    return (
+      <EnterpriseConfiguration
+        initialEntity={resolveEnterpriseConfigurationEntity(pathname)}
+        pageTitle={resolveEnterpriseConfigurationTitle(pathname)}
+      />
+    );
   }
 
   if (pathKey.includes('configurationsalesreceivablessetup')) {
@@ -1006,6 +1069,20 @@ function AppContent() {
       return <PurchasesDashboard />;
     }
 
+    if (
+      normalizedPath === '/enterprise' ||
+      normalizedPath.startsWith('/enterprise/') ||
+      normalizedPath === '/configuration/enterprise' ||
+      normalizedPath.startsWith('/configuration/enterprise/')
+    ) {
+      return (
+        <EnterpriseConfiguration
+          initialEntity={resolveEnterpriseConfigurationEntity(locationPathname)}
+          pageTitle={resolveEnterpriseConfigurationTitle(locationPathname)}
+        />
+      );
+    }
+
     if (locationPathname.toLowerCase().startsWith('/purchases/')) {
       if (isSupplierPayablesMenuSlug(locationPathname)) {
         return <AccountsPayable />;
@@ -1026,6 +1103,10 @@ function AppContent() {
 
       if (mainModule && isConfigurationMenuCaption(mainModule.caption)) {
         return <ConfigurationDashboard module={mainModule} onSelectPage={setCurrentPage} />;
+      }
+
+      if (mainModule && isEnterpriseConfigurationMenuSlug('', mainModule.caption)) {
+        return <EnterpriseConfiguration />;
       }
 
       return (
@@ -1057,6 +1138,15 @@ function AppContent() {
     const isManufacturingSetupPathContext = normalizedSlugKey(locationPathname).includes('configurationmanufacturingsetup');
 
     if (menuSlug) {
+      if (isEnterpriseConfigurationMenuSlug(menuSlug, currentMenuCaption)) {
+        return (
+          <EnterpriseConfiguration
+            initialEntity={resolveEnterpriseConfigurationEntity(menuSlug, currentMenuHref, currentMenuCaption)}
+            pageTitle={resolveEnterpriseConfigurationTitle(menuSlug, currentMenuHref, currentMenuCaption)}
+          />
+        );
+      }
+
       if (isCompanyPreferencesMenuSlug(menuSlug)) {
         return <CompanyPreferences />;
       }
@@ -1480,6 +1570,33 @@ function AppContent() {
       case 'tax-categories':
       case 'periods':
         return <GeneralLedgerSetup initialTab={resolveGeneralLedgerSetupTab(currentPage)} />;
+      case 'enterprise-configuration':
+      case 'enterpriseconfiguration':
+      case 'enterprise':
+      case 'enterprise-controls':
+      case 'enterprisecontrols':
+      case 'fiscal-years':
+      case 'fiscal-periods':
+      case 'financial-dimensions':
+      case 'dimension-values':
+      case 'donors':
+      case 'grants-and-donors':
+      case 'grantsanddonors':
+      case 'grants':
+      case 'currency-rates':
+      case 'tax-rate-versions':
+      case 'allocation-keys':
+      case 'allocation-key-lines':
+      case 'report-templates':
+      case 'audit-policies':
+      case 'dashboard-templates':
+      case 'notification-rules':
+        return (
+          <EnterpriseConfiguration
+            initialEntity={resolveEnterpriseConfigurationEntity(currentPage)}
+            pageTitle={resolveEnterpriseConfigurationTitle(currentPage)}
+          />
+        );
       case 'sales-types':
       case 'salestypes':
       case 'customer-types':

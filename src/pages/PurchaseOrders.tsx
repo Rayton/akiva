@@ -4221,10 +4221,11 @@ function ShipmentKpiSection({
       : tone === 'warning' ? 'border-amber-200/80 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/20'
         : tone === 'info' ? 'border-sky-200/80 bg-sky-50/50 dark:border-sky-900/60 dark:bg-sky-950/20'
           : 'border-akiva-border bg-akiva-surface-raised';
+  const itemGridClass = items.length === 2 ? 'grid-cols-[minmax(0,1fr)_auto]' : 'sm:grid-cols-3';
   return (
     <section className={`rounded-xl border px-3 py-2.5 shadow-sm ${toneClass}`}>
       <p className="text-sm font-semibold text-akiva-text">{title}</p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+      <div className={`mt-2 grid gap-2 ${itemGridClass}`}>
         {items.map(([label, value]) => (
           <div key={label} className="min-w-0">
             <p className="truncate text-xs text-akiva-text-muted">{label}</p>

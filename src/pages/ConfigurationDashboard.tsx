@@ -51,6 +51,11 @@ const SECTION_DESCRIPTIONS: Array<{ match: string[]; description: string; icon: 
     icon: Landmark,
   },
   {
+    match: ['enterprisecontrols', 'enterpriseconfiguration', 'fiscal', 'dimension', 'grant', 'allocation', 'dashboard', 'notification'],
+    description: 'Fiscal controls, dimensions, grants, tax versions, FX rates, allocations, reports, dashboards, audit, and notifications.',
+    icon: ShieldCheck,
+  },
+  {
     match: ['salesreceivablessetup', 'salestypes', 'customertypes', 'creditstatus', 'holdreasons', 'paymentterms', 'paymentmethods', 'salespeople', 'areas', 'salesareas', 'salesglpostings', 'salesglposting', 'cogsglpostings', 'cogsglposting', 'discountmatrix'],
     description: 'Price lists, customer setup, credit statuses, payment terms, payment methods, sales people, areas, and sales GL interfaces.',
     icon: Tags,

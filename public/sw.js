@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'akiva-v1';
+const CACHE_VERSION = 'akiva-v3';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-app-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const API_CACHE = `${CACHE_VERSION}-api`;
@@ -156,7 +156,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (sameOrigin && isDevAssetRequest(url)) {
-    event.respondWith(staleWhileRevalidate(request, ASSET_CACHE));
+    event.respondWith(networkFirst(request, ASSET_CACHE));
     return;
   }
 

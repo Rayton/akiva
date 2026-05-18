@@ -10,6 +10,14 @@ import './index.css';
 async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
+  if (import.meta.env.DEV) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    const names = await caches.keys();
+    await Promise.all(names.filter((name) => name.startsWith('akiva-')).map((name) => caches.delete(name)));
+    return;
+  }
+
   try {
     const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
 

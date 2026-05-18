@@ -35,7 +35,7 @@ interface AppProviderProps {
   children: ReactNode;
 }
 
-const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v5';
+const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v6';
 
 function normalizedPathKey(pathname: string): string {
   return pathname.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -75,6 +75,24 @@ function initialPageFromPath(pathname: string): string {
     if (key.includes('taxcategories')) return 'tax-categories';
     if (key.includes('periods')) return 'periods';
     return 'general-ledger-setup';
+  }
+
+  if (key.includes('configurationenterprise') || key.includes('enterprisecontrols') || key.includes('enterpriseconfiguration')) {
+    if (key.includes('fiscalyears')) return 'fiscal-years';
+    if (key.includes('fiscalperiods')) return 'fiscal-periods';
+    if (key.includes('financialdimensions')) return 'financial-dimensions';
+    if (key.includes('grants')) return 'grants';
+    if (key.includes('dimensionvalues')) return 'dimension-values';
+    if (key.includes('donors')) return 'donors';
+    if (key.includes('taxrateversions')) return 'tax-rate-versions';
+    if (key.includes('currencyrates')) return 'currency-rates';
+    if (key.includes('allocationkeylines')) return 'allocation-key-lines';
+    if (key.includes('allocationkeys')) return 'allocation-keys';
+    if (key.includes('reporttemplates')) return 'report-templates';
+    if (key.includes('auditpolicies')) return 'audit-policies';
+    if (key.includes('dashboardtemplates')) return 'dashboard-templates';
+    if (key.includes('notificationrules')) return 'notification-rules';
+    return 'enterprise-configuration';
   }
 
   const routeSlug = routeSlugFromPath(pathname);

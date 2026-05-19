@@ -52,6 +52,7 @@ use App\Http\Controllers\Api\ReorderLevelController;
 use App\Http\Controllers\Api\ReorderLevelLocationController;
 use App\Http\Controllers\Api\StockDispatchController;
 use App\Http\Controllers\Api\ReverseGrnController;
+use App\Http\Controllers\Api\AccountsPayableController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -154,6 +155,44 @@ Route::prefix('sales')->group(function () {
 Route::prefix('purchases')->group(function () {
     Route::get('/orders', [PurchaseOrderController::class, 'index']);
     Route::get('/shipments', [PurchaseOrderController::class, 'shipments']);
+});
+
+
+Route::prefix('payables')->group(function () {
+    Route::get('/', [AccountsPayableController::class, 'index']);
+    Route::post('/suppliers', [AccountsPayableController::class, 'storeSupplier']);
+    Route::delete('/suppliers/{id}', [AccountsPayableController::class, 'destroySupplier']);
+    Route::post('/bills', [AccountsPayableController::class, 'storeBill']);
+    Route::post('/payments', [AccountsPayableController::class, 'storePayment']);
+    Route::post('/payment-batches', [AccountsPayableController::class, 'createPaymentBatch']);
+    Route::post('/payment-batches/{batchId}/approve', [AccountsPayableController::class, 'approvePaymentBatch']);
+    Route::post('/payment-batches/{batchId}/execute', [AccountsPayableController::class, 'executePaymentBatch']);
+    Route::post('/bills/{billId}/submit-approval', [AccountsPayableController::class, 'submitApproval']);
+    Route::post('/approvals/{instanceId}/actions', [AccountsPayableController::class, 'approvalAction']);
+    Route::post('/approvals/escalate/run', [AccountsPayableController::class, 'runApprovalEscalation']);
+    Route::get('/matching/workbench', [AccountsPayableController::class, 'matchingWorkbench']);
+    Route::post('/bills/{billId}/match', [AccountsPayableController::class, 'upsertMatch']);
+    Route::get('/reports/aging', [AccountsPayableController::class, 'agingSummary']);
+    Route::get('/reports/forecasting', [AccountsPayableController::class, 'forecasting']);
+    Route::get('/reports/overdue-trend', [AccountsPayableController::class, 'overdueTrend']);
+    Route::post('/reports/snapshots/generate', [AccountsPayableController::class, 'generateSnapshot']);
+    Route::post('/recurring/templates', [AccountsPayableController::class, 'storeRecurringTemplate']);
+    Route::post('/credit-notes', [AccountsPayableController::class, 'storeCreditNote']);
+    Route::post('/credit-notes/{creditNoteId}/allocate', [AccountsPayableController::class, 'allocateCredit']);
+    Route::post('/bills/{billId}/matching/evaluate', [AccountsPayableController::class, 'evaluateMatching']);
+    Route::post('/bills/{billId}/matching/override-approve', [AccountsPayableController::class, 'approveMatchOverride']);
+    Route::post('/exceptions/{exceptionId}/assign', [AccountsPayableController::class, 'assignException']);
+    Route::post('/exceptions/{exceptionId}/comment', [AccountsPayableController::class, 'commentException']);
+    Route::post('/exceptions/{exceptionId}/escalate', [AccountsPayableController::class, 'escalateException']);
+    Route::post('/exceptions/{exceptionId}/resolve', [AccountsPayableController::class, 'resolveException']);
+    Route::post('/exceptions/{exceptionId}/reopen', [AccountsPayableController::class, 'reopenException']);
+    Route::post('/credit-allocations/{allocationId}/reverse', [AccountsPayableController::class, 'reverseCreditAllocation']);
+    Route::post('/credit-notes/{creditNoteId}/disputes/open', [AccountsPayableController::class, 'openCreditDispute']);
+    Route::post('/credit-notes/{creditNoteId}/disputes/resolve', [AccountsPayableController::class, 'resolveCreditDispute']);
+    Route::post('/duplicate-checks/{checkId}/resolve', [AccountsPayableController::class, 'resolveDuplicateCheck']);
+    Route::post('/recurring/run', [AccountsPayableController::class, 'runRecurring']);
+    Route::post('/statements', [AccountsPayableController::class, 'storeSupplierStatement']);
+    Route::post('/statements/{statementId}/reconcile', [AccountsPayableController::class, 'reconcileStatement']);
 });
 
 Route::prefix('inventory')->group(function () {

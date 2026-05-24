@@ -94,7 +94,7 @@ function isConfigurationMenu(caption: string): boolean {
 
 function isDashboardLinkedMainMenu(caption: string): boolean {
   const key = normalizedSlugKey(caption);
-  return key === 'inventory' || key === 'purchases';
+  return key === 'inventory' || key === 'purchases' || key === 'payables';
 }
 
 function isHiddenMenuNode(node: MenuCategory | MenuItem): boolean {
@@ -351,6 +351,7 @@ function getSecondaryMenuIcon(caption: string, hasChildren: boolean, href = ''):
   if (key.includes('offersreceived')) return ClipboardText;
   if (key.includes('poauthorisemyorders')) return SealCheck;
   if (key.includes('shiptselect') || lower.includes('shipment')) return ShippingContainer;
+  if (key.includes('accountspayable') || key === 'payables') return Cards;
   if (key.includes('supplierselect') || key.includes('suppliermaintenance') || key.includes('addsupplier')) return UsersThree;
   if (key.includes('supplierallocations')) return ArrowsLeftRight;
   if (key.includes('supplierallocatedinquiry') || key.includes('suppliertransactions')) return MagnifyingGlass;

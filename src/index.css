@@ -425,6 +425,26 @@ html.dark .scrollbar-hover::-webkit-scrollbar-thumb:hover {
   color: var(--akiva-text);
 }
 
+.akiva-page-title {
+  color: var(--akiva-text);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+@media (min-width: 640px) {
+  .akiva-page-title {
+    font-size: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .akiva-page-title {
+    font-size: 1.375rem;
+  }
+}
+
 .akiva-frame {
   border: 1px solid color-mix(in srgb, var(--akiva-border) 70%, white 30%);
   background: color-mix(in srgb, var(--akiva-surface-raised) 88%, transparent);

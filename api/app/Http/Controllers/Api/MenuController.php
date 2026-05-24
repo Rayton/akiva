@@ -20,6 +20,7 @@ class MenuController extends Controller
                 ->get()
                 ->toArray();
             $menuItems = $this->withLegacyPurchasesMenu($menuItems);
+            $menuItems = $this->withPayablesMenu($menuItems);
             $menuItems = $this->withEnterpriseConfigurationMenu($menuItems);
 
             $hierarchical = $this->buildTree($menuItems);
@@ -45,11 +46,17 @@ class MenuController extends Controller
     public function categories()
     {
         try {
-            $categories = DB::table('menu')
-                ->where('parent', -1)
+            $items = DB::table('menu')
                 ->orderBy('id', 'asc')
                 ->get()
                 ->toArray();
+            $items = $this->withLegacyPurchasesMenu($items);
+            $items = $this->withPayablesMenu($items);
+            $items = $this->withEnterpriseConfigurationMenu($items);
+            $categories = collect($items)
+                ->where('parent', -1)
+                ->values()
+                ->all();
 
             return response()->json([
                 'success' => true,
@@ -74,7 +81,10 @@ class MenuController extends Controller
                 ->orderBy('id', 'asc')
                 ->get()
                 ->toArray();
-            $items = collect($this->withEnterpriseConfigurationMenu($this->withLegacyPurchasesMenu($items)))
+            $items = $this->withLegacyPurchasesMenu($items);
+            $items = $this->withPayablesMenu($items);
+            $items = $this->withEnterpriseConfigurationMenu($items);
+            $items = collect($items)
                 ->where('parent', (int) $parentId)
                 ->values()
                 ->all();
@@ -109,7 +119,7 @@ class MenuController extends Controller
             return $items;
         }
 
-        $nextId = max(900000, ((int) max(array_map(fn ($item) => (int) $item->id, $items))) + 1);
+        $nextId = $this->nextSyntheticMenuId($items);
         $transactions = $this->ensureMenuCategory($items, $nextId, (int) $purchases->id, 'Transactions');
         $reports = $this->ensureMenuCategory($items, $nextId, (int) $purchases->id, 'Inquiries and Reports');
         $maintenance = $this->ensureMenuCategory($items, $nextId, (int) $purchases->id, 'Maintenance');
@@ -139,6 +149,49 @@ class MenuController extends Controller
         return $items;
     }
 
+    private function withPayablesMenu(array $items): array
+    {
+        $nextId = $this->nextSyntheticMenuId($items);
+        $existingPayables = $this->findMenuItem($items, -1, 'Payables');
+        $payables = $this->ensureMenuCategory($items, $nextId, -1, 'Payables');
+        $hadPayablesChildren = $existingPayables ? $this->hasMenuChildren($items, (int) $payables->id) : false;
+        $transactions = $this->ensureMenuCategory($items, $nextId, (int) $payables->id, 'Transactions');
+
+        $this->ensureMenuChildren($items, $nextId, (int) $transactions->id, [
+            ['Accounts Payable', 'payables'],
+        ]);
+
+        if ($hadPayablesChildren) {
+            return $items;
+        }
+
+        $reports = $this->ensureMenuCategory($items, $nextId, (int) $payables->id, 'Inquiries and Reports');
+        $maintenance = $this->ensureMenuCategory($items, $nextId, (int) $payables->id, 'Maintenance');
+
+        $this->ensureMenuChildren($items, $nextId, (int) $transactions->id, [
+            ['Select Supplier', 'supplier-select'],
+            ['Supplier Allocations', 'supplier-allocations'],
+        ]);
+
+        $this->ensureMenuChildren($items, $nextId, (int) $reports->id, [
+            ['Allocated Inquiry', 'supplier-allocated-inquiry'],
+            ['Aged Suppliers', 'aged-suppliers'],
+            ['Payment Run', 'payment-run'],
+            ['Remittances', 'remittances'],
+            ['Prior Balances', 'prior-supplier-balances'],
+            ['Daily Transactions', 'supplier-daily-transactions'],
+            ['Supplier Transactions', 'supplier-transactions'],
+        ]);
+
+        $this->ensureMenuChildren($items, $nextId, (int) $maintenance->id, [
+            ['Add Supplier', 'add-supplier'],
+            ['Select Supplier', 'supplier-maintenance'],
+            ['Factor Companies', 'factor-companies'],
+        ]);
+
+        return $items;
+    }
+
     private function withEnterpriseConfigurationMenu(array $items): array
     {
         $configuration = $this->findMenuItem($items, -1, 'Configuration');
@@ -146,7 +199,7 @@ class MenuController extends Controller
             return $items;
         }
 
-        $nextId = max(900000, ((int) max(array_map(fn ($item) => (int) $item->id, $items))) + 1);
+        $nextId = $this->nextSyntheticMenuId($items);
         $enterprise = $this->ensureMenuCategory($items, $nextId, (int) $configuration->id, 'Enterprise Controls');
 
         $this->ensureMenuChildren($items, $nextId, (int) $enterprise->id, [
@@ -169,6 +222,14 @@ class MenuController extends Controller
         ]);
 
         return $items;
+    }
+
+    private function nextSyntheticMenuId(array $items): int
+    {
+        $ids = array_map(fn ($item) => (int) $item->id, $items);
+        $highest = empty($ids) ? 0 : max($ids);
+
+        return max(900000, $highest + 1);
     }
 
     private function ensureMenuCategory(array &$items, int &$nextId, int $parentId, string $caption): object
@@ -215,6 +276,17 @@ class MenuController extends Controller
         }
 
         return null;
+    }
+
+    private function hasMenuChildren(array $items, int $parentId): bool
+    {
+        foreach ($items as $item) {
+            if ((int) $item->parent === $parentId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function menuKey(string $value): string

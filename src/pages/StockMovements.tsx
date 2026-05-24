@@ -472,7 +472,7 @@ export function StockMovements() {
                     Stock audit trail
                   </span>
                 </div>
-                <h1 className="mt-4 text-lg font-semibold tracking-normal text-akiva-text sm:text-2xl lg:text-[1.875rem]">
+                <h1 className="mt-4 akiva-page-title">
                   Stock Movements
                 </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">

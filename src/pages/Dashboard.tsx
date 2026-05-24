@@ -532,7 +532,7 @@ export function Dashboard() {
                     17 May 2026
                   </span>
                 </div>
-                <h1 className="mt-4 text-2xl font-semibold tracking-normal text-akiva-text sm:text-[1.875rem] lg:text-[2.25rem]">
+                <h1 className="mt-4 akiva-page-title">
                   ERP Command Center
                 </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">

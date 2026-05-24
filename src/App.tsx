@@ -359,17 +359,28 @@ function isPurchaseOrderMenuSlug(slug: string): boolean {
 function isSupplierPayablesMenuSlug(slug: string, caption = ''): boolean {
   const key = normalizedSlugKey(`${slug} ${caption}`);
   return (
+    key === 'payables' ||
+    key.includes('accountspayable') ||
+    key.includes('selectsupplier') ||
     key.includes('supplierselect') ||
     key.includes('supplierallocations') ||
     key.includes('supplierallocatedinquiry') ||
     key.includes('agedsuppliers') ||
+    key.includes('agedsupplier') ||
+    key.includes('supppaymentrun') ||
     key.includes('paymentrun') ||
+    key.includes('pdfremittanceadvice') ||
     key.includes('remittances') ||
+    key.includes('outstandinggrn') ||
+    key.includes('supplierbalsatperiodend') ||
     key.includes('priorsupplierbalances') ||
+    key.includes('pdfsupptranslisting') ||
     key.includes('supplierdailytransactions') ||
+    key.includes('suppliertransinquiry') ||
     key.includes('suppliertransactions') ||
     key.includes('addsupplier') ||
     key.includes('suppliermaintenance') ||
+    key.includes('factors') ||
     key.includes('factorcompanies')
   );
 }
@@ -1069,6 +1080,10 @@ function AppContent() {
       return <PurchasesDashboard />;
     }
 
+    if (normalizedPath === '/payables' || normalizedPath.startsWith('/payables/')) {
+      return <AccountsPayable sourceSlug={locationPathname} />;
+    }
+
     if (
       normalizedPath === '/enterprise' ||
       normalizedPath.startsWith('/enterprise/') ||
@@ -1085,7 +1100,7 @@ function AppContent() {
 
     if (locationPathname.toLowerCase().startsWith('/purchases/')) {
       if (isSupplierPayablesMenuSlug(locationPathname)) {
-        return <AccountsPayable />;
+        return <AccountsPayable sourceSlug={locationPathname} />;
       }
 
       if (isPurchaseOrderMenuSlug(locationPathname)) {
@@ -1101,6 +1116,10 @@ function AppContent() {
         return <PurchasesDashboard />;
       }
 
+      if (mainModule && normalizedSlugKey(mainModule.caption) === 'payables') {
+        return <AccountsPayable sourceSlug="payables" sourceCaption={mainModule.caption} />;
+      }
+
       if (mainModule && isConfigurationMenuCaption(mainModule.caption)) {
         return <ConfigurationDashboard module={mainModule} onSelectPage={setCurrentPage} />;
       }
@@ -1111,7 +1130,7 @@ function AppContent() {
 
       return (
         <div className="p-4 md:p-8">
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+          <h2 className="akiva-page-title">
             {mainModule?.caption ?? 'Module'}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -1129,6 +1148,7 @@ function AppContent() {
     const currentMenuHref = currentMenuNode?.href ?? '';
     const currentMenuCaption = currentMenuNode?.caption ?? '';
     const isConfigurationMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'configuration');
+    const isPayablesMenuContext = primaryPathSegment === 'payables' || currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'payables');
     const isGeneralLedgerSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'generalledgersetup');
     const isPurchasesPayablesSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'purchasespayablessetup');
     const isPurchasesPayablesSetupPathContext = normalizedSlugKey(locationPathname).includes('configurationpurchasespayablessetup');
@@ -1263,6 +1283,10 @@ function AppContent() {
         return <SalesReceivablesSetup initialTab={resolveSalesReceivablesSetupTab(menuSlug)} />;
       }
 
+      if (isPayablesMenuContext && isSupplierPayablesMenuSlug(menuSlug, currentMenuCaption)) {
+        return <AccountsPayable sourceSlug={menuSlug || locationPathname} sourceCaption={currentMenuCaption} />;
+      }
+
       if (!isConfigurationMenuContext && (isGeneralLedgerPathSegment(primaryPathSegment) || isGeneralLedgerMenuSlug(menuSlug))) {
         const glView = resolveGeneralLedgerView(menuSlug);
         if (glView === 'accounts') {
@@ -1360,7 +1384,7 @@ function AppContent() {
       }
 
       if (isSupplierPayablesMenuSlug(menuSlug, currentMenuCaption)) {
-        return <AccountsPayable />;
+        return <AccountsPayable sourceSlug={menuSlug || locationPathname} sourceCaption={currentMenuCaption} />;
       }
 
       if (isReverseGrnMenuSlug(menuSlug)) {
@@ -1385,7 +1409,7 @@ function AppContent() {
 
       return (
         <div className="p-4 md:p-8">
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+          <h2 className="akiva-page-title">
             {menuSlugToTitle(menuSlug)}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -1510,7 +1534,7 @@ function AppContent() {
       case 'receivables':
         return <AccountsReceivable />;
       case 'payables':
-        return <AccountsPayable />;
+        return <AccountsPayable sourceSlug="payables" />;
       case 'inventory':
         return <Inventory />;
       case 'selectproduct':
@@ -1692,17 +1716,17 @@ function AppContent() {
         return <SmtpServer />;
       // Sales & Customer Management
       case 'sales-invoices':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Sales Invoices</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage customer invoices and billing</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Sales Invoices</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage customer invoices and billing</p></div>;
       case 'credit-notes':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Credit Notes</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Process customer credit notes and returns</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Credit Notes</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Process customer credit notes and returns</p></div>;
       case 'customer-payments':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Customer Payments</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Record and manage customer payments</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Customer Payments</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Record and manage customer payments</p></div>;
       
       // Purchase & Supplier Management
       case 'purchase-invoices':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Purchase Invoices</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Process supplier invoices and bills</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Purchase Invoices</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Process supplier invoices and bills</p></div>;
       case 'supplier-payments':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Supplier Payments</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage payments to suppliers</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Supplier Payments</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage payments to suppliers</p></div>;
       case 'supplier-select':
       case 'supplier-allocations':
       case 'supplier-allocated-inquiry':
@@ -1715,9 +1739,9 @@ function AppContent() {
       case 'add-supplier':
       case 'supplier-maintenance':
       case 'factor-companies':
-        return <AccountsPayable />;
+        return <AccountsPayable sourceSlug={currentPage} />;
       case 'grn':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Goods Received Notes</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Record goods received from suppliers</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Goods Received Notes</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Record goods received from suppliers</p></div>;
       case 'reversegrn':
       case 'reverse-grn':
       case 'reverse-goods-received':
@@ -1726,11 +1750,11 @@ function AppContent() {
       
       // General Ledger
       case 'bank-accounts':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Bank Accounts</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage company bank accounts</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Bank Accounts</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage company bank accounts</p></div>;
       case 'bank-reconciliation':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Bank Reconciliation</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Reconcile bank statements</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Bank Reconciliation</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Reconcile bank statements</p></div>;
       case 'fixed-assets':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Fixed Assets</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage company fixed assets and depreciation</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Fixed Assets</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Manage company fixed assets and depreciation</p></div>;
       
       // Inventory Management
       case 'stock-loc-movements':
@@ -1794,27 +1818,27 @@ function AppContent() {
       
       // Financial Reports
       case 'profit-loss':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Profit & Loss Statement</h2><p className="text-gray-600 dark:text-gray-400 mt-2">View company profit and loss reports</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Profit & Loss Statement</h2><p className="text-gray-600 dark:text-gray-400 mt-2">View company profit and loss reports</p></div>;
       case 'trial-balance':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Trial Balance</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Generate trial balance reports</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Trial Balance</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Generate trial balance reports</p></div>;
       case 'cash-flow':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Cash Flow Statement</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Analyze company cash flow</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Cash Flow Statement</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Analyze company cash flow</p></div>;
       
       // Sales Reports
       case 'sales-analysis':
         return <SalesOrders mode="reports" sourceSlug="sales-analysis" />;
       case 'customer-statements':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Customer Statements</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Generate customer account statements</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Customer Statements</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Generate customer account statements</p></div>;
       case 'aged-debtors':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Aged Debtors Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">View outstanding customer balances by age</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Aged Debtors Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">View outstanding customer balances by age</p></div>;
       
       // Purchase Reports
       case 'purchase-analysis':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Purchase Analysis</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Analyze purchase patterns and costs</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Purchase Analysis</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Analyze purchase patterns and costs</p></div>;
       case 'aged-creditors':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Aged Creditors Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">View outstanding supplier balances by age</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Aged Creditors Report</h2><p className="text-gray-600 dark:text-gray-400 mt-2">View outstanding supplier balances by age</p></div>;
       case 'supplier-statements':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Supplier Statements</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Generate supplier account statements</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Supplier Statements</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Generate supplier account statements</p></div>;
       
       // Inventory Reports
       case 'stock-status':
@@ -1882,9 +1906,9 @@ function AppContent() {
         return <StockUsage />;
       // System Setup
       case 'company-setup':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Company Setup</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Configure company information and settings</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Company Setup</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Configure company information and settings</p></div>;
       case 'system-setup':
-        return <div className="p-4 md:p-8"><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">System Setup</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Configure system parameters and preferences</p></div>;
+        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">System Setup</h2><p className="text-gray-600 dark:text-gray-400 mt-2">Configure system parameters and preferences</p></div>;
       default:
         break;
     }

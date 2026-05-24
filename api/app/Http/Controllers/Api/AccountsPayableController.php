@@ -17,32 +17,275 @@ use App\Services\AccountsPayable\MatchingLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AccountsPayableController extends Controller
 {
     public function index(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
-        $suppliers = ApSupplier::query()
-            ->when($q !== '', fn ($query) => $query->where('name', 'like', "%{$q}%")->orWhere('supplier_code', 'like', "%{$q}%"))
-            ->orderBy('name')
-            ->limit(250)
-            ->get();
+        $hasApSuppliers = Schema::hasTable('ap_suppliers');
+        $hasApBills = Schema::hasTable('ap_bills');
+        $apSuppliers = $hasApSuppliers
+            ? ApSupplier::query()
+                ->when($q !== '', fn ($query) => $query->where('name', 'like', "%{$q}%")->orWhere('supplier_code', 'like', "%{$q}%"))
+                ->orderBy('name')
+                ->limit(250)
+                ->get()
+            : collect();
+        $suppliers = $this->mergedSupplierRows($apSuppliers, $q);
 
         $summary = [
-            'totalPayables' => (float) ApBill::whereIn('status', ['approved', 'part_paid'])->sum('amount_due'),
-            'activeSuppliers' => (int) ApSupplier::where('active', true)->count(),
-            'overdueBills' => (int) ApBill::where('amount_due', '>', 0)->whereDate('due_date', '<', now()->toDateString())->count(),
-            'dueThisWeek' => (float) ApBill::where('amount_due', '>', 0)->whereBetween('due_date', [now()->startOfWeek(), now()->endOfWeek()])->sum('amount_due'),
+            'totalPayables' => ($hasApBills ? (float) ApBill::whereIn('status', ['approved', 'part_paid'])->sum('amount_due') : 0.0) + $this->legacyTotalPayables(),
+            'activeSuppliers' => (int) $suppliers->filter(fn ($supplier) => (bool) ($supplier['active'] ?? true))->count(),
+            'overdueBills' => ($hasApBills ? (int) ApBill::where('amount_due', '>', 0)->whereDate('due_date', '<', now()->toDateString())->count() : 0) + $this->legacyOverdueBills(),
+            'dueThisWeek' => ($hasApBills ? (float) ApBill::where('amount_due', '>', 0)->whereBetween('due_date', [now()->startOfWeek(), now()->endOfWeek()])->sum('amount_due') : 0.0) + $this->legacyDueThisWeek(),
         ];
 
-        $upcoming = ApBill::query()->with('supplier:id,name,supplier_code')
-            ->where('amount_due', '>', 0)
-            ->orderBy('due_date')
-            ->limit(10)
-            ->get();
+        $upcoming = $hasApBills
+            ? ApBill::query()->with('supplier:id,name,supplier_code')
+                ->where('amount_due', '>', 0)
+                ->orderBy('due_date')
+                ->limit(10)
+                ->get()
+            : collect();
+        $upcoming = $upcoming->concat($this->legacyUpcomingBills($q))->take(50)->values();
 
         return response()->json(['success' => true, 'data' => compact('suppliers', 'summary', 'upcoming')]);
+    }
+
+    private function mergedSupplierRows($apSuppliers, string $q)
+    {
+        $rows = collect($apSuppliers)->map(function (ApSupplier $supplier) {
+            return [
+                'id' => $supplier->id,
+                'supplier_code' => (string) $supplier->supplier_code,
+                'name' => (string) $supplier->name,
+                'email' => $supplier->email,
+                'phone' => $supplier->phone,
+                'currency_code' => $supplier->currency_code,
+                'payment_term_code' => $supplier->payment_term_code,
+                'credit_limit' => $supplier->credit_limit,
+                'active' => (bool) $supplier->active,
+                'source' => 'accounts_payable',
+            ];
+        });
+
+        return $rows
+            ->concat($this->legacySupplierRows($q))
+            ->unique(fn ($supplier) => strtolower((string) ($supplier['supplier_code'] ?? $supplier['id'] ?? '')))
+            ->sortBy(fn ($supplier) => strtolower((string) ($supplier['name'] ?? '')))
+            ->values();
+    }
+
+    private function legacySupplierRows(string $q)
+    {
+        if (!Schema::hasTable('suppliers')) {
+            return collect();
+        }
+
+        $emailColumn = $this->firstExistingColumn('suppliers', ['email', 'emailaddress']);
+        $phoneColumn = $this->firstExistingColumn('suppliers', ['telephone', 'phone', 'phoneno', 'tel']);
+        $currencyColumn = $this->firstExistingColumn('suppliers', ['currcode']);
+        $termsColumn = $this->firstExistingColumn('suppliers', ['paymentterms']);
+
+        $query = DB::table('suppliers')
+            ->select([
+                DB::raw('supplierid as id'),
+                DB::raw('supplierid as supplier_code'),
+                DB::raw('suppname as name'),
+                $emailColumn ? DB::raw($emailColumn . ' as email') : DB::raw('NULL as email'),
+                $phoneColumn ? DB::raw($phoneColumn . ' as phone') : DB::raw('NULL as phone'),
+                $currencyColumn ? DB::raw($currencyColumn . ' as currency_code') : DB::raw('NULL as currency_code'),
+                $termsColumn ? DB::raw($termsColumn . ' as payment_term_code') : DB::raw('NULL as payment_term_code'),
+                DB::raw('NULL as credit_limit'),
+            ]);
+
+        if ($q !== '') {
+            $query->where(function ($search) use ($q) {
+                $search->where('supplierid', 'like', "%{$q}%")
+                    ->orWhere('suppname', 'like', "%{$q}%");
+            });
+        }
+
+        return $query
+            ->orderBy('suppname')
+            ->limit(500)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (string) $row->id,
+                    'supplier_code' => (string) $row->supplier_code,
+                    'name' => html_entity_decode((string) ($row->name ?: $row->supplier_code)),
+                    'email' => $row->email ? (string) $row->email : null,
+                    'phone' => $row->phone ? (string) $row->phone : null,
+                    'currency_code' => $row->currency_code ? (string) $row->currency_code : null,
+                    'payment_term_code' => $row->payment_term_code ? (string) $row->payment_term_code : null,
+                    'credit_limit' => null,
+                    'active' => true,
+                    'source' => 'legacy',
+                ];
+            });
+    }
+
+    private function legacyUpcomingBills(string $q)
+    {
+        if (!Schema::hasTable('supptrans')) {
+            return collect();
+        }
+
+        $supplierColumn = $this->firstExistingColumn('supptrans', ['supplierno', 'supplierid']);
+        if ($supplierColumn === null) {
+            return collect();
+        }
+
+        $idColumn = $this->firstExistingColumn('supptrans', ['id', 'transno']);
+        if ($idColumn === null) {
+            return collect();
+        }
+
+        $referenceColumn = $this->firstExistingColumn('supptrans', ['suppreference', 'suppref', 'reference', 'transno']);
+        $dateColumn = $this->firstExistingColumn('supptrans', ['trandate', 'inputdate']);
+        $dueDateColumn = $this->firstExistingColumn('supptrans', ['duedate', 'trandate']);
+        $amountExpression = $this->legacySupplierTransactionAmountExpression('st');
+
+        $query = DB::table('supptrans as st')
+            ->leftJoin('suppliers as s', 's.supplierid', '=', 'st.' . $supplierColumn)
+            ->select([
+                DB::raw("CONCAT('legacy-', st." . $idColumn . ') as id'),
+                $referenceColumn ? DB::raw('st.' . $referenceColumn . ' as bill_number') : DB::raw('st.' . $idColumn . ' as bill_number'),
+                $dateColumn ? DB::raw('st.' . $dateColumn . ' as bill_date') : DB::raw('NULL as bill_date'),
+                $dueDateColumn ? DB::raw('st.' . $dueDateColumn . ' as due_date') : DB::raw('NULL as due_date'),
+                DB::raw('"open" as status'),
+                DB::raw($amountExpression . ' as total'),
+                DB::raw('0 as amount_paid'),
+                DB::raw($amountExpression . ' as amount_due'),
+                DB::raw('st.' . $supplierColumn . ' as supplier_code'),
+                DB::raw('COALESCE(NULLIF(s.suppname, ""), st.' . $supplierColumn . ') as supplier_name'),
+            ])
+            ->whereRaw($amountExpression . ' > 0');
+
+        if ($q !== '') {
+            $query->where(function ($search) use ($q, $referenceColumn, $supplierColumn) {
+                $search->where('st.' . $supplierColumn, 'like', "%{$q}%")
+                    ->orWhere('s.suppname', 'like', "%{$q}%");
+
+                if ($referenceColumn) {
+                    $search->orWhere('st.' . $referenceColumn, 'like', "%{$q}%");
+                }
+            });
+        }
+
+        if ($dueDateColumn) {
+            $query->orderBy('st.' . $dueDateColumn);
+        }
+
+        return $query
+            ->limit(25)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (string) $row->id,
+                    'bill_number' => (string) $row->bill_number,
+                    'bill_date' => $row->bill_date,
+                    'due_date' => $row->due_date,
+                    'status' => (string) $row->status,
+                    'total' => (float) $row->total,
+                    'amount_paid' => (float) $row->amount_paid,
+                    'amount_due' => (float) $row->amount_due,
+                    'supplier' => [
+                        'name' => html_entity_decode((string) $row->supplier_name),
+                        'supplier_code' => (string) $row->supplier_code,
+                    ],
+                    'source' => 'legacy',
+                ];
+            });
+    }
+
+    private function legacyTotalPayables(): float
+    {
+        return $this->legacySupplierTransactionAggregate();
+    }
+
+    private function legacyOverdueBills(): int
+    {
+        if (!Schema::hasTable('supptrans')) {
+            return 0;
+        }
+
+        $dueDateColumn = $this->firstExistingColumn('supptrans', ['duedate', 'trandate']);
+        if ($dueDateColumn === null) {
+            return 0;
+        }
+
+        $amountExpression = $this->legacySupplierTransactionAmountExpression();
+
+        return (int) DB::table('supptrans')
+            ->whereRaw($amountExpression . ' > 0')
+            ->whereDate($dueDateColumn, '<', now()->toDateString())
+            ->count();
+    }
+
+    private function legacyDueThisWeek(): float
+    {
+        if (!Schema::hasTable('supptrans')) {
+            return 0.0;
+        }
+
+        $dueDateColumn = $this->firstExistingColumn('supptrans', ['duedate', 'trandate']);
+        if ($dueDateColumn === null) {
+            return 0.0;
+        }
+
+        $amountExpression = $this->legacySupplierTransactionAmountExpression();
+
+        return (float) DB::table('supptrans')
+            ->whereRaw($amountExpression . ' > 0')
+            ->whereBetween($dueDateColumn, [now()->startOfWeek(), now()->endOfWeek()])
+            ->sum(DB::raw($amountExpression));
+    }
+
+    private function legacySupplierTransactionAggregate(): float
+    {
+        if (!Schema::hasTable('supptrans')) {
+            return 0.0;
+        }
+
+        $amountExpression = $this->legacySupplierTransactionAmountExpression();
+
+        return (float) DB::table('supptrans')
+            ->whereRaw($amountExpression . ' > 0')
+            ->sum(DB::raw($amountExpression));
+    }
+
+    private function legacySupplierTransactionAmountExpression(string $tableAlias = ''): string
+    {
+        $prefix = $tableAlias !== '' ? $tableAlias . '.' : '';
+        $parts = [];
+        foreach (['ovamount', 'ovgst', 'ovfreight', 'ovdiscount'] as $column) {
+            if (Schema::hasColumn('supptrans', $column)) {
+                $qualifiedColumn = $prefix . $column;
+                $parts[] = $column === 'ovdiscount' ? '- COALESCE(' . $qualifiedColumn . ', 0)' : 'COALESCE(' . $qualifiedColumn . ', 0)';
+            }
+        }
+
+        $gross = count($parts) > 0 ? implode(' + ', $parts) : '0';
+        if (Schema::hasColumn('supptrans', 'alloc')) {
+            return '(' . $gross . ' - COALESCE(' . $prefix . 'alloc, 0))';
+        }
+
+        return '(' . $gross . ')';
+    }
+
+    private function firstExistingColumn(string $table, array $columns): ?string
+    {
+        foreach ($columns as $column) {
+            if (Schema::hasColumn($table, $column)) {
+                return $column;
+            }
+        }
+
+        return null;
     }
 
     public function storeSupplier(Request $request)
@@ -336,9 +579,13 @@ class AccountsPayableController extends Controller
 
     public function agingSummary()
     {
+        $buckets = $this->legacyAgingBuckets();
+        if (!Schema::hasTable('ap_bills')) {
+            return response()->json(['success' => true, 'data' => $buckets]);
+        }
+
         $rows = ApBill::query()->where('amount_due', '>', 0)->get();
         $today = now()->startOfDay();
-        $buckets = ['current' => 0.0, 'days_1_30' => 0.0, 'days_31_60' => 0.0, 'days_61_90' => 0.0, 'days_91_plus' => 0.0];
         foreach ($rows as $bill) {
             $days = $today->diffInDays($bill->due_date, false);
             $pastDue = -1 * min(0, $days);
@@ -350,6 +597,43 @@ class AccountsPayableController extends Controller
             else $buckets['days_91_plus'] += $amount;
         }
         return response()->json(['success' => true, 'data' => $buckets]);
+    }
+
+    private function legacyAgingBuckets(): array
+    {
+        $buckets = ['current' => 0.0, 'days_1_30' => 0.0, 'days_31_60' => 0.0, 'days_61_90' => 0.0, 'days_91_plus' => 0.0];
+        if (!Schema::hasTable('supptrans')) {
+            return $buckets;
+        }
+
+        $dueDateColumn = $this->firstExistingColumn('supptrans', ['duedate', 'trandate']);
+        if ($dueDateColumn === null) {
+            return $buckets;
+        }
+
+        $amountExpression = $this->legacySupplierTransactionAmountExpression();
+        $today = now()->startOfDay();
+        $rows = DB::table('supptrans')
+            ->select([
+                DB::raw($dueDateColumn . ' as due_date'),
+                DB::raw($amountExpression . ' as amount_due'),
+            ])
+            ->whereRaw($amountExpression . ' > 0')
+            ->get();
+
+        foreach ($rows as $row) {
+            $dueDate = $row->due_date ? Carbon::parse($row->due_date) : $today;
+            $days = $today->diffInDays($dueDate, false);
+            $pastDue = -1 * min(0, $days);
+            $amount = (float) $row->amount_due;
+            if ($pastDue <= 0) $buckets['current'] += $amount;
+            elseif ($pastDue <= 30) $buckets['days_1_30'] += $amount;
+            elseif ($pastDue <= 60) $buckets['days_31_60'] += $amount;
+            elseif ($pastDue <= 90) $buckets['days_61_90'] += $amount;
+            else $buckets['days_91_plus'] += $amount;
+        }
+
+        return $buckets;
     }
 
     public function storeRecurringTemplate(Request $request)

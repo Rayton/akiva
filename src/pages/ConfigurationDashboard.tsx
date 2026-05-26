@@ -146,7 +146,7 @@ export function ConfigurationDashboard({ module, onSelectPage }: ConfigurationDa
               <h1 className="mt-4 akiva-page-title">
                 Configuration Dashboard
               </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+              <p className="akiva-page-subtitle">
                 A single control surface for company setup, user permissions, general ledger setup, and system maintenance.
               </p>
             </div>

@@ -251,7 +251,7 @@ export function FinancialReports() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="akiva-page-title">Financial Reports</h1>
-          <p className="text-gray-600">Generate and view comprehensive financial reports</p>
+          <p className="akiva-page-subtitle">Generate and view comprehensive financial reports</p>
         </div>
         <Button>
           <Download className="w-4 h-4 mr-2" />

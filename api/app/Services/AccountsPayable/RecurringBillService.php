@@ -43,6 +43,9 @@ class RecurringBillService
                         'amount_due' => $template->default_amount,
                         'memo' => 'Generated from recurring template '.$template->template_name,
                     ]);
+                    $bill = ApBill::where('supplier_id', $template->supplier_id)
+                        ->where('bill_number', 'REC-'.$template->id.'-'.str_replace('-', '', $runDate))
+                        ->first() ?? $bill;
 
                     DB::table('ap_recurring_bill_runs')->insert([
                         'template_id' => $template->id,

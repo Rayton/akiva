@@ -19,6 +19,9 @@ class PaymentBatchService
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+            if ((int) $batchId <= 0) {
+                $batchId = (int) DB::table('ap_payment_batches')->where('batch_number', $batchNumber)->value('id');
+            }
 
             $total = 0;
             foreach (ApBill::whereIn('id', $billIds)->lockForUpdate()->get() as $bill) {
@@ -78,6 +81,14 @@ class PaymentBatchService
                     'reference' => $batch->batch_number,
                     'amount' => $line->amount,
                 ]);
+                $payment = ApPayment::query()
+                    ->where('supplier_id', $bill->supplier_id)
+                    ->whereDate('payment_date', now()->toDateString())
+                    ->where('payment_method', 'batch_transfer')
+                    ->where('reference', $batch->batch_number)
+                    ->where('amount', $line->amount)
+                    ->orderByDesc('id')
+                    ->first() ?? $payment;
 
                 DB::table('ap_payment_allocations')->insert([
                     'payment_id' => $payment->id,

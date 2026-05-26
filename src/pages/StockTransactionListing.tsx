@@ -291,7 +291,7 @@ export function StockTransactionListing() {
                 <h1 className="mt-4 akiva-page-title">
                   Stock Transaction Listing
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review inventory transactions by movement type, period, and stock location before printing the listing.
                 </p>
               </div>

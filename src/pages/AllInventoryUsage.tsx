@@ -312,7 +312,7 @@ export function AllInventoryUsage() {
                 <h1 className="mt-4 akiva-page-title">
                   All Inventory Usage
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review item consumption across selected locations and categories, including opening balance, purchases, usage, balance, and usage cost.
                 </p>
               </div>

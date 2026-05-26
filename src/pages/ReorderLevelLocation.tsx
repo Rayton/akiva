@@ -373,7 +373,7 @@ export function ReorderLevelLocation() {
                 <h1 className="mt-3 akiva-page-title">
                   Location Reorder Levels
                 </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Maintain reorder levels and bin locations using selected-period consumption and current stock on hand.
                 </p>
               </div>

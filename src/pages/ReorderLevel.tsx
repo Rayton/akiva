@@ -345,7 +345,7 @@ export function ReorderLevel() {
                 <h1 className="mt-3 akiva-page-title">
                   Reorder Planning
                 </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review stock below reorder level, open purchase orders, transfer cover, and suggested order quantities.
                 </p>
               </div>

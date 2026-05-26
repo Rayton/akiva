@@ -94,7 +94,7 @@ return new class extends Migration
             Schema::create('fiscal_periods', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('fiscal_year_id')->nullable()->index();
-                $table->unsignedInteger('legacy_period_no')->nullable()->unique();
+                $table->integer('legacy_period_no')->nullable()->unique();
                 $table->unsignedSmallInteger('period_no');
                 $table->string('name', 120);
                 $table->date('start_date');
@@ -113,6 +113,8 @@ return new class extends Migration
                 $table->index(['start_date', 'end_date']);
             });
         }
+
+        $this->ensureSignedIntegerColumn('fiscal_periods', 'legacy_period_no');
 
         if (!Schema::hasTable('period_status_history')) {
             Schema::create('period_status_history', function (Blueprint $table) {
@@ -394,9 +396,15 @@ return new class extends Migration
                 $table->text('notes')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
-                $table->index(['tax_authority_id', 'tax_category_id', 'tax_province_id', 'effective_from']);
+                $table->index(['tax_authority_id', 'tax_category_id', 'tax_province_id', 'effective_from'], 'tax_rate_versions_tax_lookup_idx');
             });
         }
+
+        $this->ensureIndex(
+            'tax_rate_versions',
+            'tax_rate_versions_tax_lookup_idx',
+            ['tax_authority_id', 'tax_category_id', 'tax_province_id', 'effective_from'],
+        );
 
         if (!Schema::hasTable('tax_exemptions')) {
             Schema::create('tax_exemptions', function (Blueprint $table) {
@@ -879,6 +887,45 @@ return new class extends Migration
         ]);
 
         return $id;
+    }
+
+    private function ensureIndex(string $table, string $indexName, array $columns): void
+    {
+        if (!Schema::hasTable($table) || $this->indexExists($table, $indexName)) {
+            return;
+        }
+
+        Schema::table($table, function (Blueprint $schema) use ($columns, $indexName) {
+            $schema->index($columns, $indexName);
+        });
+    }
+
+    private function indexExists(string $table, string $indexName): bool
+    {
+        $table = str_replace('`', '``', $table);
+
+        return DB::select("SHOW INDEX FROM `{$table}` WHERE Key_name = ?", [$indexName]) !== [];
+    }
+
+    private function ensureSignedIntegerColumn(string $table, string $column): void
+    {
+        if (!Schema::hasTable($table) || !Schema::hasColumn($table, $column)) {
+            return;
+        }
+
+        $metadata = DB::selectOne(
+            'select column_type as type_name from information_schema.columns where table_schema = database() and table_name = ? and column_name = ?',
+            [$table, $column],
+        );
+
+        if (!$metadata || !str_contains(strtolower((string) $metadata->type_name), 'unsigned')) {
+            return;
+        }
+
+        $table = str_replace('`', '``', $table);
+        $column = str_replace('`', '``', $column);
+
+        DB::statement("ALTER TABLE `{$table}` MODIFY `{$column}` INT NULL");
     }
 
     private function configuredYearEndMonth(): int

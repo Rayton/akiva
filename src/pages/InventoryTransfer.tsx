@@ -603,7 +603,7 @@ export function InventoryTransfer() {
                 <h1 className="mt-4 akiva-page-title">
                   Inventory Location Transfers
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Send stock between locations and receive it when it arrives.
                 </p>
               </div>

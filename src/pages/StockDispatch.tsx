@@ -410,7 +410,7 @@ export function StockDispatch() {
                 <h1 className="mt-4 akiva-page-title">
                   Stock Dispatch Planning
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Plan stock transfers from locations with spare inventory to locations below reorder level, then create a transfer batch for dispatch.
                 </p>
               </div>

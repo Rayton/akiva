@@ -31,6 +31,13 @@ class ApprovalWorkflowService
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        if ((int) $instanceId <= 0) {
+            $instanceId = (int) DB::table('ap_bill_approval_instances')
+                ->where('bill_id', $bill->id)
+                ->where('policy_id', $policy->id)
+                ->orderByDesc('id')
+                ->value('id');
+        }
 
         $bill->status = 'pending_approval';
         $bill->save();

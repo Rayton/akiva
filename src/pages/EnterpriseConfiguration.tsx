@@ -401,7 +401,7 @@ export function EnterpriseConfiguration({ initialEntity = 'fiscal-periods', page
               <h1 className="mt-4 akiva-page-title">
                 {title}
               </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+              <p className="akiva-page-subtitle">
                 {description}
               </p>
             </div>

@@ -382,7 +382,7 @@ export function AccessPermissions() {
               <h1 className="mt-4 akiva-page-title">
                 Access
               </h1>
-              <p className="mt-2 text-sm text-akiva-text-muted">
+              <p className="akiva-page-subtitle">
                 Maintain security roles and the page tokens each role can use.
               </p>
             </div>

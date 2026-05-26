@@ -301,7 +301,7 @@ export function InventoryQuantities() {
                 <h1 className="mt-4 akiva-page-title">
                   Inventory Quantities
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review stocked items with quantity on hand by location, reorder level, and controlled stock status.
                 </p>
               </div>

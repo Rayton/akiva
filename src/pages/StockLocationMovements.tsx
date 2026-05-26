@@ -427,7 +427,7 @@ export function StockLocationMovements() {
                 <h1 className="mt-4 akiva-page-title">
                   Stock Movements by Location
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review every inventory movement posted for a location and date range, including document type, customer, quantity, price, discount, and balance after posting.
                 </p>
               </div>

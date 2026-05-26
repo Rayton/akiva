@@ -89,7 +89,7 @@ export function AccountsReceivable() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="akiva-page-title">Accounts Receivable</h1>
-          <p className="text-gray-600">Manage customer accounts and outstanding balances</p>
+          <p className="akiva-page-subtitle">Manage customer accounts and outstanding balances</p>
         </div>
         <Button>
           <Plus className="w-4 h-4 mr-2" />

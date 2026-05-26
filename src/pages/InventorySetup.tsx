@@ -479,7 +479,7 @@ export function InventorySetup({ initialTab = 'stock-categories' }: InventorySet
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-akiva-accent">Configuration</p>
               <h1 className="mt-1 akiva-page-title">Inventory setup</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">{definition.description}</p>
+              <p className="akiva-page-subtitle">{definition.description}</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row min-[900px]:shrink-0">
               <Button variant="secondary" onClick={() => void loadSetup()} disabled={loading}>

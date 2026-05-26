@@ -321,7 +321,7 @@ export function SystemParameters() {
                 <h1 className="mt-4 akiva-page-title">
                   System settings
                 </h1>
-                <p className="mt-2 text-sm text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Configure operational defaults for sales, purchasing, inventory, security, workflow, and notifications.
                 </p>
               </div>

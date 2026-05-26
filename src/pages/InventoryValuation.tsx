@@ -409,7 +409,7 @@ export function InventoryValuation() {
                 <h1 className="mt-4 akiva-page-title">
                   Inventory Valuation
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review current inventory value using standard cost, with movement context for the selected date range.
                 </p>
               </div>

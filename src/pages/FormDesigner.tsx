@@ -549,7 +549,7 @@ export function FormDesigner() {
               <h1 className="mt-4 akiva-page-title">
                 Form Designer
               </h1>
-              <p className="mt-2 text-sm text-akiva-text-muted">
+              <p className="akiva-page-subtitle">
                 Design forms, labels, and operational document layouts.
               </p>
             </div>

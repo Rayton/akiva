@@ -51,7 +51,359 @@ class AccountsPayableController extends Controller
             : collect();
         $upcoming = $upcoming->concat($this->legacyUpcomingBills($q))->take(50)->values();
 
-        return response()->json(['success' => true, 'data' => compact('suppliers', 'summary', 'upcoming')]);
+        $nativeBills = $this->nativeBillRows();
+        $matchingQueue = $this->matchingQueueRows();
+        $approvalQueue = $this->approvalQueueRows();
+        $paymentBatches = $this->paymentBatchRows();
+        $exceptions = $this->exceptionRows();
+        $creditNotes = $this->creditNoteRows();
+        $recurringTemplates = $this->recurringTemplateRows();
+        $supplierStatements = $this->supplierStatementRows();
+        $governance = [
+            'nativeSupplierCount' => $hasApSuppliers ? (int) ApSupplier::count() : 0,
+            'nativeOpenBills' => $hasApBills ? (int) ApBill::where('amount_due', '>', 0)->count() : 0,
+            'approvalQueue' => $approvalQueue->count(),
+            'matchingQueue' => $matchingQueue->count(),
+            'paymentBatches' => $paymentBatches->count(),
+            'exceptionQueue' => $exceptions->where('status', '!=', 'resolved')->count(),
+            'creditNotes' => $creditNotes->count(),
+            'recurringTemplates' => $recurringTemplates->count(),
+            'supplierStatements' => $supplierStatements->count(),
+        ];
+
+        return response()->json(['success' => true, 'data' => compact(
+            'suppliers',
+            'summary',
+            'upcoming',
+            'nativeBills',
+            'matchingQueue',
+            'approvalQueue',
+            'paymentBatches',
+            'exceptions',
+            'creditNotes',
+            'recurringTemplates',
+            'supplierStatements',
+            'governance',
+        )]);
+    }
+
+    private function nativeBillRows(int $limit = 200)
+    {
+        if (!Schema::hasTable('ap_bills')) {
+            return collect();
+        }
+
+        return ApBill::query()
+            ->with('supplier:id,name,supplier_code,currency_code')
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get()
+            ->map(fn (ApBill $bill) => $this->billRow($bill));
+    }
+
+    private function billRow(ApBill $bill): array
+    {
+        return [
+            'id' => (int) $bill->id,
+            'bill_number' => (string) $bill->bill_number,
+            'bill_date' => optional($bill->bill_date)->toDateString(),
+            'due_date' => optional($bill->due_date)->toDateString(),
+            'status' => (string) $bill->status,
+            'subtotal' => (float) $bill->subtotal,
+            'tax_total' => (float) $bill->tax_total,
+            'total' => (float) $bill->total,
+            'amount_paid' => (float) $bill->amount_paid,
+            'amount_due' => (float) $bill->amount_due,
+            'memo' => $bill->memo,
+            'matching_status' => (string) ($bill->matching_status ?? 'pending'),
+            'matching_blocked' => (bool) ($bill->matching_blocked ?? false),
+            'supplier' => $bill->supplier ? [
+                'name' => (string) $bill->supplier->name,
+                'supplier_code' => (string) $bill->supplier->supplier_code,
+                'currency_code' => $bill->supplier->currency_code,
+            ] : null,
+            'source' => 'accounts_payable',
+        ];
+    }
+
+    private function matchingQueueRows()
+    {
+        if (!Schema::hasTable('ap_bills')) {
+            return collect();
+        }
+
+        $bills = ApBill::query()
+            ->with('supplier:id,name,supplier_code,currency_code')
+            ->where('amount_due', '>', 0)
+            ->orderByDesc('updated_at')
+            ->limit(100)
+            ->get();
+
+        if ($bills->isEmpty() || !Schema::hasTable('ap_bill_matches')) {
+            return $bills->map(fn (ApBill $bill) => $this->billRow($bill));
+        }
+
+        $matches = DB::table('ap_bill_matches')
+            ->whereIn('bill_id', $bills->pluck('id'))
+            ->whereNull('deleted_at')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('bill_id')
+            ->keyBy('bill_id');
+
+        return $bills->map(function (ApBill $bill) use ($matches) {
+            $match = $matches->get($bill->id);
+
+            return array_merge($this->billRow($bill), [
+                'latest_match_status' => $match->status ?? null,
+                'latest_match_type' => $match->match_type ?? null,
+                'variance_amount' => isset($match->variance_amount) ? (float) $match->variance_amount : 0.0,
+                'variance_qty' => isset($match->variance_qty) ? (float) $match->variance_qty : 0.0,
+            ]);
+        });
+    }
+
+    private function approvalQueueRows()
+    {
+        if (!Schema::hasTable('ap_bill_approval_instances')) {
+            return collect();
+        }
+
+        $escalatedAt = Schema::hasColumn('ap_bill_approval_instances', 'escalated_at') ? 'i.escalated_at' : DB::raw('NULL as escalated_at');
+
+        return DB::table('ap_bill_approval_instances as i')
+            ->leftJoin('ap_bills as b', 'b.id', '=', 'i.bill_id')
+            ->leftJoin('ap_suppliers as s', 's.id', '=', 'b.supplier_id')
+            ->leftJoin('ap_approval_policies as p', 'p.id', '=', 'i.policy_id')
+            ->whereNull('i.deleted_at')
+            ->select([
+                'i.id',
+                'i.bill_id',
+                'i.status',
+                'i.current_step',
+                'i.submitted_at',
+                $escalatedAt,
+                'p.name as policy_name',
+                'b.bill_number',
+                'b.total',
+                'b.amount_due',
+                's.name as supplier_name',
+                's.supplier_code',
+            ])
+            ->orderByDesc('i.created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'bill_id' => $row->bill_id !== null ? (int) $row->bill_id : null,
+                'bill_number' => $row->bill_number,
+                'supplier' => [
+                    'name' => $row->supplier_name,
+                    'supplier_code' => $row->supplier_code,
+                ],
+                'policy_name' => $row->policy_name,
+                'current_step' => (int) $row->current_step,
+                'status' => (string) $row->status,
+                'submitted_at' => $row->submitted_at,
+                'escalated_at' => $row->escalated_at ?? null,
+                'total' => (float) ($row->total ?? 0),
+                'amount_due' => (float) ($row->amount_due ?? 0),
+            ]);
+    }
+
+    private function paymentBatchRows()
+    {
+        if (!Schema::hasTable('ap_payment_batches')) {
+            return collect();
+        }
+
+        return DB::table('ap_payment_batches as b')
+            ->leftJoin('ap_payment_batch_lines as l', 'l.batch_id', '=', 'b.id')
+            ->whereNull('b.deleted_at')
+            ->select([
+                'b.id',
+                'b.batch_number',
+                'b.status',
+                'b.scheduled_date',
+                'b.approved_at',
+                'b.approved_by_user_id',
+                'b.executed_at',
+                'b.total_amount',
+                DB::raw('COUNT(l.id) as line_count'),
+            ])
+            ->groupBy('b.id', 'b.batch_number', 'b.status', 'b.scheduled_date', 'b.approved_at', 'b.approved_by_user_id', 'b.executed_at', 'b.total_amount')
+            ->orderByDesc('b.created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'batch_number' => (string) $row->batch_number,
+                'status' => (string) $row->status,
+                'scheduled_date' => $row->scheduled_date,
+                'approved_at' => $row->approved_at,
+                'approved_by_user_id' => $row->approved_by_user_id,
+                'executed_at' => $row->executed_at,
+                'total_amount' => (float) $row->total_amount,
+                'line_count' => (int) $row->line_count,
+            ]);
+    }
+
+    private function exceptionRows()
+    {
+        if (!Schema::hasTable('ap_exceptions')) {
+            return collect();
+        }
+
+        $assignedColumn = Schema::hasColumn('ap_exceptions', 'assigned_to_user_id') ? 'e.assigned_to_user_id' : 'e.assigned_to';
+        $dueAtColumn = Schema::hasColumn('ap_exceptions', 'due_at') ? 'e.due_at' : DB::raw('NULL as due_at');
+
+        return DB::table('ap_exceptions as e')
+            ->leftJoin('ap_bills as b', 'b.id', '=', 'e.bill_id')
+            ->leftJoin('ap_suppliers as s', 's.id', '=', 'b.supplier_id')
+            ->whereNull('e.deleted_at')
+            ->select([
+                'e.id',
+                'e.bill_id',
+                'e.type',
+                'e.status',
+                'e.severity',
+                'e.message',
+                DB::raw($assignedColumn . ' as assigned_to_user_id'),
+                $dueAtColumn,
+                'e.resolved_at',
+                'b.bill_number',
+                's.name as supplier_name',
+                's.supplier_code',
+            ])
+            ->orderByDesc('e.created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'bill_id' => $row->bill_id !== null ? (int) $row->bill_id : null,
+                'bill_number' => $row->bill_number,
+                'supplier' => [
+                    'name' => $row->supplier_name,
+                    'supplier_code' => $row->supplier_code,
+                ],
+                'type' => (string) $row->type,
+                'status' => (string) $row->status,
+                'severity' => (string) $row->severity,
+                'message' => (string) $row->message,
+                'assigned_to_user_id' => $row->assigned_to_user_id,
+                'due_at' => $row->due_at ?? null,
+                'resolved_at' => $row->resolved_at,
+            ]);
+    }
+
+    private function creditNoteRows()
+    {
+        if (!Schema::hasTable('ap_credit_notes')) {
+            return collect();
+        }
+
+        return DB::table('ap_credit_notes as c')
+            ->leftJoin('ap_suppliers as s', 's.id', '=', 'c.supplier_id')
+            ->whereNull('c.deleted_at')
+            ->select([
+                'c.id',
+                'c.credit_number',
+                'c.credit_date',
+                'c.amount_total',
+                'c.amount_available',
+                'c.status',
+                'c.dispute_status',
+                's.name as supplier_name',
+                's.supplier_code',
+            ])
+            ->orderByDesc('c.created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'credit_number' => (string) $row->credit_number,
+                'credit_date' => $row->credit_date,
+                'amount_total' => (float) $row->amount_total,
+                'amount_available' => (float) $row->amount_available,
+                'status' => (string) $row->status,
+                'dispute_status' => $row->dispute_status ?? 'none',
+                'supplier' => [
+                    'name' => $row->supplier_name,
+                    'supplier_code' => $row->supplier_code,
+                ],
+            ]);
+    }
+
+    private function recurringTemplateRows()
+    {
+        if (!Schema::hasTable('ap_recurring_bill_templates')) {
+            return collect();
+        }
+
+        return DB::table('ap_recurring_bill_templates as r')
+            ->leftJoin('ap_suppliers as s', 's.id', '=', 'r.supplier_id')
+            ->whereNull('r.deleted_at')
+            ->select([
+                'r.id',
+                'r.template_name',
+                'r.frequency',
+                'r.interval_value',
+                'r.next_run_date',
+                'r.default_amount',
+                'r.requires_approval',
+                'r.active',
+                's.name as supplier_name',
+                's.supplier_code',
+            ])
+            ->orderBy('r.next_run_date')
+            ->limit(100)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'template_name' => (string) $row->template_name,
+                'frequency' => (string) $row->frequency,
+                'interval_value' => (int) $row->interval_value,
+                'next_run_date' => $row->next_run_date,
+                'default_amount' => (float) $row->default_amount,
+                'requires_approval' => (bool) $row->requires_approval,
+                'active' => (bool) $row->active,
+                'supplier' => [
+                    'name' => $row->supplier_name,
+                    'supplier_code' => $row->supplier_code,
+                ],
+            ]);
+    }
+
+    private function supplierStatementRows()
+    {
+        if (!Schema::hasTable('ap_supplier_statements')) {
+            return collect();
+        }
+
+        return DB::table('ap_supplier_statements as st')
+            ->leftJoin('ap_suppliers as s', 's.id', '=', 'st.supplier_id')
+            ->whereNull('st.deleted_at')
+            ->select([
+                'st.id',
+                'st.statement_date',
+                'st.closing_balance',
+                'st.status',
+                's.name as supplier_name',
+                's.supplier_code',
+            ])
+            ->orderByDesc('st.statement_date')
+            ->limit(100)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'statement_date' => $row->statement_date,
+                'closing_balance' => (float) $row->closing_balance,
+                'status' => (string) $row->status,
+                'supplier' => [
+                    'name' => $row->supplier_name,
+                    'supplier_code' => $row->supplier_code,
+                ],
+            ]);
     }
 
     private function mergedSupplierRows($apSuppliers, string $q)
@@ -302,6 +654,7 @@ class AccountsPayableController extends Controller
         $data['currency_code'] = $data['currency_code'] ?? 'USD';
         $data['active'] = true;
         $supplier = ApSupplier::create($data);
+        $supplier = ApSupplier::where('supplier_code', $data['supplier_code'])->first() ?? $supplier;
 
         return response()->json(['success' => true, 'data' => $supplier], 201);
     }
@@ -338,6 +691,9 @@ class AccountsPayableController extends Controller
                 'amount_due' => $total,
                 'memo' => $data['memo'] ?? null,
             ]);
+            $bill = ApBill::where('supplier_id', $data['supplier_id'])
+                ->where('bill_number', $data['bill_number'])
+                ->first() ?? $bill;
 
             foreach ($data['lines'] as $line) {
                 $lineTotal = round(((float) $line['quantity'] * (float) $line['unit_price']) * (1 + (((float) ($line['tax_rate'] ?? 0)) / 100)), 2);
@@ -425,7 +781,21 @@ class AccountsPayableController extends Controller
         ]);
 
         return DB::transaction(function () use ($data) {
-            $payment = ApPayment::create($data);
+            $payment = ApPayment::create([
+                'supplier_id' => $data['supplier_id'],
+                'payment_date' => $data['payment_date'],
+                'payment_method' => $data['payment_method'],
+                'reference' => $data['reference'] ?? null,
+                'amount' => $data['amount'],
+            ]);
+            $payment = ApPayment::query()
+                ->where('supplier_id', $data['supplier_id'])
+                ->whereDate('payment_date', $data['payment_date'])
+                ->where('payment_method', $data['payment_method'])
+                ->where('amount', $data['amount'])
+                ->orderByDesc('id')
+                ->first() ?? $payment;
+
             foreach ($data['allocations'] as $alloc) {
                 $bill = ApBill::findOrFail($alloc['bill_id']);
                 if (!in_array($bill->status, ['approved', 'part_paid'], true)) {
@@ -494,12 +864,30 @@ class AccountsPayableController extends Controller
     public function matchingWorkbench(Request $request)
     {
         $billId = (int) $request->query('bill_id', 0);
-        $bill = ApBill::with('supplier:id,name,supplier_code')->findOrFail($billId);
+        if ($billId <= 0) {
+            return response()->json(['success' => true, 'data' => [
+                'bill' => null,
+                'match' => null,
+                'queue' => $this->matchingQueueRows(),
+                'suggested' => [
+                    'matchType' => 'two_way',
+                    'purchaseOrderNo' => null,
+                    'grnBatchId' => null,
+                ],
+            ]]);
+        }
+
+        $bill = ApBill::with('supplier:id,name,supplier_code')->find($billId);
+        if ($bill === null) {
+            return response()->json(['success' => false, 'message' => 'Bill not found for matching workbench.'], 404);
+        }
+
         $existing = DB::table('ap_bill_matches')->where('bill_id', $billId)->orderByDesc('id')->first();
 
         return response()->json(['success' => true, 'data' => [
             'bill' => $bill,
             'match' => $existing,
+            'queue' => $this->matchingQueueRows(),
             'suggested' => [
                 'matchType' => 'two_way',
                 'purchaseOrderNo' => null,
@@ -561,6 +949,12 @@ class AccountsPayableController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        if ((int) $id <= 0) {
+            $id = (int) DB::table('ap_bill_matches')
+                ->where('bill_id', $bill->id)
+                ->orderByDesc('id')
+                ->value('id');
+        }
 
         if ($exceeded) {
             DB::table('ap_exceptions')->insert([
@@ -654,6 +1048,13 @@ class AccountsPayableController extends Controller
             'default_amount' => $data['default_amount'], 'requires_approval' => $data['requires_approval'] ?? true, 'active' => 1,
             'created_at' => now(), 'updated_at' => now(),
         ]);
+        if ((int) $id <= 0) {
+            $id = (int) DB::table('ap_recurring_bill_templates')
+                ->where('supplier_id', $data['supplier_id'])
+                ->where('template_name', $data['template_name'])
+                ->orderByDesc('id')
+                ->value('id');
+        }
         return response()->json(['success' => true, 'data' => ['template_id' => $id]], 201);
     }
 
@@ -672,6 +1073,13 @@ class AccountsPayableController extends Controller
             'amount_total' => $data['amount_total'], 'amount_available' => $data['amount_total'], 'status' => 'open',
             'reason' => $data['reason'] ?? null, 'created_at' => now(), 'updated_at' => now(),
         ]);
+        if ((int) $id <= 0) {
+            $id = (int) DB::table('ap_credit_notes')
+                ->where('supplier_id', $data['supplier_id'])
+                ->where('credit_number', $data['credit_number'])
+                ->orderByDesc('id')
+                ->value('id');
+        }
         return response()->json(['success' => true, 'data' => ['credit_note_id' => $id]], 201);
     }
 
@@ -767,6 +1175,14 @@ class AccountsPayableController extends Controller
             'status' => 'imported',
             'created_at' => now(), 'updated_at' => now(),
         ]);
+        if ((int) $id <= 0) {
+            $id = (int) DB::table('ap_supplier_statements')
+                ->where('supplier_id', $data['supplier_id'])
+                ->whereDate('statement_date', $data['statement_date'])
+                ->where('closing_balance', $data['closing_balance'])
+                ->orderByDesc('id')
+                ->value('id');
+        }
 
         return response()->json(['success' => true, 'data' => ['statement_id' => $id]], 201);
     }

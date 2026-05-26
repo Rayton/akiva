@@ -631,7 +631,7 @@ export function StockCounts() {
                 <h1 className="mt-4 akiva-page-title">
                   Stock Counts
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Prepare count sheets, enter physical quantities, and review differences before inventory is corrected.
                 </p>
               </div>

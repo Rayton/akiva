@@ -43,7 +43,7 @@ Page headers sit inside the main rounded frame and use a bottom divider.
 - Layout: stacked on mobile, horizontal on large screens
 - Eyebrow chips: compact rounded pills with icon plus label
 - Title: `akiva-page-title`, with top margin matching the header density (`mt-3` or `mt-4`)
-- Supporting text: `text-sm text-akiva-text-muted`
+- Supporting text: `akiva-page-subtitle`, kept close to the title so they read as one group
 - Header actions: icon buttons first; text buttons only for clear creation or submission commands
 
 Recommended action button:
@@ -113,6 +113,7 @@ Do not use a one-note palette. Primary actions use the Akiva accent. Status and 
 - Font: IBM Plex Sans via Tailwind `font-sans`
 - Numbers: tabular nums are globally enabled; keep money, counts, and percentages aligned
 - Page title: `.akiva-page-title`, semibold, normal tracking, responsive from `1.125rem` to `1.375rem`
+- Page subtitle: `.akiva-page-subtitle`, 6px below the title, max width `48rem`
 - Card labels: `text-xs font-semibold uppercase tracking-wide text-akiva-text-muted`
 - Card values: `text-2xl font-semibold`
 - Section titles: `text-sm font-semibold`
@@ -450,7 +451,7 @@ export function ModulePage() {
               <h1 className="mt-4 akiva-page-title">
                 Page title
               </h1>
-              <p className="mt-2 text-sm text-akiva-text-muted">Short operational context for this page.</p>
+              <p className="akiva-page-subtitle">Short operational context for this page.</p>
             </div>
 
             <div className="flex items-center gap-2 self-start lg:self-center">

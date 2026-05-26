@@ -440,7 +440,7 @@ export function Labels() {
               <h1 className="mt-4 akiva-page-title">
                 Labels
               </h1>
-              <p className="mt-2 text-sm text-akiva-text-muted">
+              <p className="akiva-page-subtitle">
                 Manage printable item label templates and field placement.
               </p>
             </div>

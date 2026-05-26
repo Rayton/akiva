@@ -430,7 +430,7 @@ export function InventoryPlanning() {
                 <h1 className="mt-4 akiva-page-title">
                   Inventory Planning
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Calculate suggested order quantities from recent usage, current stock, open demand, and supply already in progress.
                 </p>
               </div>

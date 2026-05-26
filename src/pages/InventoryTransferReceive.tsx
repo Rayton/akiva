@@ -418,7 +418,7 @@ export function InventoryTransferReceive() {
                 <h1 className="mt-4 akiva-page-title">
                   Receive Inventory Transfers
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Confirm arriving transfer quantities and post stock into the receiving location.
                 </p>
               </div>

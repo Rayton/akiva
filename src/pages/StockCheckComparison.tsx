@@ -266,7 +266,7 @@ export function StockCheckComparison() {
                 <h1 className="mt-4 akiva-page-title">
                   Stock Check Comparison
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Compare counted quantities against frozen stock check sheets before stock adjustments are posted.
                 </p>
               </div>

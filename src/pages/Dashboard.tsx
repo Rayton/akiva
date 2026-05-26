@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Area,
@@ -37,8 +38,33 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
+import { buildApiUrl } from '../lib/network/apiBase';
+import { apiFetch } from '../lib/network/apiClient';
 
 type RiskTone = 'danger' | 'warning' | 'pending' | 'success' | 'info' | 'neutral';
+type DashboardCardKey = 'cashAtRisk' | 'overdueReceivables' | 'approvalBacklog' | 'stockExposure';
+type DashboardCardValueType = 'money' | 'number';
+
+interface DashboardCardPayload {
+  value: number;
+  count: number;
+  detail: string;
+  status: string;
+  tone: RiskTone;
+}
+
+interface DashboardPayload {
+  companyName?: string;
+  currency: string;
+  asOf: string;
+  cards: Partial<Record<DashboardCardKey, DashboardCardPayload>>;
+}
+
+interface DashboardApiResponse {
+  success?: boolean;
+  message?: string;
+  data?: DashboardPayload;
+}
 
 const currency = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -71,40 +97,90 @@ const formatTooltipValue = (value: unknown) => {
   return String(value ?? '');
 };
 
-const executiveMetrics = [
+const formatDashboardNumber = (value: number) => new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 0,
+}).format(Number.isFinite(value) ? value : 0);
+
+const formatDashboardMoney = (value: number, currencyCode: string) => {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const formatter = new Intl.NumberFormat('en-US', {
+    notation: Math.abs(safeValue) >= 1_000_000 ? 'compact' : 'standard',
+    maximumFractionDigits: Math.abs(safeValue) >= 1_000_000 ? 1 : 0,
+  });
+
+  return `${(currencyCode || 'TZS').toUpperCase()} ${formatter.format(safeValue)}`;
+};
+
+const formatDashboardDate = (value?: string) => {
+  if (!value) return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date());
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+};
+
+const executiveMetricDefinitions: Array<{
+  key: DashboardCardKey;
+  label: string;
+  valueType: DashboardCardValueType;
+  icon: LucideIcon;
+  loadingDetail: string;
+}> = [
   {
+    key: 'cashAtRisk',
     label: 'Cash at risk',
-    value: '$84,200',
-    detail: 'Supplier payments due in 14 days',
-    status: 'High',
-    tone: 'danger' as const,
+    valueType: 'money',
     icon: Banknote,
+    loadingDetail: 'Loading supplier payment exposure...',
   },
   {
+    key: 'overdueReceivables',
     label: 'Overdue receivables',
-    value: '$38,240',
-    detail: '21 invoices beyond credit terms',
-    status: 'Collect',
-    tone: 'warning' as const,
+    valueType: 'money',
     icon: WalletCards,
+    loadingDetail: 'Loading overdue customer invoices...',
   },
   {
+    key: 'approvalBacklog',
     label: 'Approval backlog',
-    value: '27',
-    detail: 'POs and supplier bills awaiting decision',
-    status: 'Aging',
-    tone: 'pending' as const,
+    valueType: 'number',
     icon: ShieldCheck,
+    loadingDetail: 'Loading purchasing approvals...',
   },
   {
+    key: 'stockExposure',
     label: 'Stock exposure',
-    value: '18',
-    detail: 'Low or negative balances affecting sales',
-    status: 'Review',
-    tone: 'info' as const,
+    valueType: 'number',
     icon: Boxes,
+    loadingDetail: 'Loading stock balances...',
   },
 ];
+
+function buildExecutiveMetrics(payload: DashboardPayload | null, loading: boolean, error: string) {
+  const dashboardCurrency = payload?.currency || 'TZS';
+
+  return executiveMetricDefinitions.map((definition) => {
+    const card = payload?.cards?.[definition.key];
+    const unavailable = error !== '' && !card;
+    const value = card
+      ? definition.valueType === 'money'
+        ? formatDashboardMoney(card.value, dashboardCurrency)
+        : formatDashboardNumber(card.value)
+      : loading
+        ? '...'
+        : definition.valueType === 'money'
+          ? formatDashboardMoney(0, dashboardCurrency)
+          : '0';
+
+    return {
+      label: definition.label,
+      value,
+      detail: card?.detail ?? (unavailable ? 'Live data unavailable' : definition.loadingDetail),
+      status: card?.status ?? (unavailable ? 'Unavailable' : 'Loading'),
+      tone: card?.tone ?? (unavailable ? 'warning' as const : 'neutral' as const),
+      icon: definition.icon,
+    };
+  });
+}
 
 const operationalRisk = {
   score: 82,
@@ -116,7 +192,7 @@ const operationalRisk = {
 };
 
 const riskControls = [
-  { label: 'Cash floor', value: '$120k', current: '$214.9k', tone: 'success' as const },
+  { label: 'Minimum cash reserve', value: '$120k', current: '$214.9k', tone: 'success' as const },
   { label: 'Overdue AR limit', value: '$30k', current: '$38.2k', tone: 'warning' as const },
   { label: 'Approval SLA', value: '8 hrs', current: '11.4 hrs', tone: 'pending' as const },
   { label: 'Stockout tolerance', value: '5 items', current: '18 items', tone: 'danger' as const },
@@ -229,7 +305,7 @@ const aiControlBrief = [
     sequence: 'After 14:00 AR calls',
     resolutionValue: '2.1 days runway',
     auditSignal: 'Supplier SLA retained',
-    reasoning: 'Deferral stays inside supplier SLA while protecting the cash floor for payroll and critical medical supply orders.',
+    reasoning: 'Deferral stays inside supplier SLA while protecting the minimum cash reserve for payroll and critical medical supply orders.',
     approval: 'CFO review',
     icon: Banknote,
     tone: 'warning' as const,
@@ -308,11 +384,13 @@ function toneTextClass(tone: RiskTone): string {
   return 'text-akiva-text-muted';
 }
 
-function IconButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+function IconButton({ icon: Icon, label, onClick, disabled = false }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean }) {
   return (
     <button
       type="button"
-      className="flex h-10 w-10 items-center justify-center rounded-full border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-60"
       aria-label={label}
       title={label}
     >
@@ -515,6 +593,41 @@ function ExceptionRow({ row }: { row: (typeof exceptionQueue)[number] }) {
 }
 
 export function Dashboard() {
+  const [dashboardPayload, setDashboardPayload] = useState<DashboardPayload | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState('');
+
+  const loadDashboard = useCallback(async () => {
+    setDashboardLoading(true);
+    setDashboardError('');
+
+    try {
+      const response = await apiFetch(buildApiUrl('/api/dashboard'));
+      const json = (await response.json().catch(() => null)) as DashboardApiResponse | null;
+
+      if (!response.ok || !json?.success || !json.data) {
+        throw new Error(json?.message || 'Dashboard data could not be loaded.');
+      }
+
+      setDashboardPayload(json.data);
+    } catch (caught) {
+      setDashboardError(caught instanceof Error ? caught.message : 'Dashboard data could not be loaded.');
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  const executiveMetrics = useMemo(
+    () => buildExecutiveMetrics(dashboardPayload, dashboardLoading, dashboardError),
+    [dashboardPayload, dashboardLoading, dashboardError],
+  );
+  const companyName = dashboardPayload?.companyName || 'Akiva ERP';
+  const dashboardDate = formatDashboardDate(dashboardPayload?.asOf);
+
   return (
     <div className="akiva-page-shell px-3 py-3 sm:px-4 sm:py-4 lg:px-5 lg:py-5">
       <div className="mx-auto max-w-[1520px]">
@@ -525,22 +638,22 @@ export function Dashboard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
                     <Building2 className="h-4 w-4 text-akiva-accent-text" />
-                    Entice Tech Ltd
+                    {companyName}
                   </span>
                   <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
                     <CalendarDays className="h-4 w-4 text-akiva-accent-text" />
-                    17 May 2026
+                    {dashboardDate}
                   </span>
                 </div>
                 <h1 className="mt-4 akiva-page-title">
-                  ERP Command Center
+                  Dashboard
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Finance risk, purchase throughput, inventory exposure, and close readiness prioritized for daily operational decisions.
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <IconButton icon={RefreshCw} label="Refresh dashboard" />
+                <IconButton icon={RefreshCw} label="Refresh dashboard" onClick={() => void loadDashboard()} disabled={dashboardLoading} />
                 <IconButton icon={FileSearch} label="Open audit trail" />
                 <button
                   type="button"
@@ -563,7 +676,7 @@ export function Dashboard() {
 
               <RiskCommandStrip />
 
-              <Panel title="Cash, Receivables, And Payables" detail="Month-end liquidity view with collectable exposure and upcoming payment pressure." icon={ReceiptText}>
+              <Panel title="Cash Flow Forecast" detail="Cash balance, receivables, payables, and payment pressure by month." icon={ReceiptText}>
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={cashTrend} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
@@ -578,9 +691,9 @@ export function Dashboard() {
                       />
                       <Area type="monotone" dataKey="receivables" name="Receivables" stroke="var(--akiva-chart-warning)" strokeWidth={2} fill="rgba(217, 119, 6, 0.12)" />
                       <Area type="monotone" dataKey="payables" name="Payables" stroke="var(--akiva-chart-danger)" strokeWidth={2} fill="rgba(220, 38, 38, 0.1)" />
-                      <Line type="monotone" dataKey="cash" name="Cash" stroke="var(--akiva-chart-ink)" strokeWidth={3} dot={false} />
-                      <Line type="monotone" dataKey="forecastCash" name="Forecast cash" stroke="var(--akiva-chart-pending)" strokeWidth={2.5} strokeDasharray="6 6" dot={false} />
-                      <ReferenceLine y={120000} stroke="var(--akiva-chart-danger)" strokeDasharray="5 5" label={{ value: 'Cash floor', fill: 'var(--akiva-chart-danger)', fontSize: 11 }} />
+                      <Line type="monotone" dataKey="cash" name="Cash balance" stroke="var(--akiva-chart-ink)" strokeWidth={3} dot={false} />
+                      <Line type="monotone" dataKey="forecastCash" name="Forecast cash balance" stroke="var(--akiva-chart-pending)" strokeWidth={2.5} strokeDasharray="6 6" dot={false} />
+                      <ReferenceLine y={120000} stroke="var(--akiva-chart-danger)" strokeDasharray="5 5" label={{ value: 'Minimum reserve', fill: 'var(--akiva-chart-danger)', fontSize: 11 }} />
                       <ReferenceLine y={160000} stroke="var(--akiva-chart-warning)" strokeDasharray="4 6" label={{ value: 'AR review', fill: 'var(--akiva-chart-warning)', fontSize: 11 }} />
                       <ReferenceLine x="Oct" stroke="var(--akiva-chart-pending)" strokeDasharray="3 5" label={{ value: 'Forecast start', fill: 'var(--akiva-chart-pending)', fontSize: 11, position: 'insideTop' }} />
                       <ReferenceDot x="Sep" y={156841} r={5} fill="var(--akiva-chart-warning)" stroke="var(--akiva-chart-tooltip-bg)" strokeWidth={2} label={{ value: 'AR anomaly', fill: 'var(--akiva-chart-warning)', fontSize: 11, position: 'top' }} />
@@ -589,16 +702,16 @@ export function Dashboard() {
                 </div>
                 <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-semibold text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
-                    Cash floor protected by $94.9k
+                    Minimum reserve buffer: $94.9k
                   </div>
                   <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-100">
                     Receivables crossed review benchmark
                   </div>
                   <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-                    Forecast overlay shows cash compression by Nov
+                    Forecast shows cash tightening by Nov
                   </div>
                   <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 font-semibold text-purple-800 dark:border-purple-900 dark:bg-purple-950/30 dark:text-purple-100">
-                    Sep cash +22% vs Aug; payment sequencing required
+                    Sep cash balance +22% vs Aug; payment sequencing required
                   </div>
                 </div>
               </Panel>

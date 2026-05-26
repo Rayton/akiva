@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\SalesController;
 use App\Http\Controllers\Api\GeneralLedgerController;
 use App\Http\Controllers\Api\CompanyPreferencesController;
 use App\Http\Controllers\Api\SystemParametersController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\AuditTrailController;
 use App\Http\Controllers\Api\SystemCheckController;
 use App\Http\Controllers\Api\GeocodeSetupController;
@@ -63,6 +64,7 @@ Route::put('/company/preferences', [CompanyPreferencesController::class, 'update
 Route::get('/system/parameters', [SystemParametersController::class, 'show']);
 Route::put('/system/parameters', [SystemParametersController::class, 'update']);
 Route::get('/system/check', [SystemCheckController::class, 'show']);
+Route::get('/dashboard', [DashboardController::class, 'show']);
 Route::get('/audit-trail', [AuditTrailController::class, 'index']);
 Route::get('/geocode/setup', [GeocodeSetupController::class, 'show']);
 Route::post('/geocode/setup', [GeocodeSetupController::class, 'store']);

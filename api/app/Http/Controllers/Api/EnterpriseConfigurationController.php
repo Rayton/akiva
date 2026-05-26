@@ -31,12 +31,7 @@ class EnterpriseConfigurationController extends Controller
                     'entities' => $entities,
                     'lookups' => $this->lookups(),
                     'stats' => $stats,
-                    'controls' => [
-                        'fiscalPeriodEnforcement' => Schema::hasTable('fiscal_periods'),
-                        'dimensionCaptureReady' => Schema::hasTable('gltrans_dimensions'),
-                        'taxRateVersioningReady' => Schema::hasTable('tax_rate_versions'),
-                        'fxRateHistoryReady' => Schema::hasTable('currency_rates'),
-                    ],
+                    'controls' => $this->controls(),
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -62,7 +57,9 @@ class EnterpriseConfigurationController extends Controller
         try {
             $id = DB::transaction(function () use ($definition, $validator) {
                 $row = $this->rowForStorage($definition, $validator->validated(), true);
-                return DB::table($definition['table'])->insertGetId($row);
+                $insertedId = DB::table($definition['table'])->insertGetId($row);
+
+                return $this->resolveInsertedId($definition, $row, $insertedId);
             }, 5);
 
             return response()->json([
@@ -265,7 +262,45 @@ class EnterpriseConfigurationController extends Controller
             'entities' => $entities,
             'lookups' => $this->lookups(),
             'stats' => $stats,
+            'controls' => $this->controls(),
         ];
+    }
+
+    private function controls(): array
+    {
+        return [
+            'fiscalPeriodEnforcement' => Schema::hasTable('fiscal_periods'),
+            'dimensionCaptureReady' => Schema::hasTable('gltrans_dimensions'),
+            'taxRateVersioningReady' => Schema::hasTable('tax_rate_versions'),
+            'fxRateHistoryReady' => Schema::hasTable('currency_rates'),
+        ];
+    }
+
+    private function resolveInsertedId(array $definition, array $row, mixed $insertedId): int
+    {
+        $id = (int) $insertedId;
+        if ($id > 0) {
+            return $id;
+        }
+
+        $query = DB::table($definition['table']);
+        $matched = false;
+
+        foreach ($definition['fields'] as $field) {
+            $column = $field['column'];
+            if (!array_key_exists($column, $row) || $row[$column] === null) {
+                continue;
+            }
+
+            $query->where($column, $row[$column]);
+            $matched = true;
+        }
+
+        if (!$matched && isset($row['created_at'])) {
+            $query->where('created_at', $row['created_at']);
+        }
+
+        return (int) ($query->orderByDesc('id')->value('id') ?? 0);
     }
 
     private function normalizeEntity(string $entity): string

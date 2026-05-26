@@ -257,7 +257,7 @@ export function StockQuantitiesCsv() {
                 <h1 className="mt-4 akiva-page-title">
                   Stock Quantities CSV
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Download a simple item-code and quantity file for current non-zero stock across locations available to you.
                 </p>
               </div>

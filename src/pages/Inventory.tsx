@@ -403,7 +403,7 @@ export function Inventory() {
                 <h1 className="mt-4 akiva-page-title">
                   Inventory Dashboard
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   See inventory value, shortage risk, pending receiving, stock movement activity and count variance from current inventory records.
                 </p>
               </div>

@@ -373,7 +373,7 @@ export function StockUsage() {
                 <h1 className="mt-4 akiva-page-title">
                   Stock Usage
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review how much of an item was consumed by period, location, and value so reorder decisions are based on actual movement history.
                 </p>
               </div>

@@ -335,7 +335,7 @@ export function ReverseGoodsReceived() {
                 <h1 className="mt-4 akiva-page-title">
                   Reverse Goods Received
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Reverse uninvoiced goods receipts when a receiving mistake needs to be corrected.
                 </p>
               </div>

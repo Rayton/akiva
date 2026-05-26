@@ -258,7 +258,7 @@ export function SmtpServer() {
               <h1 className="mt-4 akiva-page-title">
                 SMTP Server
               </h1>
-              <p className="mt-2 text-sm text-akiva-text-muted">
+              <p className="akiva-page-subtitle">
                 Configure outgoing mail delivery for system notifications and documents.
               </p>
             </div>

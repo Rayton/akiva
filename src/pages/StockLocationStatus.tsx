@@ -322,7 +322,7 @@ export function StockLocationStatus() {
                 <h1 className="mt-4 akiva-page-title">
                   Stock Status by Location
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review item balances, demand, available stock, reorder levels, and open purchase or work orders for a selected location.
                 </p>
               </div>

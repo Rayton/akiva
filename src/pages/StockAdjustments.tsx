@@ -424,7 +424,7 @@ export function StockAdjustments() {
                 <h1 className="mt-4 akiva-page-title">
                   Inventory Adjustments
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Correct stock on hand with a documented reason and ledger impact.
                 </p>
               </div>

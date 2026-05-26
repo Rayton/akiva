@@ -383,7 +383,7 @@ export function PrintPriceLabels() {
                 <h1 className="mt-4 akiva-page-title">
                   Print Price Labels
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Choose a label format, select current prices, and print shelf or item labels from the approved price list.
                 </p>
               </div>

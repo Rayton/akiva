@@ -416,7 +416,7 @@ export function CompanyPreferences() {
                 <h1 className="mt-4 akiva-page-title">
                   Company preferences
                 </h1>
-                <p className="mt-2 text-sm text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Maintain the company identity, reporting address, home currency, and GL control accounts.
                 </p>
               </div>

@@ -384,7 +384,7 @@ export function StockQuantityByDate() {
                 <h1 className="mt-4 akiva-page-title">
                   Historical Stock Quantity
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+                <p className="akiva-page-subtitle">
                   Review stock on hand and inventory value as at the selected date, by location and category.
                 </p>
               </div>

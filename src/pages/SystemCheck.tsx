@@ -180,7 +180,7 @@ export function SystemCheck() {
               <h1 className="mt-4 akiva-page-title">
                 System Check
               </h1>
-              <p className="mt-2 text-sm text-akiva-text-muted">
+              <p className="akiva-page-subtitle">
                 Review application, database, storage, and configuration readiness.
               </p>
             </div>

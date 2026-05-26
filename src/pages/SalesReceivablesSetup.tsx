@@ -826,7 +826,7 @@ export function SalesReceivablesSetup({ initialTab = 'sales-types' }: SalesRecei
               <h1 className="mt-4 akiva-page-title">
                 {definition.title}
               </h1>
-              <p className="mt-2 text-sm text-akiva-text-muted">{definition.description}</p>
+              <p className="akiva-page-subtitle">{definition.description}</p>
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
               <Button variant="secondary" onClick={() => void loadSetup()} disabled={loading}>

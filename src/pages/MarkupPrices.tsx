@@ -280,7 +280,7 @@ export function MarkupPrices() {
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-akiva-accent">Inventory Maintenance</p>
               <h1 className="mt-1 akiva-page-title">Cost-Based Prices</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-akiva-text-muted">
+              <p className="akiva-page-subtitle">
                 Calculate stock prices from cost, preferred supplier data, or another price list.
               </p>
             </div>

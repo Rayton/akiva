@@ -69,6 +69,22 @@ const ICON_LAYOUT_EXPAND_WIDTH = 180;
 const MIN_MAIN_SIDEBAR_WIDTH = 240;
 const MAX_MAIN_SIDEBAR_WIDTH = 520;
 const NAVIGATION_EVENT = 'akiva:navigation';
+const DEFAULT_COMPANY_DATABASE = 'tanganyi_elct_usaid_kizazi_hodari';
+
+const COMPANY_OPTIONS = [
+  {
+    value: 'weberp_nyangao',
+    label: 'ST WALBURG NYANGAO HOSPITAL',
+  },
+  {
+    value: DEFAULT_COMPANY_DATABASE,
+    label: 'ELCT USAID KIZAZI HODARI',
+  },
+  {
+    value: 'weberp_nyagao',
+    label: "ST.WALBURG'S NYANGAO REFERRAL HOSPITAL",
+  },
+];
 
 const MAIN_MENU_ICONS: Record<string, PhosphorIcon> = {
   sales: ShoppingCart,
@@ -571,7 +587,7 @@ function Sidebar() {
   
 	  const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
 	  const [railTooltip, setRailTooltip] = useState<{ label: string; top: number } | null>(null);
-	  const [companyName, setCompanyName] = useState('Entice Tech Ltd');
+	  const [companyDatabase, setCompanyDatabase] = useState(DEFAULT_COMPANY_DATABASE);
   const [isResizingIcon, setIsResizingIcon] = useState(false);
   const [isResizingMain, setIsResizingMain] = useState(false);
   
@@ -1119,15 +1135,12 @@ function Sidebar() {
             <div className="flex-shrink-0 border-b border-akiva-border p-4 dark:border-slate-800">
               <div className="relative rounded-full bg-white/78 px-3 py-2 shadow-sm shadow-slate-200/60 dark:bg-slate-950/50 dark:shadow-black/20">
                 <SearchableSelect
-                  value={companyName}
-                  onChange={(event) => setCompanyName(event.target.value)}
+                  value={companyDatabase}
+                  onChange={setCompanyDatabase}
+                  options={COMPANY_OPTIONS}
                   className="w-full cursor-pointer appearance-none border-none bg-transparent pr-6 text-sm font-semibold text-slate-900 focus:ring-0 dark:text-white"
                   placeholder="Search company"
-                >
-                  <option className="dark:bg-slate-800">Entice Tech Ltd</option>
-                  <option className="dark:bg-slate-800">Sample Company 2</option>
-                  <option className="dark:bg-slate-800">Sample Company 3</option>
-                </SearchableSelect>
+                />
               </div>
             </div>
 

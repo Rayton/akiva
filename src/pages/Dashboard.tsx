@@ -44,6 +44,9 @@ import { apiFetch } from '../lib/network/apiClient';
 type RiskTone = 'danger' | 'warning' | 'pending' | 'success' | 'info' | 'neutral';
 type DashboardCardKey = 'cashAtRisk' | 'overdueReceivables' | 'approvalBacklog' | 'stockExposure';
 type DashboardCardValueType = 'money' | 'number';
+type WorkflowBottleneckKey = 'poApproval' | 'grnPosting' | 'invoiceMatch' | 'paymentRun';
+type ModulePulsePostedType = 'money' | 'percent' | 'number';
+type AiInsightIconKey = 'cash' | 'receivables' | 'approval' | 'supplier' | 'stock' | 'close' | 'clear';
 
 interface DashboardCardPayload {
   value: number;
@@ -51,6 +54,7 @@ interface DashboardCardPayload {
   detail: string;
   status: string;
   tone: RiskTone;
+  meta?: Record<string, number | string | null>;
 }
 
 interface DashboardPayload {
@@ -58,6 +62,11 @@ interface DashboardPayload {
   currency: string;
   asOf: string;
   cards: Partial<Record<DashboardCardKey, DashboardCardPayload>>;
+  cashFlowForecast?: CashFlowForecastPayload;
+  workflowBottlenecks?: WorkflowBottleneckPayload[];
+  supplierExposure?: SupplierExposurePayload;
+  modulePulse?: ModulePulsePayload[];
+  aiInsights?: AiInsightPayload[];
 }
 
 interface DashboardApiResponse {
@@ -66,18 +75,110 @@ interface DashboardApiResponse {
   data?: DashboardPayload;
 }
 
-const currency = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-});
+interface CashFlowForecastRow {
+  month: string;
+  label: string;
+  cash: number | null;
+  receivables: number;
+  payables: number;
+  forecastCash: number | null;
+  isForecast: boolean;
+}
 
-const compactCurrency = new Intl.NumberFormat('en-US', {
-  notation: 'compact',
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 1,
-});
+interface CashFlowForecastPayload {
+  currency: string;
+  generatedAt: string;
+  forecastStartMonth: string;
+  minimumReserve: number;
+  rows: CashFlowForecastRow[];
+  summary: {
+    openingCash: number;
+    closingForecast: number;
+    projectedReceivables: number;
+    projectedPayables: number;
+    netProjectedFlow: number;
+    lowestProjectedCash: number;
+  };
+}
+
+interface WorkflowBottleneckPayload {
+  id: WorkflowBottleneckKey;
+  label: string;
+  count: number;
+  value: number;
+  target: number;
+  tone: RiskTone;
+}
+
+interface SupplierExposureRow {
+  supplier: string;
+  value: number;
+  orders: number;
+  overdueOrders: number;
+  approvalAging: number;
+  share: number;
+  shareLabel: string;
+  sla: string;
+  color: string;
+}
+
+interface SupplierExposurePayload {
+  totalExposure: number;
+  exposureLimit: number;
+  rows: SupplierExposureRow[];
+}
+
+interface ModulePulsePayload {
+  id: string;
+  module: string;
+  owner: string;
+  postedType: ModulePulsePostedType;
+  postedValue: number;
+  open: number;
+  risk: number;
+  tone: RiskTone;
+}
+
+interface AiInsightPayload {
+  id: string;
+  priority: number;
+  title: string;
+  area: string;
+  summary: string;
+  tone: RiskTone;
+  icon: AiInsightIconKey;
+  confidence: number;
+  impactScore: number;
+  riskScore: number;
+  financialImpact: number;
+  affectedRecords: string;
+  expectedOutcome: string;
+  recommendedAction: string;
+  approval: string;
+  sequence: string;
+  reasoning: string;
+  evidence: string[];
+}
+
+const createCurrencyFormatter = (currencyCode: string, options: Intl.NumberFormatOptions = {}) => {
+  const safeCurrency = /^[A-Z]{3}$/.test((currencyCode || '').toUpperCase()) ? currencyCode.toUpperCase() : 'TZS';
+
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: safeCurrency,
+      maximumFractionDigits: 0,
+      ...options,
+    });
+  } catch {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'TZS',
+      maximumFractionDigits: 0,
+      ...options,
+    });
+  }
+};
 
 const chartTooltipContentStyle = {
   backgroundColor: 'var(--akiva-chart-tooltip-bg)',
@@ -90,11 +191,6 @@ const chartTooltipContentStyle = {
 const chartTooltipTextStyle = {
   color: 'var(--akiva-chart-tooltip-text)',
   fontWeight: 600,
-};
-
-const formatTooltipValue = (value: unknown) => {
-  if (typeof value === 'number') return currency.format(value);
-  return String(value ?? '');
 };
 
 const formatDashboardNumber = (value: number) => new Intl.NumberFormat('en-US', {
@@ -182,180 +278,60 @@ function buildExecutiveMetrics(payload: DashboardPayload | null, loading: boolea
   });
 }
 
-const operationalRisk = {
-  score: 82,
-  label: 'Elevated',
-  financialExposure: '$186.9k',
-  blockedDocuments: 48,
-  criticalCount: 6,
-  pendingApprovals: 27,
+const workflowBottleneckDefaults: WorkflowBottleneckPayload[] = [
+  { id: 'poApproval', label: 'PO approval', count: 0, value: 0, target: 12, tone: 'pending' },
+  { id: 'grnPosting', label: 'GRN posting', count: 0, value: 0, target: 8, tone: 'info' },
+  { id: 'invoiceMatch', label: 'Invoice match', count: 0, value: 0, target: 10, tone: 'pending' },
+  { id: 'paymentRun', label: 'Payment run', count: 0, value: 0, target: 6, tone: 'danger' },
+];
+
+const workflowBottleneckIcons: Record<WorkflowBottleneckKey, LucideIcon> = {
+  poApproval: ShoppingCart,
+  grnPosting: Truck,
+  invoiceMatch: FileCheck2,
+  paymentRun: CreditCard,
 };
 
-const riskControls = [
-  { label: 'Minimum cash reserve', value: '$120k', current: '$214.9k', tone: 'success' as const },
-  { label: 'Overdue AR limit', value: '$30k', current: '$38.2k', tone: 'warning' as const },
-  { label: 'Approval SLA', value: '8 hrs', current: '11.4 hrs', tone: 'pending' as const },
-  { label: 'Stockout tolerance', value: '5 items', current: '18 items', tone: 'danger' as const },
-];
+const aiInsightIcons: Record<AiInsightIconKey, LucideIcon> = {
+  cash: Banknote,
+  receivables: WalletCards,
+  approval: ShieldCheck,
+  supplier: ShoppingCart,
+  stock: PackageCheck,
+  close: FileCheck2,
+  clear: CheckCircle2,
+};
 
-const operatingFlow = [
-  { label: 'PO approval', count: 18, value: 126000, target: 12, icon: ShoppingCart, tone: 'pending' as const },
-  { label: 'GRN posting', count: 9, value: 48300, target: 8, icon: Truck, tone: 'info' as const },
-  { label: 'Invoice match', count: 14, value: 62700, target: 10, icon: FileCheck2, tone: 'pending' as const },
-  { label: 'Payment run', count: 7, value: 84200, target: 6, icon: CreditCard, tone: 'danger' as const },
-];
+function buildWorkflowBottlenecks(payload: DashboardPayload | null): WorkflowBottleneckPayload[] {
+  const rows = Array.isArray(payload?.workflowBottlenecks) ? payload.workflowBottlenecks : [];
 
-const cashTrend = [
-  { month: 'Jan', cash: 96000, receivables: 128000, payables: 82000, forecastCash: null },
-  { month: 'Feb', cash: 106000, receivables: 135000, payables: 89000, forecastCash: null },
-  { month: 'Mar', cash: 99000, receivables: 149000, payables: 93000, forecastCash: null },
-  { month: 'Apr', cash: 119000, receivables: 141000, payables: 102000, forecastCash: null },
-  { month: 'May', cash: 132000, receivables: 153000, payables: 110000, forecastCash: null },
-  { month: 'Jun', cash: 151000, receivables: 160000, payables: 116000, forecastCash: null },
-  { month: 'Jul', cash: 146000, receivables: 158000, payables: 106000, forecastCash: null },
-  { month: 'Aug', cash: 176000, receivables: 166000, payables: 122000, forecastCash: 176000 },
-  { month: 'Sep', cash: 214870, receivables: 156841, payables: 84200, forecastCash: 214870 },
-  { month: 'Oct', cash: null, receivables: 151000, payables: 116000, forecastCash: 204000 },
-  { month: 'Nov', cash: null, receivables: 146000, payables: 126000, forecastCash: 188000 },
-];
+  return workflowBottleneckDefaults.map((fallback) => {
+    const row = rows.find((entry) => entry.id === fallback.id);
+    if (!row) return fallback;
 
-const supplierExposure = [
-  { supplier: 'MSD Medical Store', value: 98200, orders: 8, variance: '+31%', sla: '2 overdue POs', color: 'var(--akiva-chart-danger)' },
-  { supplier: 'Primecare Equipment', value: 74300, orders: 6, variance: '+18%', sla: '1 approval aging', color: 'var(--akiva-chart-warning)' },
-  { supplier: 'Afri Dental Products', value: 51100, orders: 9, variance: '+9%', sla: '3 partial receipts', color: 'var(--akiva-chart-pending)' },
-  { supplier: 'Anudha Ltd', value: 38600, orders: 4, variance: '-4%', sla: 'On target', color: 'var(--akiva-chart-ink)' },
-  { supplier: 'Action Medeor', value: 24200, orders: 3, variance: '-12%', sla: 'On target', color: 'var(--akiva-chart-success)' },
-];
+    return {
+      ...fallback,
+      ...row,
+      count: Number.isFinite(row.count) ? row.count : fallback.count,
+      value: Number.isFinite(row.value) ? row.value : fallback.value,
+      target: Number.isFinite(row.target) && row.target > 0 ? row.target : fallback.target,
+    };
+  });
+}
 
-const exceptionQueue = [
-  {
-    priority: 1,
-    area: 'Receivables',
-    issue: 'Kijani Hospitals credit hold recommended',
-    value: '$16,086',
-    age: '67 days',
-    owner: 'Credit Control',
-    severity: 'Critical',
-    score: 94,
-    escalation: 'CFO escalation',
-    sla: '42 days over term',
-    blocked: 'Credit release blocked',
-    tone: 'danger' as const,
-    action: 'Open AR',
-  },
-  {
-    priority: 2,
-    area: 'Purchasing',
-    issue: 'PO 501 exceeds reviewer limit',
-    value: '$44,960',
-    age: '5 hours',
-    owner: 'Procurement Lead',
-    severity: 'High',
-    score: 89,
-    escalation: 'Director approval',
-    sla: 'SLA breach in 3 hrs',
-    blocked: 'Replenishment blocked',
-    tone: 'pending' as const,
-    action: 'Approve',
-  },
-  {
-    priority: 3,
-    area: 'Inventory',
-    issue: 'Ceftriaxone below reorder at Central Store',
-    value: '320 vials',
-    age: 'Today',
-    owner: 'Stores',
-    severity: 'Medium',
-    score: 76,
-    escalation: 'Stores lead',
-    sla: 'Transfer before 16:00',
-    blocked: 'Sales fulfilment risk',
-    tone: 'info' as const,
-    action: 'Reorder',
-  },
-  {
-    priority: 4,
-    area: 'Payables',
-    issue: 'GRN suspense needs invoice match',
-    value: '$28,540',
-    age: '2 days',
-    owner: 'Accounts Payable',
-    severity: 'Medium',
-    score: 72,
-    escalation: 'AP review',
-    sla: 'Close control aging',
-    blocked: 'Accrual accuracy risk',
-    tone: 'warning' as const,
-    action: 'Match',
-  },
-];
+function formatModulePulsePosted(row: ModulePulsePayload, currencyFormatter: Intl.NumberFormat): string {
+  const value = Number.isFinite(row.postedValue) ? row.postedValue : 0;
 
-const aiControlBrief = [
-  {
-    title: 'Defer non-critical payment batch',
-    detail: 'Preserves $31k cash until receivables follow-up clears.',
-    priority: 1,
-    confidence: '92%',
-    impactScore: '8.7',
-    riskScore: '78',
-    exposure: '$84.2k AP run',
-    projectedGain: '+2.1 cash days',
-    businessImpact: '$31k liquidity protected',
-    severity: 'Medium cash pressure',
-    sequence: 'After 14:00 AR calls',
-    resolutionValue: '2.1 days runway',
-    auditSignal: 'Supplier SLA retained',
-    reasoning: 'Deferral stays inside supplier SLA while protecting the minimum cash reserve for payroll and critical medical supply orders.',
-    approval: 'CFO review',
-    icon: Banknote,
-    tone: 'warning' as const,
-  },
-  {
-    title: 'Escalate supplier PO approval',
-    detail: 'Medical consumables are blocking replenishment for two locations.',
-    priority: 2,
-    confidence: '89%',
-    impactScore: '9.1',
-    riskScore: '86',
-    exposure: '$44.9k PO value',
-    projectedGain: '18 stockout lines',
-    businessImpact: '$44.9k replenishment unblocked',
-    severity: 'High stockout exposure',
-    sequence: 'Before next GRN cut-off',
-    resolutionValue: '18 stockout lines cleared',
-    auditSignal: 'Approval limit exceeded',
-    reasoning: 'Approval aging exceeds SLA and the same supplier holds the highest open commitment concentration.',
-    approval: 'Procurement director',
-    icon: ShieldCheck,
-    tone: 'pending' as const,
-  },
-  {
-    title: 'Create transfer before purchase',
-    detail: 'Theatre Store has surplus of two low-stock central-store items.',
-    priority: 3,
-    confidence: '76%',
-    impactScore: '7.4',
-    riskScore: '62',
-    exposure: '$8.6k avoidable PO',
-    projectedGain: 'Same-day cover',
-    businessImpact: '$8.6k purchase avoided',
-    severity: 'Low procurement risk',
-    sequence: 'Before new PO creation',
-    resolutionValue: '2 items rebalanced',
-    auditSignal: 'No negative balance',
-    reasoning: 'Internal stock can cover central demand faster than supplier lead time with no negative location balance.',
-    approval: 'Stores manager',
-    icon: PackageCheck,
-    tone: 'info' as const,
-  },
-];
+  if (row.postedType === 'percent') {
+    return `${formatDashboardNumber(value)}%`;
+  }
 
-const modulePulse = [
-  { module: 'Sales', owner: 'Revenue desk', posted: '$528,976', open: 128, risk: 12, tone: 'success' as const },
-  { module: 'Inventory', owner: 'Stores', posted: '$342,118', open: 84, risk: 18, tone: 'warning' as const },
-  { module: 'Payables', owner: 'Finance AP', posted: '$142,823', open: 43, risk: 7, tone: 'danger' as const },
-  { module: 'GL close', owner: 'Controller', posted: '92%', open: 6, risk: 2, tone: 'info' as const },
-];
+  if (row.postedType === 'number') {
+    return formatDashboardNumber(value);
+  }
+
+  return currencyFormatter.format(value);
+}
 
 function toneClasses(tone: RiskTone): string {
   if (tone === 'danger') return 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100';
@@ -396,15 +372,6 @@ function IconButton({ icon: Icon, label, onClick, disabled = false }: { icon: Lu
     >
       <Icon className="h-4 w-4" />
     </button>
-  );
-}
-
-function StatusBadge({ tone, children }: { tone: RiskTone; children: string }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClasses(tone)}`}>
-      <span className={`akiva-status-dot ${dotClass(tone)}`} />
-      {children}
-    </span>
   );
 }
 
@@ -461,52 +428,79 @@ function MetricCard({
   );
 }
 
-function RiskCommandStrip() {
+function AttentionSummaryStrip({ payload, loading, error }: { payload: DashboardPayload | null; loading: boolean; error: string }) {
+  const cards = payload?.cards ?? {};
+  const cashAtRisk = cards.cashAtRisk;
+  const overdueReceivables = cards.overdueReceivables;
+  const approvalBacklog = cards.approvalBacklog;
+  const stockExposure = cards.stockExposure;
+  const currencyCode = payload?.currency || 'TZS';
+  const totalItems = [cashAtRisk, overdueReceivables, approvalBacklog, stockExposure].reduce((sum, card) => sum + (card?.count ?? 0), 0);
+  const receivableCover = (overdueReceivables?.value ?? 0) - (cashAtRisk?.value ?? 0);
+  const financeDocuments = (cashAtRisk?.count ?? 0) + (overdueReceivables?.count ?? 0);
+  const operationsItems = (approvalBacklog?.count ?? 0) + (stockExposure?.count ?? 0);
+  const dominantQueue = [
+    { label: 'cash', count: cashAtRisk?.count ?? 0 },
+    { label: 'receivables', count: overdueReceivables?.count ?? 0 },
+    { label: 'approvals', count: approvalBacklog?.count ?? 0 },
+    { label: 'stock', count: stockExposure?.count ?? 0 },
+  ].reduce((highest, item) => (item.count > highest.count ? item : highest), { label: 'none', count: 0 });
+  const dominantShare = totalItems > 0 ? Math.round((dominantQueue.count / totalItems) * 100) : 0;
+  const summaryTone: RiskTone = error ? 'warning' : loading ? 'neutral' : totalItems > 0 ? 'warning' : 'success';
+  const summaryLabel = error ? 'Live data unavailable' : loading ? 'Loading' : totalItems > 0 ? 'Open work' : 'Clear';
+  const summaryValue = loading ? '...' : formatDashboardNumber(totalItems);
+  const summaryNote = loading ? 'Reading live dashboard data' : 'Combined open work across finance, approvals, and stock';
+  const actionTiles = [
+    {
+      label: receivableCover >= 0 ? 'AR cover' : 'Cash gap',
+      value: loading ? '...' : formatDashboardMoney(Math.abs(receivableCover), currencyCode),
+      note: receivableCover >= 0
+        ? 'Overdue receivables exceed supplier bills due soon'
+        : 'Supplier bills due soon exceed overdue receivables',
+      tone: receivableCover >= 0 ? ('warning' as RiskTone) : ('danger' as RiskTone),
+    },
+    {
+      label: 'Finance documents',
+      value: loading ? '...' : formatDashboardNumber(financeDocuments),
+      note: 'Supplier bills due soon plus overdue invoices',
+      tone: financeDocuments > 0 ? ('warning' as RiskTone) : ('success' as RiskTone),
+    },
+    {
+      label: 'Ops workload',
+      value: loading ? '...' : formatDashboardNumber(operationsItems),
+      note: 'Approval items and stock balance issues',
+      tone: operationsItems > 0 ? ('pending' as RiskTone) : ('success' as RiskTone),
+    },
+    {
+      label: 'Largest driver',
+      value: loading ? '...' : `${dominantShare}%`,
+      note: dominantQueue.count > 0 ? `${dominantQueue.label} is the biggest share of open work` : 'No open driver today',
+      tone: dominantQueue.count > 0 ? ('info' as RiskTone) : ('success' as RiskTone),
+    },
+  ];
+
   return (
     <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
       <div className="grid gap-4 xl:grid-cols-[220px_1fr] xl:items-center">
-        <div className="rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/35">
-          <p className="text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-100">Operational risk index</p>
+        <div className={`rounded-xl border p-4 ${subtleToneClass(summaryTone)}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide">Daily workload</p>
           <div className="mt-3 flex items-end gap-2">
-            <span className="akiva-financial-value text-4xl font-semibold text-red-800 dark:text-red-100">{operationalRisk.score}</span>
-            <span className="pb-1 text-sm font-semibold text-red-700 dark:text-red-200">/100</span>
+            <span className="akiva-financial-value text-4xl font-semibold">{summaryValue}</span>
           </div>
-          <p className="mt-2 text-sm font-semibold text-red-800 dark:text-red-100">{operationalRisk.label}</p>
+          <p className="mt-2 text-sm font-semibold">{summaryLabel}</p>
+          <p className="mt-1 text-xs leading-5 opacity-80">{summaryNote}</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Financial exposure</p>
-            <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{operationalRisk.financialExposure}</p>
-          </div>
-          <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Blocked documents</p>
-            <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{operationalRisk.blockedDocuments}</p>
-          </div>
-          <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Critical exceptions</p>
-            <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{operationalRisk.criticalCount}</p>
-          </div>
-          <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Pending approvals</p>
-            <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{operationalRisk.pendingApprovals}</p>
-          </div>
+          {actionTiles.map((tile) => (
+            <div key={tile.label} className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{tile.label}</p>
+              <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{tile.value}</p>
+              <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{tile.note}</p>
+              <span className={`mt-2 inline-flex h-2 w-2 rounded-full ${dotClass(tile.tone)}`} aria-hidden="true" />
+            </div>
+          ))}
         </div>
-      </div>
-
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {riskControls.map((control) => (
-          <div key={control.label} className="flex items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
-            <span className="min-w-0">
-              <span className="block truncate text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{control.label}</span>
-              <span className="mt-1 block text-xs text-akiva-text-muted">Limit {control.value}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-2 text-sm font-semibold text-akiva-text">
-              <span className={`akiva-status-dot ${dotClass(control.tone)}`} />
-              {control.current}
-            </span>
-          </div>
-        ))}
       </div>
     </section>
   );
@@ -529,21 +523,19 @@ function Panel({ title, detail, icon: Icon, children }: { title: string; detail?
   );
 }
 
-function WorkflowStage({ item }: { item: (typeof operatingFlow)[number] }) {
-  const Icon = item.icon;
-  const ratio = Math.min(100, Math.round((item.count / item.target) * 100));
+function WorkflowStage({ item, currencyFormatter }: { item: WorkflowBottleneckPayload; currencyFormatter: Intl.NumberFormat }) {
+  const Icon = workflowBottleneckIcons[item.id];
+  const ratio = Math.min(100, Math.round((item.count / Math.max(item.target, 1)) * 100));
 
   return (
     <button type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-3">
-          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(item.tone)}`}>
-            <Icon className="h-4 w-4" />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold text-akiva-text">{item.label}</span>
-            <span className="mt-1 block text-xs text-akiva-text-muted">{compactCurrency.format(item.value)} value waiting</span>
-          </span>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(item.tone)}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block break-words text-sm font-semibold leading-tight text-akiva-text">{item.label}</span>
+          <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{currencyFormatter.format(item.value)} value waiting</span>
         </span>
         <span className="akiva-financial-value text-lg font-semibold text-akiva-text">{item.count}</span>
       </div>
@@ -554,41 +546,186 @@ function WorkflowStage({ item }: { item: (typeof operatingFlow)[number] }) {
   );
 }
 
-function ExceptionRow({ row }: { row: (typeof exceptionQueue)[number] }) {
-  const isCritical = row.priority === 1;
-  const priorityClass = isCritical
-    ? 'border-red-300 akiva-elevated-surface shadow-md shadow-red-900/10 dark:border-red-800/80 dark:shadow-red-950/10'
-    : row.priority === 2
-      ? 'border-akiva-border akiva-elevated-surface shadow-sm'
-      : 'border-akiva-border bg-akiva-surface shadow-sm';
+function insightImpactLabel(insight: AiInsightPayload, currencyFormatter: Intl.NumberFormat): string {
+  return insight.financialImpact > 0 ? currencyFormatter.format(insight.financialImpact) : insight.affectedRecords || 'Operational';
+}
+
+function AiInsightMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
+      <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">{label}</span>
+      <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{value}</span>
+    </span>
+  );
+}
+
+function AiInsightCard({
+  insight,
+  currencyFormatter,
+  featured = false,
+}: {
+  insight: AiInsightPayload;
+  currencyFormatter: Intl.NumberFormat;
+  featured?: boolean;
+}) {
+  const Icon = aiInsightIcons[insight.icon] ?? AlertTriangle;
+  const impactLabel = insightImpactLabel(insight, currencyFormatter);
+  const evidence = Array.isArray(insight.evidence) ? insight.evidence.filter(Boolean).slice(0, featured ? 3 : 2) : [];
 
   return (
-    <button type="button" className={`relative w-full overflow-hidden rounded-lg border px-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted ${isCritical ? 'py-4' : 'py-3'} ${priorityClass}`}>
-      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${dotClass(row.tone)}`} aria-hidden="true" />
-      <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-start">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${subtleToneClass(row.tone)}`}>P{row.priority}</span>
-            <StatusBadge tone={row.tone}>{row.area}</StatusBadge>
-            <span className="text-xs font-semibold text-akiva-text-muted">{row.owner}</span>
-          </div>
-          <p className="mt-2 text-sm font-semibold text-akiva-text">{row.issue}</p>
-          <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-akiva-text-muted">
-            <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">Risk {row.score}</span>
-            <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">{row.severity}</span>
-            <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">{row.sla}</span>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-akiva-text-muted">{row.blocked} · {row.escalation} · Age {row.age}</p>
-        </div>
-        <div className="flex items-center justify-between gap-3 md:block md:text-right">
-          <p className="akiva-financial-value text-sm font-semibold text-akiva-text">{row.value}</p>
-          <span className="mt-0 inline-flex items-center gap-1 text-xs font-semibold text-akiva-accent-text md:mt-2">
-            {row.action}
-            <ArrowRight className="h-3.5 w-3.5" />
+    <button
+      type="button"
+      className={`relative w-full overflow-hidden rounded-lg border px-3 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted ${featured ? `py-4 ${subtleToneClass(insight.tone)}` : 'bg-akiva-surface py-3 border-akiva-border'}`}
+    >
+      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${dotClass(insight.tone)}`} aria-hidden="true" />
+      <div className="flex gap-3">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(insight.tone)}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClasses(insight.tone)}`}>P{insight.priority}</span>
+            <span className="text-xs font-semibold text-akiva-text-muted">{insight.area}</span>
           </span>
-        </div>
+          <span className="mt-2 block text-sm font-semibold leading-5 text-akiva-text">{insight.title}</span>
+          <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{insight.summary}</span>
+
+          <span className="mt-2 grid gap-1.5 sm:grid-cols-3">
+            <AiInsightMetric label="Confidence" value={`${formatDashboardNumber(insight.confidence)}%`} />
+            <AiInsightMetric label="Impact" value={`${insight.impactScore.toFixed(1)}/10`} />
+            <AiInsightMetric label="Risk" value={formatDashboardNumber(insight.riskScore)} />
+          </span>
+
+          <span className="mt-2 block rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1.5 text-[11px] leading-5 text-akiva-text-muted">
+            <span className="font-semibold text-akiva-text">{impactLabel}</span>
+            <span className="mx-1 text-akiva-border-strong">|</span>
+            {insight.expectedOutcome}
+            {insight.sequence ? (
+              <>
+                <span className="mx-1 text-akiva-border-strong">|</span>
+                {insight.sequence}
+              </>
+            ) : null}
+          </span>
+
+          {featured && insight.reasoning ? (
+            <span className="mt-2 block text-[11px] leading-5 text-akiva-text-muted">
+              <span className="font-semibold text-akiva-text">Reason:</span> {insight.reasoning}
+            </span>
+          ) : null}
+
+          {evidence.length > 0 ? (
+            <span className="mt-2 flex flex-wrap gap-1.5">
+              {evidence.map((item) => (
+                <span key={item} className="rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">
+                  {item}
+                </span>
+              ))}
+            </span>
+          ) : null}
+
+          <span className="mt-3 flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-akiva-accent-text">{insight.recommendedAction}</span>
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-akiva-text-muted">
+              {insight.approval}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </span>
+          </span>
+        </span>
       </div>
     </button>
+  );
+}
+
+function AiInsightsPanel({
+  insights,
+  loading,
+  error,
+  currencyFormatter,
+}: {
+  insights: AiInsightPayload[];
+  loading: boolean;
+  error: string;
+  currencyFormatter: Intl.NumberFormat;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-dashed border-akiva-border bg-akiva-surface-muted px-4 py-8 text-center text-sm font-semibold text-akiva-text-muted">
+        Loading AI insights...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`rounded-lg border p-4 text-sm font-semibold ${subtleToneClass('warning')}`}>
+        AI insights unavailable while dashboard data cannot be loaded.
+      </div>
+    );
+  }
+
+  if (insights.length === 0) {
+    return (
+      <div className={`rounded-lg border p-4 text-sm font-semibold ${subtleToneClass('success')}`}>
+        No critical AI actions queued.
+      </div>
+    );
+  }
+
+  const [leadInsight, ...supportingInsights] = insights;
+
+  return (
+    <div className="space-y-2">
+      <AiInsightCard insight={leadInsight} currencyFormatter={currencyFormatter} featured />
+      {supportingInsights.map((insight) => (
+        <AiInsightCard key={insight.id} insight={insight} currencyFormatter={currencyFormatter} />
+      ))}
+    </div>
+  );
+}
+
+function CloseReadinessList({
+  rows,
+  loading,
+  error,
+  currencyFormatter,
+}: {
+  rows: ModulePulsePayload[];
+  loading: boolean;
+  error: string;
+  currencyFormatter: Intl.NumberFormat;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-akiva-border bg-akiva-surface-muted px-4 py-8 text-center text-sm font-semibold text-akiva-text-muted">
+        {loading ? 'Loading close readiness...' : error || 'No close readiness data returned.'}
+      </div>
+    );
+  }
+
+  const orderedRows = [...rows].sort((left, right) => (right.risk - left.risk) || (right.open - left.open));
+
+  return (
+    <div className="space-y-3">
+      {orderedRows.map((row) => (
+        <div key={row.id || row.module} className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2.5">
+          <div className="flex items-start justify-between gap-3">
+            <span className="flex min-w-0 items-start gap-2 text-sm font-semibold text-akiva-text">
+              <span className={`akiva-status-dot mt-1.5 ${dotClass(row.tone)}`} />
+              <span className="min-w-0">
+                <span className="block break-words">{row.module}</span>
+                <span className="mt-0.5 block text-xs font-medium text-akiva-text-muted">{row.owner}</span>
+              </span>
+            </span>
+            <span className="akiva-financial-value shrink-0 text-sm font-semibold text-akiva-text">{formatModulePulsePosted(row, currencyFormatter)}</span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px] font-semibold text-akiva-text-muted">
+            <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">Open {formatDashboardNumber(row.open)}</span>
+            <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">Risk {formatDashboardNumber(row.risk)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -625,6 +762,45 @@ export function Dashboard() {
     () => buildExecutiveMetrics(dashboardPayload, dashboardLoading, dashboardError),
     [dashboardPayload, dashboardLoading, dashboardError],
   );
+  const cashFlowForecast = dashboardPayload?.cashFlowForecast ?? null;
+  const cashFlowRows = Array.isArray(cashFlowForecast?.rows) ? cashFlowForecast.rows : [];
+  const chartCurrencyCode = cashFlowForecast?.currency || dashboardPayload?.currency || 'TZS';
+  const chartCurrency = useMemo(() => createCurrencyFormatter(chartCurrencyCode), [chartCurrencyCode]);
+  const compactChartCurrency = useMemo(
+    () => createCurrencyFormatter(chartCurrencyCode, { notation: 'compact', maximumFractionDigits: 1 }),
+    [chartCurrencyCode],
+  );
+  const workflowBottlenecks = useMemo(
+    () => buildWorkflowBottlenecks(dashboardPayload),
+    [dashboardPayload],
+  );
+  const supplierExposurePayload = dashboardPayload?.supplierExposure ?? null;
+  const supplierExposureRows = Array.isArray(supplierExposurePayload?.rows) ? supplierExposurePayload.rows : [];
+  const supplierExposureLimit = Number.isFinite(supplierExposurePayload?.exposureLimit ?? NaN)
+    ? Number(supplierExposurePayload?.exposureLimit)
+    : 0;
+  const hasSupplierExposureRows = supplierExposureRows.length > 0;
+  const modulePulseRows = Array.isArray(dashboardPayload?.modulePulse) ? dashboardPayload.modulePulse : [];
+  const hasModulePulseRows = modulePulseRows.length > 0;
+  const aiInsights = Array.isArray(dashboardPayload?.aiInsights) ? dashboardPayload.aiInsights : [];
+  const formatCashFlowTooltipValue = useCallback(
+    (value: unknown) => {
+      if (typeof value === 'number') return chartCurrency.format(value);
+      return String(value ?? '');
+    },
+    [chartCurrency],
+  );
+  const forecastStartPoint = cashFlowRows.find((row) => row.month === cashFlowForecast?.forecastStartMonth);
+  const latestActualCashPoint = [...cashFlowRows].reverse().find((row) => typeof row.cash === 'number');
+  const finalForecastPoint = [...cashFlowRows].reverse().find((row) => typeof row.forecastCash === 'number');
+  const hasCashFlowRows = cashFlowRows.length > 0;
+  const minimumReserve = cashFlowForecast?.minimumReserve ?? 0;
+  const projectedReceivables = cashFlowForecast?.summary.projectedReceivables ?? 0;
+  const projectedPayables = cashFlowForecast?.summary.projectedPayables ?? 0;
+  const netProjectedFlow = cashFlowForecast?.summary.netProjectedFlow ?? 0;
+  const closingForecast = cashFlowForecast?.summary.closingForecast ?? 0;
+  const lowestProjectedCash = cashFlowForecast?.summary.lowestProjectedCash ?? 0;
+  const finalForecastLabel = finalForecastPoint?.label ?? 'forecast end';
   const companyName = dashboardPayload?.companyName || 'Akiva ERP';
   const dashboardDate = formatDashboardDate(dashboardPayload?.asOf);
 
@@ -660,7 +836,7 @@ export function Dashboard() {
                   className="inline-flex min-h-10 items-center gap-2 rounded-full bg-akiva-accent px-4 text-sm font-semibold text-white shadow-sm shadow-violet-950/10 transition hover:bg-akiva-accent-strong"
                 >
                   <Sparkles className="h-4 w-4" />
-                  Review Risks
+                  Open Worklist
                 </button>
               </div>
             </div>
@@ -674,44 +850,55 @@ export function Dashboard() {
                 ))}
               </section>
 
-              <RiskCommandStrip />
+              <AttentionSummaryStrip payload={dashboardPayload} loading={dashboardLoading} error={dashboardError} />
 
               <Panel title="Cash Flow Forecast" detail="Cash balance, receivables, payables, and payment pressure by month." icon={ReceiptText}>
                 <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={cashTrend} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--akiva-chart-muted)' }} />
-                      <YAxis tickFormatter={(value: number) => compactCurrency.format(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} width={58} />
-                      <Tooltip
-                        formatter={formatTooltipValue}
-                        contentStyle={chartTooltipContentStyle}
-                        labelStyle={chartTooltipTextStyle}
-                        itemStyle={chartTooltipTextStyle}
-                      />
-                      <Area type="monotone" dataKey="receivables" name="Receivables" stroke="var(--akiva-chart-warning)" strokeWidth={2} fill="rgba(217, 119, 6, 0.12)" />
-                      <Area type="monotone" dataKey="payables" name="Payables" stroke="var(--akiva-chart-danger)" strokeWidth={2} fill="rgba(220, 38, 38, 0.1)" />
-                      <Line type="monotone" dataKey="cash" name="Cash balance" stroke="var(--akiva-chart-ink)" strokeWidth={3} dot={false} />
-                      <Line type="monotone" dataKey="forecastCash" name="Forecast cash balance" stroke="var(--akiva-chart-pending)" strokeWidth={2.5} strokeDasharray="6 6" dot={false} />
-                      <ReferenceLine y={120000} stroke="var(--akiva-chart-danger)" strokeDasharray="5 5" label={{ value: 'Minimum reserve', fill: 'var(--akiva-chart-danger)', fontSize: 11 }} />
-                      <ReferenceLine y={160000} stroke="var(--akiva-chart-warning)" strokeDasharray="4 6" label={{ value: 'AR review', fill: 'var(--akiva-chart-warning)', fontSize: 11 }} />
-                      <ReferenceLine x="Oct" stroke="var(--akiva-chart-pending)" strokeDasharray="3 5" label={{ value: 'Forecast start', fill: 'var(--akiva-chart-pending)', fontSize: 11, position: 'insideTop' }} />
-                      <ReferenceDot x="Sep" y={156841} r={5} fill="var(--akiva-chart-warning)" stroke="var(--akiva-chart-tooltip-bg)" strokeWidth={2} label={{ value: 'AR anomaly', fill: 'var(--akiva-chart-warning)', fontSize: 11, position: 'top' }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  {hasCashFlowRows ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={cashFlowRows} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                        <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
+                        <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--akiva-chart-muted)' }} />
+                        <YAxis tickFormatter={(value: number) => compactChartCurrency.format(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} width={58} />
+                        <Tooltip
+                          formatter={formatCashFlowTooltipValue}
+                          contentStyle={chartTooltipContentStyle}
+                          labelStyle={chartTooltipTextStyle}
+                          itemStyle={chartTooltipTextStyle}
+                        />
+                        <Area type="monotone" dataKey="receivables" name="Receivables due" stroke="var(--akiva-chart-warning)" strokeWidth={2} fill="rgba(217, 119, 6, 0.12)" />
+                        <Area type="monotone" dataKey="payables" name="Payables due" stroke="var(--akiva-chart-danger)" strokeWidth={2} fill="rgba(220, 38, 38, 0.1)" />
+                        <Line type="monotone" dataKey="cash" name="Cash balance" stroke="var(--akiva-chart-ink)" strokeWidth={3} dot={false} connectNulls />
+                        <Line type="monotone" dataKey="forecastCash" name="Forecast cash balance" stroke="var(--akiva-chart-pending)" strokeWidth={2.5} strokeDasharray="6 6" dot={false} connectNulls />
+                        {minimumReserve > 0 ? (
+                          <ReferenceLine y={minimumReserve} stroke="var(--akiva-chart-danger)" strokeDasharray="5 5" label={{ value: '30-day reserve', fill: 'var(--akiva-chart-danger)', fontSize: 11 }} />
+                        ) : null}
+                        {forecastStartPoint ? (
+                          <ReferenceLine x={forecastStartPoint.label} stroke="var(--akiva-chart-pending)" strokeDasharray="3 5" label={{ value: 'Forecast start', fill: 'var(--akiva-chart-pending)', fontSize: 11, position: 'insideTop' }} />
+                        ) : null}
+                        {latestActualCashPoint?.cash !== null && latestActualCashPoint?.cash !== undefined ? (
+                          <ReferenceDot x={latestActualCashPoint.label} y={latestActualCashPoint.cash} r={5} fill="var(--akiva-chart-ink)" stroke="var(--akiva-chart-tooltip-bg)" strokeWidth={2} label={{ value: 'Latest cash', fill: 'var(--akiva-chart-ink)', fontSize: 11, position: 'top' }} />
+                        ) : null}
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-akiva-border bg-akiva-surface-muted px-4 text-center text-sm font-semibold text-akiva-text-muted">
+                      {dashboardLoading ? 'Loading cash flow forecast...' : dashboardError || 'No cash flow forecast data returned.'}
+                    </div>
+                  )}
                 </div>
                 <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-semibold text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
-                    Minimum reserve buffer: $94.9k
+                    30-day supplier reserve: {chartCurrency.format(minimumReserve)}
                   </div>
                   <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-100">
-                    Receivables crossed review benchmark
+                    Forecast AR/AP: {chartCurrency.format(projectedReceivables)} / {chartCurrency.format(projectedPayables)}
                   </div>
                   <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-                    Forecast shows cash tightening by Nov
+                    Closing cash by {finalForecastLabel}: {chartCurrency.format(closingForecast)}
                   </div>
                   <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 font-semibold text-purple-800 dark:border-purple-900 dark:bg-purple-950/30 dark:text-purple-100">
-                    Sep cash balance +22% vs Aug; payment sequencing required
+                    Net projected flow: {chartCurrency.format(netProjectedFlow)}; low point {chartCurrency.format(lowestProjectedCash)}
                   </div>
                 </div>
               </Panel>
@@ -719,48 +906,58 @@ export function Dashboard() {
               <div className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
                 <Panel title="Workflow Bottlenecks" detail="Queues that slow purchasing, receiving, bill matching, and payments." icon={Clock3}>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {operatingFlow.map((item) => (
-                      <WorkflowStage key={item.label} item={item} />
+                    {workflowBottlenecks.map((item) => (
+                      <WorkflowStage key={item.id} item={item} currencyFormatter={chartCurrency} />
                     ))}
                   </div>
                 </Panel>
 
                 <Panel title="Supplier Exposure" detail="Open commitment concentration by supplier." icon={ShoppingCart}>
                   <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={supplierExposure} layout="vertical" margin={{ top: 4, right: 28, left: 8, bottom: 4 }}>
-                        <CartesianGrid horizontal={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
-                        <XAxis type="number" tickFormatter={(value: number) => compactCurrency.format(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
-                        <YAxis type="category" dataKey="supplier" width={132} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
-                        <Tooltip
-                          formatter={formatTooltipValue}
-                          contentStyle={chartTooltipContentStyle}
-                          labelStyle={chartTooltipTextStyle}
-                          itemStyle={chartTooltipTextStyle}
-                        />
-                        <ReferenceLine x={75000} stroke="var(--akiva-chart-warning)" strokeDasharray="5 5" label={{ value: 'Exposure limit', fill: 'var(--akiva-chart-warning)', fontSize: 11, position: 'insideTopRight' }} />
-                        <Bar dataKey="value" name="Open commitment" radius={[0, 8, 8, 0]} barSize={22}>
-                          {supplierExposure.map((row) => (
-                            <Cell key={row.supplier} fill={row.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-                    {supplierExposure.slice(0, 2).map((row, index) => (
-                      <div key={row.supplier} className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="flex min-w-0 items-center gap-2 font-semibold text-akiva-text">
-                            <Zap className="h-3.5 w-3.5 shrink-0 text-akiva-accent-text" />
-                            <span className="truncate">P{index + 1} {row.supplier}</span>
-                          </span>
-                          <span className="akiva-financial-value font-semibold text-akiva-text">{row.variance}</span>
-                        </div>
-                        <p className="mt-1 text-akiva-text-muted">{row.orders} open orders · {row.sla}</p>
+                    {hasSupplierExposureRows ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={supplierExposureRows} layout="vertical" margin={{ top: 4, right: 28, left: 8, bottom: 4 }}>
+                          <CartesianGrid horizontal={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
+                          <XAxis type="number" tickFormatter={(value: number) => compactChartCurrency.format(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
+                          <YAxis type="category" dataKey="supplier" width={138} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }} />
+                          <Tooltip
+                            formatter={formatCashFlowTooltipValue}
+                            contentStyle={chartTooltipContentStyle}
+                            labelStyle={chartTooltipTextStyle}
+                            itemStyle={chartTooltipTextStyle}
+                          />
+                          {supplierExposureLimit > 0 ? (
+                            <ReferenceLine x={supplierExposureLimit} stroke="var(--akiva-chart-warning)" strokeDasharray="5 5" label={{ value: 'Exposure limit', fill: 'var(--akiva-chart-warning)', fontSize: 11, position: 'insideTopRight' }} />
+                          ) : null}
+                          <Bar dataKey="value" name="Open PO commitment" radius={[0, 8, 8, 0]} barSize={22}>
+                            {supplierExposureRows.map((row) => (
+                              <Cell key={row.supplier} fill={row.color || 'var(--akiva-chart-ink)'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-akiva-border bg-akiva-surface-muted px-4 text-center text-sm font-semibold text-akiva-text-muted">
+                        {dashboardLoading ? 'Loading supplier exposure...' : dashboardError || 'No open supplier commitments returned.'}
                       </div>
-                    ))}
+                    )}
                   </div>
+                  {hasSupplierExposureRows ? (
+                    <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                      {supplierExposureRows.slice(0, 2).map((row, index) => (
+                        <div key={row.supplier} className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="flex min-w-0 items-start gap-2 font-semibold text-akiva-text">
+                              <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-akiva-accent-text" />
+                              <span className="min-w-0 break-words">P{index + 1} {row.supplier}</span>
+                            </span>
+                            <span className="akiva-financial-value shrink-0 font-semibold text-akiva-text">{row.shareLabel}</span>
+                          </div>
+                          <p className="mt-1 break-words text-akiva-text-muted">{row.orders} open orders · {row.sla}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </Panel>
               </div>
 
@@ -777,20 +974,26 @@ export function Dashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-akiva-border bg-akiva-surface-raised">
-                      {modulePulse.map((row) => (
-                        <tr key={row.module} className="hover:bg-akiva-table-row-hover">
+                      {hasModulePulseRows ? modulePulseRows.map((row) => (
+                        <tr key={row.id || row.module} className="hover:bg-akiva-table-row-hover">
                           <td className="px-3 py-3">
                             <span className="flex items-center gap-2 font-semibold text-akiva-text">
                               <span className={`akiva-status-dot ${dotClass(row.tone)}`} />
-                              {row.module}
+                              <span className="break-words">{row.module}</span>
                             </span>
                           </td>
                           <td className="px-3 py-3 text-akiva-text-muted">{row.owner}</td>
-                          <td className="akiva-financial-value px-3 py-3 text-right font-semibold text-akiva-text">{row.posted}</td>
-                          <td className="akiva-financial-value px-3 py-3 text-right text-akiva-text">{row.open}</td>
-                          <td className="akiva-financial-value px-3 py-3 text-right font-semibold text-akiva-text">{row.risk}</td>
+                          <td className="akiva-financial-value px-3 py-3 text-right font-semibold text-akiva-text">{formatModulePulsePosted(row, chartCurrency)}</td>
+                          <td className="akiva-financial-value px-3 py-3 text-right text-akiva-text">{formatDashboardNumber(row.open)}</td>
+                          <td className="akiva-financial-value px-3 py-3 text-right font-semibold text-akiva-text">{formatDashboardNumber(row.risk)}</td>
                         </tr>
-                      ))}
+                      )) : (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-8 text-center text-sm font-semibold text-akiva-text-muted">
+                            {dashboardLoading ? 'Loading module pulse...' : dashboardError || 'No module pulse data returned.'}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -798,94 +1001,22 @@ export function Dashboard() {
             </main>
 
             <aside className="space-y-4 lg:col-span-4">
-              <Panel title="Exception Queue" detail="Highest operational risks to clear first." icon={AlertTriangle}>
-                <div className="space-y-2">
-                  {exceptionQueue.map((row) => (
-                    <ExceptionRow key={row.issue} row={row} />
-                  ))}
-                </div>
-              </Panel>
-
-              <Panel title="AI Control Brief" detail="Recommended actions ranked by financial and workflow impact." icon={Sparkles}>
-                <div className="space-y-2">
-                  {aiControlBrief.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <button key={item.title} type="button" className="w-full rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted">
-                        <div className="flex gap-3">
-                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${toneClasses(item.tone)}`}>
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClasses(item.tone)}`}>P{item.priority}</span>
-                              <span className="block text-sm font-semibold text-akiva-text">{item.title}</span>
-                            </span>
-                            <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{item.detail}</span>
-                            <span className="mt-2 grid gap-1.5 sm:grid-cols-3">
-                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
-                                <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">Confidence</span>
-                                <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{item.confidence}</span>
-                              </span>
-                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
-                                <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">Impact</span>
-                                <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{item.impactScore}/10</span>
-                              </span>
-                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
-                                <span className="block text-[10px] font-semibold uppercase tracking-wide text-akiva-text-muted">Risk</span>
-                                <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{item.riskScore}</span>
-                              </span>
-                            </span>
-                            <span className="mt-2 block rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1.5 text-[11px] leading-5 text-akiva-text-muted">
-                              <span className="font-semibold text-akiva-text">{item.businessImpact}</span>
-                              <span className="mx-1 text-akiva-border-strong">|</span>
-                              {item.severity}
-                              <span className="mx-1 text-akiva-border-strong">|</span>
-                              {item.resolutionValue}
-                            </span>
-                            <span className="mt-2 grid gap-1.5 text-[11px] leading-5 text-akiva-text-muted sm:grid-cols-2">
-                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
-                                <span className="font-semibold text-akiva-text">Exposure:</span> {item.exposure}
-                              </span>
-                              <span className="rounded-md border border-akiva-border bg-akiva-surface-raised px-2 py-1">
-                                <span className="font-semibold text-akiva-text">Projected gain:</span> {item.projectedGain}
-                              </span>
-                            </span>
-                            <span className="mt-2 block text-[11px] leading-5 text-akiva-text-muted">
-                              <span className="font-semibold text-akiva-text">Sequence:</span> {item.sequence}
-                            </span>
-                            <span className="mt-1 block text-[11px] leading-5 text-akiva-text-muted">
-                              <span className="font-semibold text-akiva-text">Reason:</span> {item.reasoning}
-                            </span>
-                            <span className="mt-2 flex flex-wrap gap-2">
-                              <span className="inline-flex rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">{item.approval}</span>
-                              <span className="inline-flex rounded-full border border-akiva-border bg-akiva-surface-raised px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">{item.auditSignal}</span>
-                            </span>
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+              <Panel title="AI Insights" detail="Recommended actions ranked by impact, risk, and confidence." icon={Sparkles}>
+                <AiInsightsPanel
+                  insights={aiInsights}
+                  loading={dashboardLoading}
+                  error={dashboardError}
+                  currencyFormatter={chartCurrency}
+                />
               </Panel>
 
               <Panel title="Close Readiness" detail="Period close controls that need attention before management review." icon={FileCheck2}>
-                <div className="space-y-3">
-                  {[
-                    { label: 'Bank reconciliation', value: '4/4', tone: 'success' as const },
-                    { label: 'Inventory valuation review', value: '2 open', tone: 'warning' as const },
-                    { label: 'GL suspense clearing', value: '$7.8k', tone: 'danger' as const },
-                    { label: 'Access review', value: '4 users', tone: 'info' as const },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2.5">
-                      <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-akiva-text">
-                        <span className={`akiva-status-dot ${dotClass(item.tone)}`} />
-                        <span className="truncate">{item.label}</span>
-                      </span>
-                      <span className="akiva-financial-value text-sm font-semibold text-akiva-text">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
+                <CloseReadinessList
+                  rows={modulePulseRows}
+                  loading={dashboardLoading}
+                  error={dashboardError}
+                  currencyFormatter={chartCurrency}
+                />
               </Panel>
             </aside>
           </div>

@@ -6,10 +6,73 @@ use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 
 class SalesController extends Controller
 {
+    public function dashboard(Request $request)
+    {
+        $days = $this->safeLimit($request->query('days', 14), 7, 45);
+
+        try {
+            $today = Carbon::today();
+            $monthStart = $today->copy()->startOfMonth();
+            $previousMonthStart = $today->copy()->subMonthNoOverflow()->startOfMonth();
+            $previousMonthEnd = $previousMonthStart->copy()->endOfMonth();
+
+            $todaySales = $this->invoiceSummary($today, $today);
+            $monthSales = $this->invoiceSummary($monthStart, $today);
+            $previousMonthSales = $this->invoiceSummary($previousMonthStart, $previousMonthEnd);
+            $openOrders = $this->openOrderSummary();
+            $picking = $this->pickingSummary();
+            $receivables = $this->openReceivablesSummary();
+            $lowMargin = $this->lowMarginSummary();
+
+            $summary = [
+                'todaySales' => round((float) $todaySales['amount'], 2),
+                'todayInvoices' => (int) $todaySales['count'],
+                'monthSales' => round((float) $monthSales['amount'], 2),
+                'monthInvoices' => (int) $monthSales['count'],
+                'previousMonthSales' => round((float) $previousMonthSales['amount'], 2),
+                'monthGrowthPct' => $this->growthPercent((float) $monthSales['amount'], (float) $previousMonthSales['amount']),
+                'averageInvoiceValue' => (int) $monthSales['count'] > 0
+                    ? round((float) $monthSales['amount'] / (int) $monthSales['count'], 2)
+                    : 0.0,
+                'openOrders' => (int) $openOrders['orders'],
+                'openOrderLines' => (int) $openOrders['lines'],
+                'openOrderValue' => round((float) $openOrders['value'], 2),
+                'lateOrders' => (int) $openOrders['lateOrders'],
+                'readyToPickOrders' => (int) $picking['orders'],
+                'readyToPickQuantity' => round((float) $picking['quantity'], 2),
+                'openReceivableValue' => round((float) $receivables['amount'], 2),
+                'openReceivableInvoices' => (int) $receivables['count'],
+                'lowMarginLines' => (int) $lowMargin['lines'],
+                'lowMarginValue' => round((float) $lowMargin['value'], 2),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'currency' => $this->companyCurrency(),
+                    'asOf' => now()->toIso8601String(),
+                    'summary' => $summary,
+                    'dailyTrend' => $this->dailySalesTrend($days),
+                    'topCustomers' => $this->dashboardTopCustomers($monthStart, $today),
+                    'topItems' => $this->dashboardTopItems($monthStart, $today),
+                    'actionQueue' => $this->salesActionQueue($summary),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Sales dashboard data could not be loaded.',
+            ], 500);
+        }
+    }
+
     public function orders(Request $request)
     {
         $limit = $this->safeLimit($request->query('limit', 250), 20, 1000);
@@ -775,6 +838,117 @@ class SalesController extends Controller
         }
     }
 
+    public function reportCustomerTrend(Request $request)
+    {
+        $today = Carbon::today();
+        $from = $this->safeDate($request->query('from'), $today->copy()->subMonthsNoOverflow(2)->startOfMonth());
+        $to = $this->safeDate($request->query('to'), $today);
+
+        if ($from->greaterThan($to)) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $limit = $this->safeLimit($request->query('limit', 5), 1, 8);
+
+        try {
+            if (!Schema::hasTable('debtortrans')) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'currency' => $this->companyCurrency(),
+                        'from' => $from->toDateString(),
+                        'to' => $to->toDateString(),
+                        'months' => $this->monthBuckets($from, $to),
+                        'customers' => [],
+                    ],
+                ]);
+            }
+
+            $amountExpression = $this->debtorTransactionGrossExpression('dt');
+            $transactionDate = $this->validDateTextExpression('dt.trandate');
+            $topCustomers = DB::table('debtortrans as dt')
+                ->leftJoin('debtorsmaster as dm', 'dm.debtorno', '=', 'dt.debtorno')
+                ->where('dt.type', 10)
+                ->whereRaw($transactionDate . ' >= ?', [$from->toDateString()])
+                ->whereRaw($transactionDate . ' <= ?', [$to->toDateString()])
+                ->select(
+                    'dt.debtorno',
+                    DB::raw('COALESCE(NULLIF(dm.name, ""), dt.debtorno) as customer_name')
+                )
+                ->selectRaw('COUNT(*) as invoice_count')
+                ->selectRaw('COALESCE(SUM(' . $amountExpression . '), 0) as gross_total')
+                ->groupBy('dt.debtorno', 'dm.name')
+                ->orderByDesc('gross_total')
+                ->limit($limit)
+                ->get();
+
+            $debtorNos = $topCustomers->pluck('debtorno')->map(static function ($value) {
+                return (string) $value;
+            })->values()->all();
+            $months = $this->monthBuckets($from, $to);
+
+            $monthlyRows = collect();
+            if (count($debtorNos) > 0) {
+                $monthExpression = $this->monthKeyExpression($transactionDate);
+                $monthlyRows = DB::table('debtortrans as dt')
+                    ->where('dt.type', 10)
+                    ->whereIn('dt.debtorno', $debtorNos)
+                    ->whereRaw($transactionDate . ' >= ?', [$from->toDateString()])
+                    ->whereRaw($transactionDate . ' <= ?', [$to->toDateString()])
+                    ->select('dt.debtorno')
+                    ->selectRaw($monthExpression . ' as month_key')
+                    ->selectRaw('COUNT(*) as invoice_count')
+                    ->selectRaw('COALESCE(SUM(' . $amountExpression . '), 0) as gross_total')
+                    ->groupBy('dt.debtorno')
+                    ->groupByRaw($monthExpression)
+                    ->get()
+                    ->keyBy(function ($row) {
+                        return (string) $row->debtorno . '|' . (string) $row->month_key;
+                    });
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'currency' => $this->companyCurrency(),
+                    'from' => $from->toDateString(),
+                    'to' => $to->toDateString(),
+                    'months' => $months,
+                    'customers' => $topCustomers->map(function ($customer) use ($months, $monthlyRows) {
+                        return [
+                            'debtorNo' => (string) $customer->debtorno,
+                            'customerName' => (string) $customer->customer_name,
+                            'invoiceCount' => (int) $customer->invoice_count,
+                            'grossTotal' => round((float) $customer->gross_total, 2),
+                            'points' => collect($months)->map(function ($month) use ($customer, $monthlyRows) {
+                                $row = $monthlyRows->get((string) $customer->debtorno . '|' . $month['month']);
+
+                                return [
+                                    'month' => $month['month'],
+                                    'invoiceCount' => (int) ($row->invoice_count ?? 0),
+                                    'grossTotal' => round((float) ($row->gross_total ?? 0), 2),
+                                ];
+                            })->values(),
+                        ];
+                    })->values(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'currency' => $this->companyCurrency(),
+                    'from' => $from->toDateString(),
+                    'to' => $to->toDateString(),
+                    'months' => $this->monthBuckets($from, $to),
+                    'customers' => [],
+                ],
+            ]);
+        }
+    }
+
     public function reportPriceList(Request $request)
     {
         $limit = $this->safeLimit($request->query('limit', 200), 20, 600);
@@ -987,7 +1161,7 @@ class SalesController extends Controller
                     DB::raw('COALESCE(NULLIF(sm.description, ""), sod.stkcode) as description'),
                     'sod.unitprice',
                     DB::raw('COALESCE(sm.materialcost, 0) as material_cost'),
-                    DB::raw('CASE WHEN sod.unitprice = 0 THEN 0 ELSE ROUND(((sod.unitprice - COALESCE(sm.materialcost, 0)) / sod.unitprice) * 100, 2) END as gross_margin_pct')
+                    DB::raw('CASE WHEN sod.unitprice = 0 THEN 0 ELSE ROUND(((sod.unitprice - COALESCE(sm.materialcost, 0)) * 100.0 / sod.unitprice), 2) END as gross_margin_pct')
                 )
                 ->where('sod.quantity', '>', 0)
                 ->orderBy('gross_margin_pct')
@@ -2200,6 +2374,464 @@ class SalesController extends Controller
                 ->orWhere('so.deliverto', 'like', $like)
                 ->orWhere('so.orderno', 'like', $like);
         });
+    }
+
+    private function invoiceSummary(Carbon $from, Carbon $to): array
+    {
+        if (!Schema::hasTable('debtortrans')) {
+            return ['amount' => 0.0, 'count' => 0];
+        }
+
+        $amountExpression = $this->debtorTransactionGrossExpression('dt');
+        $row = DB::table('debtortrans as dt')
+            ->where('dt.type', 10)
+            ->whereDate('dt.trandate', '>=', $from->toDateString())
+            ->whereDate('dt.trandate', '<=', $to->toDateString())
+            ->selectRaw('COUNT(*) as invoice_count')
+            ->selectRaw('COALESCE(SUM(' . $amountExpression . '), 0) as gross_total')
+            ->first();
+
+        return [
+            'amount' => (float) ($row->gross_total ?? 0),
+            'count' => (int) ($row->invoice_count ?? 0),
+        ];
+    }
+
+    private function openOrderSummary(): array
+    {
+        if (!Schema::hasTable('salesorders') || !Schema::hasTable('salesorderdetails')) {
+            return ['orders' => 0, 'lines' => 0, 'value' => 0.0, 'lateOrders' => 0];
+        }
+
+        $remainingQuantity = $this->remainingSalesQuantityExpression();
+        $remainingValue = $this->remainingSalesValueExpression();
+        $deliveryDate = $this->validDateTextExpression('so.deliverydate');
+        $today = Carbon::today()->toDateString();
+        $query = DB::table('salesorders as so')
+            ->join('salesorderdetails as sod', 'sod.orderno', '=', 'so.orderno')
+            ->whereRaw($remainingQuantity . ' > 0');
+
+        if (Schema::hasColumn('salesorders', 'quotation')) {
+            $query->where('so.quotation', 0);
+        }
+
+        $row = $query
+            ->selectRaw('COUNT(DISTINCT so.orderno) as open_orders')
+            ->selectRaw('COUNT(*) as open_lines')
+            ->selectRaw('COALESCE(SUM(' . $remainingValue . '), 0) as open_value')
+            ->selectRaw(
+                "COUNT(DISTINCT CASE WHEN $deliveryDate IS NOT NULL AND $deliveryDate < ? THEN so.orderno END) as late_orders",
+                [$today],
+            )
+            ->first();
+
+        return [
+            'orders' => (int) ($row->open_orders ?? 0),
+            'lines' => (int) ($row->open_lines ?? 0),
+            'value' => (float) ($row->open_value ?? 0),
+            'lateOrders' => (int) ($row->late_orders ?? 0),
+        ];
+    }
+
+    private function pickingSummary(): array
+    {
+        if (!Schema::hasTable('salesorders') || !Schema::hasTable('salesorderdetails')) {
+            return ['orders' => 0, 'quantity' => 0.0];
+        }
+
+        $remainingQuantity = $this->remainingSalesQuantityExpression();
+        $itemDueDate = $this->validDateTextExpression('sod.itemdue');
+        $deliveryDate = $this->validDateTextExpression('so.deliverydate');
+        $dueDateExpression = "COALESCE($itemDueDate, $deliveryDate)";
+        $today = Carbon::today()->toDateString();
+        $query = DB::table('salesorders as so')
+            ->join('salesorderdetails as sod', 'sod.orderno', '=', 'so.orderno')
+            ->whereRaw($remainingQuantity . ' > 0')
+            ->whereRaw($dueDateExpression . ' <= ?', [$today]);
+
+        if (Schema::hasColumn('salesorders', 'quotation')) {
+            $query->where('so.quotation', 0);
+        }
+
+        $row = $query
+            ->selectRaw('COUNT(DISTINCT so.orderno) as pick_orders')
+            ->selectRaw('COALESCE(SUM(' . $remainingQuantity . '), 0) as pick_quantity')
+            ->first();
+
+        return [
+            'orders' => (int) ($row->pick_orders ?? 0),
+            'quantity' => (float) ($row->pick_quantity ?? 0),
+        ];
+    }
+
+    private function openReceivablesSummary(): array
+    {
+        if (!Schema::hasTable('debtortrans')) {
+            return ['amount' => 0.0, 'count' => 0];
+        }
+
+        $amountExpression = $this->debtorTransactionOpenExpression('dt');
+        $query = DB::table('debtortrans as dt')
+            ->where('dt.type', 10)
+            ->whereRaw($amountExpression . ' > 0.004');
+
+        if (Schema::hasColumn('debtortrans', 'settled')) {
+            $query->where('dt.settled', 0);
+        }
+
+        $row = $query
+            ->selectRaw('COUNT(*) as open_invoices')
+            ->selectRaw('COALESCE(SUM(' . $amountExpression . '), 0) as open_amount')
+            ->first();
+
+        return [
+            'amount' => (float) ($row->open_amount ?? 0),
+            'count' => (int) ($row->open_invoices ?? 0),
+        ];
+    }
+
+    private function lowMarginSummary(float $threshold = 20.0): array
+    {
+        if (!Schema::hasTable('salesorderdetails') || !Schema::hasTable('stockmaster')) {
+            return ['lines' => 0, 'value' => 0.0];
+        }
+
+        $lineValue = $this->salesLineValueExpression();
+        $unitCost = $this->stockUnitCostExpression('sm');
+        $marginExpression = 'CASE WHEN COALESCE(sod.unitprice, 0) <= 0 THEN 0 ELSE ROUND(((COALESCE(sod.unitprice, 0) - (' . $unitCost . ')) * 100.0 / COALESCE(sod.unitprice, 1)), 2) END';
+
+        $row = DB::table('salesorderdetails as sod')
+            ->leftJoin('stockmaster as sm', 'sm.stockid', '=', 'sod.stkcode')
+            ->where('sod.quantity', '>', 0)
+            ->whereRaw($marginExpression . ' < CAST(? AS DECIMAL(18,4))', [$threshold])
+            ->selectRaw('COUNT(*) as low_margin_lines')
+            ->selectRaw('COALESCE(SUM(' . $lineValue . '), 0) as low_margin_value')
+            ->first();
+
+        return [
+            'lines' => (int) ($row->low_margin_lines ?? 0),
+            'value' => (float) ($row->low_margin_value ?? 0),
+        ];
+    }
+
+    private function dailySalesTrend(int $days): array
+    {
+        if (!Schema::hasTable('debtortrans')) {
+            return [];
+        }
+
+        $start = Carbon::today()->subDays($days - 1);
+        $amountExpression = $this->debtorTransactionGrossExpression('dt');
+        $rows = DB::table('debtortrans as dt')
+            ->where('dt.type', 10)
+            ->whereDate('dt.trandate', '>=', $start->toDateString())
+            ->selectRaw('DATE(dt.trandate) as day_key')
+            ->selectRaw('COUNT(*) as invoice_count')
+            ->selectRaw('COALESCE(SUM(' . $amountExpression . '), 0) as gross_total')
+            ->groupBy('day_key')
+            ->get()
+            ->keyBy('day_key');
+
+        return collect(range(0, $days - 1))
+            ->map(function (int $offset) use ($start, $rows) {
+                $day = $start->copy()->addDays($offset)->toDateString();
+                $row = $rows->get($day);
+
+                return [
+                    'day' => $day,
+                    'invoiceCount' => (int) ($row->invoice_count ?? 0),
+                    'grossTotal' => round((float) ($row->gross_total ?? 0), 2),
+                ];
+            })
+            ->all();
+    }
+
+    private function dashboardTopCustomers(Carbon $from, Carbon $to): array
+    {
+        if (!Schema::hasTable('debtortrans')) {
+            return [];
+        }
+
+        $amountExpression = $this->debtorTransactionGrossExpression('dt');
+
+        return DB::table('debtortrans as dt')
+            ->leftJoin('debtorsmaster as dm', 'dm.debtorno', '=', 'dt.debtorno')
+            ->where('dt.type', 10)
+            ->whereDate('dt.trandate', '>=', $from->toDateString())
+            ->whereDate('dt.trandate', '<=', $to->toDateString())
+            ->select(
+                'dt.debtorno',
+                DB::raw('COALESCE(NULLIF(dm.name, ""), dt.debtorno) as customer_name'),
+            )
+            ->selectRaw('COUNT(*) as invoice_count')
+            ->selectRaw('COALESCE(SUM(' . $amountExpression . '), 0) as gross_total')
+            ->groupBy('dt.debtorno', 'dm.name')
+            ->orderByDesc('gross_total')
+            ->limit(5)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'debtorNo' => (string) $row->debtorno,
+                    'customerName' => (string) $row->customer_name,
+                    'invoiceCount' => (int) $row->invoice_count,
+                    'grossTotal' => round((float) $row->gross_total, 2),
+                ];
+            })
+            ->all();
+    }
+
+    private function dashboardTopItems(Carbon $from, Carbon $to): array
+    {
+        if (!Schema::hasTable('salesorders') || !Schema::hasTable('salesorderdetails')) {
+            return [];
+        }
+
+        $lineValue = $this->salesLineValueExpression();
+
+        return DB::table('salesorderdetails as sod')
+            ->join('salesorders as so', 'so.orderno', '=', 'sod.orderno')
+            ->leftJoin('stockmaster as sm', 'sm.stockid', '=', 'sod.stkcode')
+            ->whereDate('so.orddate', '>=', $from->toDateString())
+            ->whereDate('so.orddate', '<=', $to->toDateString())
+            ->select(
+                'sod.stkcode',
+                DB::raw('COALESCE(NULLIF(sm.description, ""), sod.stkcode) as description'),
+            )
+            ->selectRaw('COALESCE(SUM(sod.quantity), 0) as total_qty')
+            ->selectRaw('COALESCE(SUM(' . $lineValue . '), 0) as gross_total')
+            ->groupBy('sod.stkcode', 'sm.description')
+            ->havingRaw('COALESCE(SUM(sod.quantity), 0) > 0')
+            ->orderByDesc('gross_total')
+            ->limit(5)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'stockId' => (string) $row->stkcode,
+                    'description' => (string) $row->description,
+                    'quantity' => round((float) $row->total_qty, 2),
+                    'grossTotal' => round((float) $row->gross_total, 2),
+                ];
+            })
+            ->all();
+    }
+
+    private function salesActionQueue(array $summary): array
+    {
+        $currency = $this->companyCurrency();
+        $actions = [];
+
+        if ((int) $summary['lateOrders'] > 0) {
+            $actions[] = $this->salesAction(
+                'late-orders',
+                1,
+                'Clear late deliveries first',
+                (int) $summary['lateOrders'] . ' open orders are past their delivery date.',
+                'danger',
+                (float) $summary['openOrderValue'],
+                $currency,
+                'Open late orders',
+                'order-delivery-differences-report',
+            );
+        }
+
+        if ((int) $summary['readyToPickOrders'] > 0) {
+            $actions[] = $this->salesAction(
+                'ready-to-pick',
+                2,
+                'Print picking lists for due orders',
+                (int) $summary['readyToPickOrders'] . ' orders have open quantity due now.',
+                'pending',
+                (float) $summary['readyToPickQuantity'],
+                '',
+                'Open picking queue',
+                'print-picking-lists',
+            );
+        }
+
+        if ((int) $summary['openReceivableInvoices'] > 0) {
+            $actions[] = $this->salesAction(
+                'receivables-follow-up',
+                3,
+                'Follow up open customer invoices',
+                (int) $summary['openReceivableInvoices'] . ' invoices are still unpaid.',
+                'warning',
+                (float) $summary['openReceivableValue'],
+                $currency,
+                'Open invoiced sales',
+                'orders-invoiced-reports',
+            );
+        }
+
+        if ((int) $summary['lowMarginLines'] > 0) {
+            $actions[] = $this->salesAction(
+                'low-margin-review',
+                4,
+                'Review low-margin sales lines',
+                (int) $summary['lowMarginLines'] . ' lines are below the gross margin threshold.',
+                'danger',
+                (float) $summary['lowMarginValue'],
+                $currency,
+                'Open margin report',
+                'sales-with-low-gross-profit-report',
+            );
+        }
+
+        if ((float) $summary['monthGrowthPct'] < 0) {
+            $actions[] = $this->salesAction(
+                'month-sales-down',
+                5,
+                'Investigate month-on-month sales drop',
+                'This month is tracking below the previous month.',
+                'info',
+                abs((float) $summary['monthGrowthPct']),
+                '%',
+                'Open sales analysis',
+                'daily-sales-inquiry',
+            );
+        }
+
+        if (count($actions) === 0) {
+            $actions[] = [
+                'id' => 'sales-clear',
+                'priority' => 1,
+                'title' => 'No urgent sales exceptions',
+                'detail' => 'Revenue, fulfilment, margin, and collection signals are below escalation thresholds.',
+                'tone' => 'success',
+                'value' => 0,
+                'valueLabel' => 'Clear',
+                'actionLabel' => 'Review trend',
+                'drawerKey' => 'daily-sales-inquiry',
+            ];
+        }
+
+        return collect($actions)
+            ->sortBy('priority')
+            ->values()
+            ->take(5)
+            ->all();
+    }
+
+    private function salesAction(string $id, int $priority, string $title, string $detail, string $tone, float $value, string $currency, string $actionLabel, string $drawerKey): array
+    {
+        return [
+            'id' => $id,
+            'priority' => $priority,
+            'title' => $title,
+            'detail' => $detail,
+            'tone' => $tone,
+            'value' => round($value, 2),
+            'valueLabel' => $currency === '%'
+                ? number_format($value, 1) . '%'
+                : ($currency !== '' ? $currency . ' ' . number_format($value, 0) : number_format($value, 2)),
+            'actionLabel' => $actionLabel,
+            'drawerKey' => $drawerKey,
+        ];
+    }
+
+    private function debtorTransactionGrossExpression(string $alias): string
+    {
+        return '('
+            . 'COALESCE(' . $alias . '.ovamount, 0) + '
+            . 'COALESCE(' . $alias . '.ovgst, 0) + '
+            . 'COALESCE(' . $alias . '.ovfreight, 0) - '
+            . 'COALESCE(' . $alias . '.ovdiscount, 0)'
+            . ')';
+    }
+
+    private function debtorTransactionOpenExpression(string $alias): string
+    {
+        return '(' . $this->debtorTransactionGrossExpression($alias) . ' - COALESCE(' . $alias . '.alloc, 0))';
+    }
+
+    private function remainingSalesQuantityExpression(): string
+    {
+        return '(CASE WHEN COALESCE(sod.quantity, 0) - COALESCE(sod.qtyinvoiced, 0) > 0 THEN COALESCE(sod.quantity, 0) - COALESCE(sod.qtyinvoiced, 0) ELSE 0 END)';
+    }
+
+    private function salesLineValueExpression(): string
+    {
+        return '(COALESCE(sod.quantity, 0) * COALESCE(sod.unitprice, 0) * (1 - (COALESCE(sod.discountpercent, 0) / 100)))';
+    }
+
+    private function remainingSalesValueExpression(): string
+    {
+        return '(' . $this->remainingSalesQuantityExpression() . ' * COALESCE(sod.unitprice, 0) * (1 - (COALESCE(sod.discountpercent, 0) / 100)))';
+    }
+
+    private function stockUnitCostExpression(string $alias): string
+    {
+        $parts = [];
+
+        foreach (['materialcost', 'labourcost', 'overheadcost'] as $column) {
+            if (Schema::hasColumn('stockmaster', $column)) {
+                $parts[] = 'COALESCE(' . $alias . '.' . $column . ', 0)';
+            }
+        }
+
+        return count($parts) > 0 ? '(' . implode(' + ', $parts) . ')' : '0';
+    }
+
+    private function validDateTextExpression(string $column): string
+    {
+        return "NULLIF(CAST($column AS CHAR), '0000-00-00')";
+    }
+
+    private function monthKeyExpression(string $column): string
+    {
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? "strftime('%Y-%m', $column)"
+            : "DATE_FORMAT($column, '%Y-%m')";
+    }
+
+    private function safeDate($value, Carbon $fallback): Carbon
+    {
+        try {
+            $raw = trim((string) $value);
+            if ($raw === '') {
+                return $fallback->copy();
+            }
+
+            return Carbon::parse($raw);
+        } catch (\Throwable) {
+            return $fallback->copy();
+        }
+    }
+
+    private function monthBuckets(Carbon $from, Carbon $to): array
+    {
+        $cursor = $from->copy()->startOfMonth();
+        $end = $to->copy()->startOfMonth();
+        $months = [];
+
+        while ($cursor->lessThanOrEqualTo($end)) {
+            $months[] = [
+                'month' => $cursor->format('Y-m'),
+                'label' => $cursor->format('M Y'),
+            ];
+            $cursor->addMonthNoOverflow();
+        }
+
+        return $months;
+    }
+
+    private function growthPercent(float $current, float $previous): float
+    {
+        if (abs($previous) < 0.0001) {
+            return $current > 0 ? 100.0 : 0.0;
+        }
+
+        return round((($current - $previous) / abs($previous)) * 100, 1);
+    }
+
+    private function companyCurrency(): string
+    {
+        if (!Schema::hasTable('companies')) {
+            return 'TZS';
+        }
+
+        $currency = strtoupper(trim((string) DB::table('companies')->where('coycode', 1)->value('currencydefault')));
+
+        return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'TZS';
     }
 
     private function safeLimit($value, int $min, int $max): int

@@ -110,7 +110,7 @@ function isConfigurationMenu(caption: string): boolean {
 
 function isDashboardLinkedMainMenu(caption: string): boolean {
   const key = normalizedSlugKey(caption);
-  return key === 'inventory' || key === 'purchases' || key === 'payables';
+  return key === 'inventory' || key === 'purchases' || key === 'payables' || key === 'sales';
 }
 
 function isHiddenMenuNode(node: MenuCategory | MenuItem): boolean {
@@ -725,7 +725,16 @@ function Sidebar() {
     };
   }, []);
 
-  const selectedMainMenuId = routeIndex.pageIdToMainId.get(currentPage) ?? null;
+  const activePathMainSlug = normalizePath(window.location.pathname).split('/').filter(Boolean)[0] ?? '';
+  const routeMainMenu = activePathMainSlug
+    ? mainMenus.find((menu) => {
+        const menuKey = normalizedSlugKey(menuSlug(menu.caption, menu.href));
+        const captionKey = normalizedSlugKey(menu.caption);
+        const pathKey = normalizedSlugKey(activePathMainSlug);
+        return menuKey === pathKey || captionKey === pathKey;
+      }) ?? null
+    : null;
+  const selectedMainMenuId = routeIndex.pageIdToMainId.get(currentPage) ?? routeMainMenu?.id ?? null;
   const selectedMainMenu = selectedMainMenuId != null ? mainMenus.find((m) => m.id === selectedMainMenuId) : null;
   const selectedMainMenuPageId = selectedMainMenuId != null ? mainMenuPageId(selectedMainMenuId) : null;
   const isDisplayedMainMenuDashboardActive = selectedMainMenuPageId !== null && currentPage === selectedMainMenuPageId;

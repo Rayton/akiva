@@ -129,6 +129,7 @@ Route::put('/configuration/manufacturing/setup/{entity}/{id}', [ManufacturingSet
 Route::delete('/configuration/manufacturing/setup/{entity}/{id}', [ManufacturingSetupController::class, 'destroy']);
 
 Route::prefix('sales')->group(function () {
+    Route::get('/dashboard', [SalesController::class, 'dashboard']);
     Route::get('/orders', [SalesController::class, 'orders']);
     Route::post('/orders', [SalesController::class, 'storeOrder']);
     Route::get('/customers', [SalesController::class, 'customers']);
@@ -146,6 +147,7 @@ Route::prefix('sales')->group(function () {
     Route::get('/recurring/templates', [SalesController::class, 'recurringTemplates']);
     Route::post('/recurring/process', [SalesController::class, 'processRecurring']);
     Route::get('/reports/summary', [SalesController::class, 'reportSummary']);
+    Route::get('/reports/customer-trend', [SalesController::class, 'reportCustomerTrend']);
     Route::get('/reports/price-list', [SalesController::class, 'reportPriceList']);
     Route::get('/reports/order-status', [SalesController::class, 'reportOrderStatus']);
     Route::get('/reports/daily-inquiry', [SalesController::class, 'reportDailyInquiry']);

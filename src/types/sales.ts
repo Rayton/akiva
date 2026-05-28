@@ -81,9 +81,80 @@ export interface SalesTopCustomer {
   grossTotal: number;
 }
 
+export interface SalesCustomerTrendMonth {
+  month: string;
+  label: string;
+}
+
+export interface SalesCustomerTrendPoint {
+  month: string;
+  invoiceCount: number;
+  grossTotal: number;
+}
+
+export interface SalesCustomerTrendCustomer {
+  debtorNo: string;
+  customerName: string;
+  invoiceCount: number;
+  grossTotal: number;
+  points: SalesCustomerTrendPoint[];
+}
+
+export interface SalesCustomerTrendPayload {
+  currency: string;
+  from: string;
+  to: string;
+  months: SalesCustomerTrendMonth[];
+  customers: SalesCustomerTrendCustomer[];
+}
+
 export interface SalesReportSummary {
   monthly: SalesMonthlySummary[];
   topCustomers: SalesTopCustomer[];
+}
+
+export type SalesDashboardTone = 'danger' | 'warning' | 'pending' | 'success' | 'info' | 'neutral';
+
+export interface SalesDashboardSummary {
+  todaySales: number;
+  todayInvoices: number;
+  monthSales: number;
+  monthInvoices: number;
+  previousMonthSales: number;
+  monthGrowthPct: number;
+  averageInvoiceValue: number;
+  openOrders: number;
+  openOrderLines: number;
+  openOrderValue: number;
+  lateOrders: number;
+  readyToPickOrders: number;
+  readyToPickQuantity: number;
+  openReceivableValue: number;
+  openReceivableInvoices: number;
+  lowMarginLines: number;
+  lowMarginValue: number;
+}
+
+export interface SalesDashboardAction {
+  id: string;
+  priority: number;
+  title: string;
+  detail: string;
+  tone: SalesDashboardTone;
+  value: number;
+  valueLabel: string;
+  actionLabel: string;
+  drawerKey: string;
+}
+
+export interface SalesDashboardPayload {
+  currency: string;
+  asOf: string;
+  summary: SalesDashboardSummary;
+  dailyTrend: SalesDailySalesRow[];
+  topCustomers: SalesTopCustomer[];
+  topItems: SalesTopItem[];
+  actionQueue: SalesDashboardAction[];
 }
 
 export interface SalesSettings {

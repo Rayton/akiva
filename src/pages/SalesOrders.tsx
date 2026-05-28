@@ -1,5 +1,37 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, RefreshCw, Search, Wifi, WifiOff } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Banknote,
+  BarChart3,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  PackageCheck,
+  Plus,
+  ReceiptText,
+  RefreshCw,
+  Search,
+  ShoppingCart,
+  Sparkles,
+  TrendingUp,
+  Truck,
+  Wifi,
+  WifiOff,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import {
   cancelSalesContract,
   createSalesOrderOnline,
@@ -11,6 +43,8 @@ import {
   fetchOutstandingSalesOrders,
   fetchPickingListCandidates,
   fetchRecurringTemplates,
+  fetchSalesCustomerTrend,
+  fetchSalesDashboard,
   fetchSalesCustomers,
   fetchSalesDailyInquiry,
   fetchSalesItems,
@@ -34,13 +68,19 @@ import { startSalesSync } from '../lib/offline/salesSync';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { DatePicker } from '../components/common/DatePicker';
+import { DateRangePicker, getDefaultDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { formatDateWithSystemFormat, useSystemDateFormat } from '../lib/dateFormat';
 import {
   SalesCustomer,
+  SalesCustomerTrendPayload,
   SalesContractDetail,
   SalesContractLookups,
   SalesContractPayload,
   SalesContractSummary,
+  SalesDashboardAction,
+  SalesDashboardPayload,
+  SalesDashboardTone,
   SalesDailySalesRow,
   SalesLowGrossRow,
   SalesOrderLineInput,
@@ -133,18 +173,86 @@ interface ContractRequirementDraftLine {
   costPerUnit: string;
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  }).format(value);
+function formatCurrency(value: number, currency = 'TZS'): string {
+  const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : 'TZS';
+
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: safeCurrency,
+      maximumFractionDigits: 0,
+    }).format(Number.isFinite(value) ? value : 0);
+  } catch {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'TZS',
+      maximumFractionDigits: 0,
+    }).format(Number.isFinite(value) ? value : 0);
+  }
 }
 
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
+function formatNumber(value: number, maximumFractionDigits = 0): string {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatPercent(value: number): string {
+  const prefix = value > 0 ? '+' : '';
+  return `${prefix}${formatNumber(value, 1)}%`;
+}
+
+function localIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function extractIsoDate(value: string | null | undefined): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const match = raw.match(/\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? raw : localIsoDate(date);
+}
+
+function formatDateTime(value: string | undefined, dateFormat: string): string {
+  const raw = value || new Date().toISOString();
+  const formattedDate = formatDateWithSystemFormat(extractIsoDate(raw), dateFormat);
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return formattedDate || raw;
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${formattedDate} ${time}`.trim();
+}
+
+function formatDate(value: string | null | undefined, dateFormat: string): string {
+  return formatDateWithSystemFormat(extractIsoDate(value), dateFormat);
+}
+
+const salesChartTooltipContentStyle = {
+  backgroundColor: 'var(--akiva-chart-tooltip-bg)',
+  border: '1px solid var(--akiva-chart-tooltip-border)',
+  borderRadius: '8px',
+  color: 'var(--akiva-chart-tooltip-text)',
+  boxShadow: '0 18px 38px rgba(0, 0, 0, 0.22)',
+};
+
+const salesChartTooltipTextStyle = {
+  color: 'var(--akiva-chart-tooltip-text)',
+  fontWeight: 600,
+};
+
+const salesTrendColors = [
+  'var(--akiva-chart-ink)',
+  'var(--akiva-chart-success)',
+  'var(--akiva-chart-warning)',
+  'var(--akiva-chart-danger)',
+  'var(--akiva-chart-brand)',
+];
+
+function formatCompactCurrency(value: number, currency = 'TZS'): string {
+  const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : 'TZS';
+  return `${safeCurrency} ${new Intl.NumberFormat('en-US', {
+    notation: Math.abs(value) >= 1000 ? 'compact' : 'standard',
+    maximumFractionDigits: Math.abs(value) >= 1000 ? 1 : 0,
+  }).format(Number.isFinite(value) ? value : 0)}`;
 }
 
 function statusLabel(order: SalesOrderListItem): string {
@@ -277,10 +385,558 @@ function isInquiriesOrReportsKey(drawerKey: SalesDrawerKey | null): boolean {
   ].includes(drawerKey);
 }
 
+const salesDashboardActionIcons: Record<string, LucideIcon> = {
+  'late-orders': Clock3,
+  'ready-to-pick': PackageCheck,
+  'receivables-follow-up': Banknote,
+  'low-margin-review': AlertTriangle,
+  'month-sales-down': TrendingUp,
+  'sales-clear': CheckCircle2,
+};
+
+const salesDrawerKeys: SalesDrawerKey[] = [
+  'enter-order',
+  'counter-sales',
+  'print-picking-lists',
+  'outstanding-sales-orders',
+  'special-order',
+  'recurring-order-template',
+  'process-recurring-orders',
+  'order-inquiry',
+  'print-price-lists',
+  'order-status-report',
+  'orders-invoiced-reports',
+  'daily-sales-inquiry',
+  'order-delivery-differences-report',
+  'difot-report',
+  'sales-order-detail-summary',
+  'top-sales-items-report',
+  'sales-with-low-gross-profit-report',
+  'select-contract',
+  'create-contract',
+];
+
+function toSalesDrawerKey(value: string): SalesDrawerKey | null {
+  return salesDrawerKeys.includes(value as SalesDrawerKey) ? (value as SalesDrawerKey) : null;
+}
+
+function salesToneClasses(tone: SalesDashboardTone): string {
+  if (tone === 'danger') return 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100';
+  if (tone === 'warning') return 'border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100';
+  if (tone === 'pending') return 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-100';
+  if (tone === 'success') return 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100';
+  if (tone === 'info') return 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100';
+  return 'border-akiva-border bg-akiva-surface-muted text-akiva-text';
+}
+
+function salesToneDot(tone: SalesDashboardTone): string {
+  if (tone === 'danger') return 'bg-red-600 dark:bg-red-300';
+  if (tone === 'warning') return 'bg-orange-600 dark:bg-orange-300';
+  if (tone === 'pending') return 'bg-purple-600 dark:bg-purple-300';
+  if (tone === 'success') return 'bg-emerald-600 dark:bg-emerald-300';
+  if (tone === 'info') return 'bg-blue-600 dark:bg-blue-300';
+  return 'bg-slate-500 dark:bg-slate-300';
+}
+
+function salesToneTextClass(tone: SalesDashboardTone): string {
+  if (tone === 'danger') return 'text-red-700 dark:text-red-200';
+  if (tone === 'warning') return 'text-orange-700 dark:text-orange-200';
+  if (tone === 'pending') return 'text-purple-700 dark:text-purple-200';
+  if (tone === 'success') return 'text-emerald-700 dark:text-emerald-200';
+  if (tone === 'info') return 'text-blue-700 dark:text-blue-200';
+  return 'text-akiva-text-muted';
+}
+
+function salesSubtleToneClass(tone: SalesDashboardTone): string {
+  if (tone === 'danger') return 'border-red-300/80 bg-red-50/75 text-red-800 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-100';
+  if (tone === 'warning') return 'border-orange-300/80 bg-orange-50/75 text-orange-800 dark:border-orange-800/80 dark:bg-orange-950/30 dark:text-orange-100';
+  if (tone === 'pending') return 'border-purple-300/80 bg-purple-50/75 text-purple-800 dark:border-purple-800/80 dark:bg-purple-950/30 dark:text-purple-100';
+  if (tone === 'success') return 'border-emerald-300/80 bg-emerald-50/75 text-emerald-800 dark:border-emerald-800/80 dark:bg-emerald-950/30 dark:text-emerald-100';
+  if (tone === 'info') return 'border-blue-300/80 bg-blue-50/75 text-blue-800 dark:border-blue-800/80 dark:bg-blue-950/30 dark:text-blue-100';
+  return 'border-akiva-border bg-akiva-surface-muted text-akiva-text';
+}
+
+function SalesStatusPill({ tone, children }: { tone: SalesDashboardTone; children: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+      <span className={`akiva-status-dot ${salesToneDot(tone)}`} />
+      {children}
+    </span>
+  );
+}
+
+function SalesPanel({
+  title,
+  detail,
+  icon: Icon,
+  actions,
+  children,
+}: {
+  title: string;
+  detail?: string;
+  icon: LucideIcon;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-muted text-akiva-accent-text">
+            <Icon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-akiva-text">{title}</h2>
+            {detail ? <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{detail}</p> : null}
+          </div>
+        </div>
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SalesMetricCard({
+  label,
+  value,
+  note,
+  status,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  status: string;
+  icon: LucideIcon;
+  tone: SalesDashboardTone;
+}) {
+  return (
+    <article className="akiva-panel relative overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
+      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${salesToneDot(tone)}`} aria-hidden="true" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-normal text-akiva-text-muted">{label}</p>
+          <p className="akiva-financial-value mt-2 truncate text-2xl font-semibold text-akiva-text">{value}</p>
+        </div>
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-muted ${salesToneTextClass(tone)}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-sm leading-5 text-akiva-text-muted">{note}</p>
+        <SalesStatusPill tone={tone}>{status}</SalesStatusPill>
+      </div>
+    </article>
+  );
+}
+
+function SalesWorkloadStrip({
+  dashboard,
+  onOpenAction,
+}: {
+  dashboard: SalesDashboardPayload;
+  onOpenAction: (drawerKey: SalesDrawerKey) => void;
+}) {
+  const { summary, currency } = dashboard;
+  const workloadTotal = summary.lateOrders + summary.readyToPickOrders + summary.openReceivableInvoices + summary.lowMarginLines;
+  const stripTone: SalesDashboardTone = workloadTotal > 0 ? 'warning' : 'success';
+  const actionTiles: Array<{
+    label: string;
+    value: string;
+    note: string;
+    tone: SalesDashboardTone;
+    drawerKey: SalesDrawerKey;
+  }> = [
+    {
+      label: 'Late deliveries',
+      value: formatNumber(summary.lateOrders),
+      note: 'Open orders past delivery date',
+      tone: summary.lateOrders > 0 ? 'danger' : 'success',
+      drawerKey: 'order-delivery-differences-report',
+    },
+    {
+      label: 'Pick queue',
+      value: formatNumber(summary.readyToPickOrders),
+      note: `${formatNumber(summary.readyToPickQuantity, 2)} units due now`,
+      tone: summary.readyToPickOrders > 0 ? 'pending' : 'success',
+      drawerKey: 'print-picking-lists',
+    },
+    {
+      label: 'Collections',
+      value: formatNumber(summary.openReceivableInvoices),
+      note: formatCurrency(summary.openReceivableValue, currency),
+      tone: summary.openReceivableInvoices > 0 ? 'warning' : 'success',
+      drawerKey: 'orders-invoiced-reports',
+    },
+    {
+      label: 'Margin review',
+      value: formatNumber(summary.lowMarginLines),
+      note: formatCurrency(summary.lowMarginValue, currency),
+      tone: summary.lowMarginLines > 0 ? 'danger' : 'success',
+      drawerKey: 'sales-with-low-gross-profit-report',
+    },
+  ];
+
+  return (
+    <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
+      <div className="grid gap-4 xl:grid-cols-[220px_1fr] xl:items-center">
+        <div className={`rounded-xl border p-4 ${salesSubtleToneClass(stripTone)}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide">Sales workload</p>
+          <div className="mt-3 flex items-end gap-2">
+            <span className="akiva-financial-value text-4xl font-semibold">{formatNumber(workloadTotal)}</span>
+          </div>
+          <p className="mt-2 text-sm font-semibold">{workloadTotal > 0 ? 'Open work' : 'Clear'}</p>
+          <p className="mt-1 text-xs leading-5 opacity-80">Combined delivery, picking, receivables, and margin exceptions.</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {actionTiles.map((tile) => (
+            <button
+              key={tile.label}
+              type="button"
+              onClick={() => onOpenAction(tile.drawerKey)}
+              className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{tile.label}</p>
+              <p className="akiva-financial-value mt-2 text-lg font-semibold text-akiva-text">{tile.value}</p>
+              <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{tile.note}</p>
+              <span className={`mt-2 inline-flex h-2 w-2 rounded-full ${salesToneDot(tile.tone)}`} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SalesActionRow({
+  action,
+  onOpenAction,
+}: {
+  action: SalesDashboardAction;
+  onOpenAction: (drawerKey: SalesDrawerKey) => void;
+}) {
+  const Icon = salesDashboardActionIcons[action.id] ?? AlertTriangle;
+  const drawerKey = toSalesDrawerKey(action.drawerKey);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (drawerKey) onOpenAction(drawerKey);
+      }}
+      disabled={!drawerKey}
+      className="relative w-full overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-70"
+    >
+      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${salesToneDot(action.tone)}`} aria-hidden="true" />
+      <div className="flex gap-3">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${salesToneClasses(action.tone)}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${salesToneClasses(action.tone)}`}>P{action.priority}</span>
+            <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{action.valueLabel}</span>
+          </span>
+          <span className="mt-2 block text-sm font-semibold leading-5 text-akiva-text">{action.title}</span>
+          <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{action.detail}</span>
+          <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-akiva-accent-text">
+            {action.actionLabel}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </span>
+      </div>
+    </button>
+  );
+}
+
+type SalesCustomerTrendChartRow = {
+  month: string;
+  label: string;
+  [key: string]: string | number;
+};
+
+function SalesCustomerTrendChart({
+  trend,
+  loading,
+  dateFormat,
+}: {
+  trend: SalesCustomerTrendPayload | null;
+  loading: boolean;
+  dateFormat: string;
+}) {
+  const currency = trend?.currency ?? 'TZS';
+  const customers = trend?.customers ?? [];
+
+  const chartRows = useMemo<SalesCustomerTrendChartRow[]>(() => {
+    if (!trend) return [];
+
+    return trend.months.map((month) => {
+      const row: SalesCustomerTrendChartRow = {
+        month: month.month,
+        label: formatDate(`${month.month}-01`, dateFormat) || month.label || month.month,
+      };
+
+      trend.customers.forEach((customer, index) => {
+        const point = customer.points.find((item) => item.month === month.month);
+        row[`customer_${index}`] = point?.grossTotal ?? 0;
+      });
+
+      return row;
+    });
+  }, [dateFormat, trend]);
+
+  const hasSales = customers.some((customer) => customer.grossTotal > 0);
+
+  if ((loading && !trend) || chartRows.length === 0 || !hasSales) {
+    return (
+      <div className="flex h-72 items-center justify-center rounded-lg border border-dashed border-akiva-border bg-akiva-surface-muted px-4 text-center text-sm font-semibold text-akiva-text-muted">
+        {loading && !trend ? 'Loading customer trend...' : 'No invoices in selected range.'}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="h-72 min-w-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartRows} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="var(--akiva-chart-grid)" strokeDasharray="4 6" />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tickFormatter={(value: number) => formatCompactCurrency(value, currency)}
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11, fill: 'var(--akiva-chart-muted)' }}
+              width={76}
+            />
+            <Tooltip
+              formatter={(value: unknown, name: unknown) => [formatCurrency(Number(value), currency), String(name)]}
+              contentStyle={salesChartTooltipContentStyle}
+              labelStyle={salesChartTooltipTextStyle}
+              itemStyle={salesChartTooltipTextStyle}
+            />
+            {customers.map((customer, index) => (
+              <Line
+                key={customer.debtorNo}
+                type="monotone"
+                dataKey={`customer_${index}`}
+                name={customer.customerName}
+                stroke={salesTrendColors[index % salesTrendColors.length]}
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 4 }}
+                connectNulls
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
+        {customers.map((customer, index) => (
+          <div key={customer.debtorNo} className="min-w-0 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: salesTrendColors[index % salesTrendColors.length] }}
+              />
+              <span className="truncate font-semibold text-akiva-text">{customer.customerName}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-2 text-akiva-text-muted">
+              <span>{formatNumber(customer.invoiceCount)} invoices</span>
+              <span className="akiva-financial-value font-semibold text-akiva-text">{formatCurrency(customer.grossTotal, currency)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SalesDashboardPanel({
+  dashboard,
+  loading,
+  dateFormat,
+  customerTrend,
+  customerTrendLoading,
+  customerTrendRange,
+  onCustomerTrendRangeChange,
+  onOpenAction,
+}: {
+  dashboard: SalesDashboardPayload | null;
+  loading: boolean;
+  dateFormat: string;
+  customerTrend: SalesCustomerTrendPayload | null;
+  customerTrendLoading: boolean;
+  customerTrendRange: DateRangeValue;
+  onCustomerTrendRangeChange: (range: DateRangeValue) => void;
+  onOpenAction: (drawerKey: SalesDrawerKey) => void;
+}) {
+  if (loading && !dashboard) {
+    return (
+      <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-5 shadow-sm">
+        <div className="flex items-center gap-2 text-sm font-semibold text-akiva-text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading live sales dashboard...
+        </div>
+      </section>
+    );
+  }
+
+  if (!dashboard) {
+    return (
+      <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-5 text-sm font-semibold text-akiva-text-muted shadow-sm">
+        Sales dashboard data is unavailable.
+      </section>
+    );
+  }
+
+  const { summary, currency } = dashboard;
+  const trendMax = Math.max(...dashboard.dailyTrend.map((row) => row.grossTotal), 1);
+  const topItemTotal = Math.max(...dashboard.topItems.map((row) => row.grossTotal), 1);
+  const metricCards = [
+    {
+      label: 'Today invoiced',
+      value: formatCurrency(summary.todaySales, currency),
+      note: `${formatNumber(summary.todayInvoices)} invoices posted today`,
+      status: summary.todayInvoices > 0 ? 'Posted' : 'No invoices',
+      icon: ReceiptText,
+      tone: summary.todaySales > 0 ? 'success' as const : 'neutral' as const,
+    },
+    {
+      label: 'Month sales',
+      value: formatCurrency(summary.monthSales, currency),
+      note: `${formatPercent(summary.monthGrowthPct)} vs previous month`,
+      status: summary.monthGrowthPct >= 0 ? 'Growing' : 'Down',
+      icon: BarChart3,
+      tone: summary.monthGrowthPct >= 0 ? 'success' as const : 'warning' as const,
+    },
+    {
+      label: 'Open orders',
+      value: formatCurrency(summary.openOrderValue, currency),
+      note: `${formatNumber(summary.openOrders)} orders, ${formatNumber(summary.openOrderLines)} open lines`,
+      status: summary.lateOrders > 0 ? `${formatNumber(summary.lateOrders)} late` : 'On track',
+      icon: Truck,
+      tone: summary.lateOrders > 0 ? 'danger' as const : 'info' as const,
+    },
+    {
+      label: 'Receivables open',
+      value: formatCurrency(summary.openReceivableValue, currency),
+      note: `${formatNumber(summary.openReceivableInvoices)} unpaid sales invoices`,
+      status: summary.openReceivableInvoices > 0 ? 'Collect' : 'Clear',
+      icon: Banknote,
+      tone: summary.openReceivableInvoices > 0 ? 'warning' as const : 'success' as const,
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metricCards.map((card) => (
+          <SalesMetricCard key={card.label} {...card} />
+        ))}
+      </div>
+
+      <SalesWorkloadStrip dashboard={dashboard} onOpenAction={onOpenAction} />
+
+      <div className="grid gap-4 lg:grid-cols-12">
+        <main className="space-y-4 lg:col-span-8">
+          <SalesPanel
+            title="Daily Sales Trend"
+            detail={`${formatCurrency(summary.averageInvoiceValue, currency)} average invoice; last ${dashboard.dailyTrend.length} days.`}
+            icon={BarChart3}
+          >
+            <div className="space-y-2">
+                {dashboard.dailyTrend.slice(-8).map((row) => (
+                  <div key={row.day} className="grid grid-cols-[88px_minmax(0,1fr)_auto] items-center gap-2 text-xs">
+                    <span className="truncate font-semibold text-akiva-text-muted">{formatDate(row.day, dateFormat)}</span>
+                    <span className="h-2 overflow-hidden rounded-full bg-akiva-surface-muted">
+                      <span
+                        className="block h-full rounded-full bg-akiva-accent"
+                        style={{ width: `${Math.max(4, Math.round((row.grossTotal / trendMax) * 100))}%` }}
+                      />
+                    </span>
+                    <span className="akiva-financial-value font-semibold text-akiva-text">{formatCurrency(row.grossTotal, currency)}</span>
+                  </div>
+                ))}
+              </div>
+          </SalesPanel>
+
+          <SalesPanel
+            title="Top Customer Trend"
+            detail="Monthly invoiced value by customer for the selected period."
+            icon={ShoppingCart}
+            actions={
+              <DateRangePicker
+                value={customerTrendRange}
+                onChange={onCustomerTrendRangeChange}
+                label="Range"
+                className="w-full sm:w-auto"
+                triggerClassName="min-h-9 rounded-lg px-3 sm:min-w-[260px]"
+                panelClassName="right-0"
+              />
+            }
+          >
+            <SalesCustomerTrendChart
+              trend={customerTrend}
+              loading={customerTrendLoading}
+              dateFormat={dateFormat}
+            />
+          </SalesPanel>
+        </main>
+
+        <aside className="space-y-4 lg:col-span-4">
+          <SalesPanel title="AI Sales Insights" detail="Recommended actions ranked by urgency and commercial impact." icon={Sparkles}>
+            <div className="mt-3 space-y-2">
+              {dashboard.actionQueue.map((action) => (
+                <SalesActionRow key={action.id} action={action} onOpenAction={onOpenAction} />
+              ))}
+            </div>
+          </SalesPanel>
+
+          <SalesPanel title="Top Items This Month" detail="Best performing stock lines by order value." icon={PackageCheck}>
+            <div className="space-y-2">
+              {dashboard.topItems.length > 0 ? dashboard.topItems.map((row) => (
+                <div key={row.stockId} className="text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-akiva-text">{row.description}</span>
+                      <span className="block text-akiva-text-muted">{row.stockId} · {formatNumber(row.quantity, 2)} units</span>
+                    </span>
+                    <span className="akiva-financial-value shrink-0 font-semibold text-akiva-text">{formatCurrency(row.grossTotal, currency)}</span>
+                  </div>
+                  <div className="mt-1 h-1 overflow-hidden rounded-full bg-akiva-surface-muted">
+                    <div className="h-full rounded-full bg-akiva-accent" style={{ width: `${Math.max(4, Math.round((row.grossTotal / topItemTotal) * 100))}%` }} />
+                  </div>
+                </div>
+              )) : (
+                <p className="text-sm text-akiva-text-muted">No item sales for this month yet.</p>
+              )}
+            </div>
+          </SalesPanel>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
 export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrdersProps) {
   const [orders, setOrders] = useState<SalesOrderListItem[]>([]);
   const [transactions, setTransactions] = useState<SalesTransaction[]>([]);
   const [reportSummary, setReportSummary] = useState<SalesReportSummary | null>(null);
+  const [salesDashboard, setSalesDashboard] = useState<SalesDashboardPayload | null>(null);
+  const [customerTrendRange, setCustomerTrendRange] = useState<DateRangeValue>(() => getDefaultDateRange());
+  const [customerTrend, setCustomerTrend] = useState<SalesCustomerTrendPayload | null>(null);
+  const [customerTrendLoading, setCustomerTrendLoading] = useState(false);
   const [settings, setSettings] = useState<SalesSettings | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -299,6 +955,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
   const [drawerSearch, setDrawerSearch] = useState('');
   const [drawerError, setDrawerError] = useState('');
   const [drawerMessage, setDrawerMessage] = useState('');
+  const [dashboardDrawerKey, setDashboardDrawerKey] = useState<SalesDrawerKey | null>(null);
 
   const [customers, setCustomers] = useState<SalesCustomer[]>([]);
   const [stockItems, setStockItems] = useState<SalesStockItem[]>([]);
@@ -332,11 +989,16 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
   const [contractBomLines, setContractBomLines] = useState<ContractBomDraftLine[]>([]);
   const [contractRequirementLines, setContractRequirementLines] = useState<ContractRequirementDraftLine[]>([]);
   const { confirm, confirmationDialog } = useConfirmDialog();
+  const dateFormat = useSystemDateFormat();
+  const displayDate = useCallback((value: string | null | undefined) => formatDate(value, dateFormat), [dateFormat]);
 
-  const drawerKey = useMemo(() => resolveSalesDrawerKey(sourceSlug), [sourceSlug]);
+  const routeDrawerKey = useMemo(() => resolveSalesDrawerKey(sourceSlug), [sourceSlug]);
+  const drawerKey = routeDrawerKey ?? dashboardDrawerKey;
   const drawerDetails = drawerKey ? drawerMeta(drawerKey) : null;
   const reportTemplateRoute = isInquiriesOrReportsKey(drawerKey);
-  const routeTemplateRoute = Boolean(drawerKey && drawerDetails && (mode !== 'reports' || reportTemplateRoute));
+  const routeTemplateRoute = Boolean(
+    drawerKey && drawerDetails && (mode !== 'reports' || reportTemplateRoute || dashboardDrawerKey)
+  );
 
   const selectedCustomer = useMemo(() => {
     if (!createOrderForm.customerKey) return null;
@@ -376,6 +1038,21 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
     setTransactions(rows);
   }, []);
 
+  const reloadSalesDashboard = useCallback(async () => {
+    const dashboard = await fetchSalesDashboard(14);
+    setSalesDashboard(dashboard);
+  }, []);
+
+  const reloadCustomerTrend = useCallback(async (range: DateRangeValue) => {
+    setCustomerTrendLoading(true);
+    try {
+      const trend = await fetchSalesCustomerTrend(range.from, range.to, 5);
+      setCustomerTrend(trend);
+    } finally {
+      setCustomerTrendLoading(false);
+    }
+  }, []);
+
   const bootstrapFromWebErp = useCallback(async () => {
     if (!navigator.onLine) return;
     const onlineRows = await fetchOnlineSalesOrders();
@@ -392,10 +1069,10 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
       setErrorMessage('');
       try {
         if (mode === 'transactions') {
-          await Promise.all([reloadOrders(''), reloadTransactions('')]);
+          await Promise.all([reloadOrders(''), reloadTransactions(''), reloadSalesDashboard()]);
           await bootstrapFromWebErp();
         } else if (mode === 'reports') {
-          const summary = await fetchSalesReportSummary();
+          const [summary] = await Promise.all([fetchSalesReportSummary(), reloadSalesDashboard()]);
           if (mounted) setReportSummary(summary);
         } else {
           const settingsData = await fetchSalesSettings();
@@ -426,7 +1103,12 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
     };
-  }, [bootstrapFromWebErp, mode, reloadOrders, reloadTransactions]);
+  }, [bootstrapFromWebErp, mode, reloadOrders, reloadSalesDashboard, reloadTransactions]);
+
+  useEffect(() => {
+    if (mode !== 'transactions' && mode !== 'reports') return;
+    reloadCustomerTrend(customerTrendRange).catch((error) => setErrorMessage(String(error)));
+  }, [customerTrendRange, mode, reloadCustomerTrend]);
 
   useEffect(() => {
     if (mode !== 'transactions') return;
@@ -465,6 +1147,17 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
     setDrawerError('');
     setDrawerMessage('');
   }, [drawerKey]);
+
+  useEffect(() => {
+    setDashboardDrawerKey(null);
+  }, [mode, sourceSlug]);
+
+  const openSalesDashboardAction = useCallback((nextKey: SalesDrawerKey) => {
+    setDashboardDrawerKey(nextKey);
+    setDrawerSearch('');
+    setDrawerError('');
+    setDrawerMessage('');
+  }, []);
 
   const resetContractEditor = useCallback(() => {
     setSelectedContractRef('');
@@ -687,16 +1380,6 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
     }));
   }, [createOrderForm.unitPrice, selectedItem]);
 
-  const metrics = useMemo(() => {
-    const totalAmount = orders.reduce((sum, row) => sum + row.grossTotal, 0);
-    const pendingDrafts = orders.filter((row) => row.syncState === 'pending').length;
-    return {
-      orderCount: orders.length,
-      totalAmount,
-      pendingDrafts,
-    };
-  }, [orders]);
-
   const submitDraft = async () => {
     const gross = Number(form.grossTotal);
     if (!form.customerName.trim() || Number.isNaN(gross) || gross <= 0) {
@@ -785,7 +1468,13 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
 
       setDrawerMessage(`Sales order ${result.orderNo} created successfully.`);
       setPendingOrderLines([]);
-      await Promise.all([reloadOrders(searchTerm), reloadTransactions(searchTerm), reloadDrawerData()]);
+      await Promise.all([
+        reloadOrders(searchTerm),
+        reloadTransactions(searchTerm),
+        reloadSalesDashboard(),
+        reloadCustomerTrend(customerTrendRange),
+        reloadDrawerData(),
+      ]);
     } catch (error) {
       setDrawerError(String(error));
     } finally {
@@ -795,9 +1484,12 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
     createOrderForm.buyerName,
     createOrderForm.customerRef,
     createOrderForm.orderType,
+    customerTrendRange,
     pendingOrderLines,
     reloadDrawerData,
+    reloadCustomerTrend,
     reloadOrders,
+    reloadSalesDashboard,
     reloadTransactions,
     searchTerm,
     selectedCustomer,
@@ -826,13 +1518,28 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
       const skippedCount = result.skippedTemplates.length;
       setDrawerMessage(`Processed templates. Created: ${createdCount}, skipped: ${skippedCount}.`);
       setSelectedTemplateIds([]);
-      await Promise.all([reloadOrders(searchTerm), reloadTransactions(searchTerm), reloadDrawerData()]);
+      await Promise.all([
+        reloadOrders(searchTerm),
+        reloadTransactions(searchTerm),
+        reloadSalesDashboard(),
+        reloadCustomerTrend(customerTrendRange),
+        reloadDrawerData(),
+      ]);
     } catch (error) {
       setDrawerError(String(error));
     } finally {
       setDrawerLoading(false);
     }
-  }, [reloadDrawerData, reloadOrders, reloadTransactions, searchTerm, selectedTemplateIds]);
+  }, [
+    customerTrendRange,
+    reloadCustomerTrend,
+    reloadDrawerData,
+    reloadOrders,
+    reloadSalesDashboard,
+    reloadTransactions,
+    searchTerm,
+    selectedTemplateIds,
+  ]);
 
   const addContractBomLine = useCallback(() => {
     setContractBomLines((previous) => [...previous, { stockId: '', workCentreCode: '', quantity: '1' }]);
@@ -903,7 +1610,20 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
     try {
       let result: SalesContractDetail | null = null;
       if (selectedContractRef) {
-        const { contractRef: _unusedRef, ...updatePayload } = payload;
+        const updatePayload: Omit<SalesContractPayload, 'contractRef'> = {
+          contractDescription: payload.contractDescription,
+          debtorNo: payload.debtorNo,
+          branchCode: payload.branchCode,
+          categoryId: payload.categoryId,
+          locationCode: payload.locationCode,
+          requiredDate: payload.requiredDate,
+          margin: payload.margin,
+          customerRef: payload.customerRef,
+          exchangeRate: payload.exchangeRate,
+          defaultWorkCentre: payload.defaultWorkCentre,
+          bomLines: payload.bomLines,
+          requirementLines: payload.requirementLines,
+        };
         result = await updateSalesContract(selectedContractRef, updatePayload);
       } else {
         result = await createSalesContract(payload);
@@ -950,13 +1670,18 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
           ? `Contract already quoted as order ${result.orderNo}.`
           : `Quotation created successfully. Order No: ${result.orderNo}.`
       );
-      await Promise.all([reloadDrawerData(), openContractForEdit(contractRef)]);
+      await Promise.all([
+        reloadDrawerData(),
+        openContractForEdit(contractRef),
+        reloadSalesDashboard(),
+        reloadCustomerTrend(customerTrendRange),
+      ]);
     } catch (error) {
       setDrawerError(String(error));
     } finally {
       setDrawerLoading(false);
     }
-  }, [openContractForEdit, reloadDrawerData]);
+  }, [customerTrendRange, openContractForEdit, reloadCustomerTrend, reloadDrawerData, reloadSalesDashboard]);
 
   const createContractQuotationNow = useCallback(async () => {
     if (!selectedContractRef) {
@@ -1000,7 +1725,14 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
   }, [confirm, reloadDrawerData, resetContractEditor, selectedContractRef]);
 
   const modeTitle =
-    mode === 'transactions' ? 'Sales Transactions' : mode === 'reports' ? 'Sales Reports' : 'Sales Settings';
+    mode === 'transactions' ? 'Sales Dashboard' : mode === 'reports' ? 'Sales Reports' : 'Sales Settings';
+  const modeSubtitle =
+    mode === 'transactions'
+      ? 'Live sales, fulfilment, receivables, and margin exceptions prioritized for daily action.'
+      : mode === 'reports'
+        ? 'Sales reporting and inquiry views with the same live action summary up front.'
+        : 'Sales configuration and operational defaults.';
+  const dashboardUpdatedLabel = formatDateTime(salesDashboard?.asOf, dateFormat);
 
   const difotSnapshot = useMemo(() => {
     const total = orderStatusRows.length;
@@ -1192,8 +1924,8 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
         const columns: AdvancedTableColumn<SalesOutstandingOrder>[] = [
           { id: 'orderNo', header: 'Order', accessor: (row) => row.orderNo },
           { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
-          { id: 'orderDate', header: 'Order Date', accessor: (row) => formatDate(row.orderDate) },
-          { id: 'deliveryDate', header: 'Delivery', accessor: (row) => formatDate(row.deliveryDate) },
+          { id: 'orderDate', header: 'Order Date', accessor: (row) => displayDate(row.orderDate) },
+          { id: 'deliveryDate', header: 'Delivery', accessor: (row) => displayDate(row.deliveryDate) },
           {
             id: 'outstanding',
             header: 'Outstanding',
@@ -1218,7 +1950,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
           { id: 'orderNo', header: 'Order', accessor: (row) => row.orderNo },
           { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
           { id: 'locationCode', header: 'Location', accessor: (row) => row.locationCode },
-          { id: 'dueDate', header: 'Due Date', accessor: (row) => formatDate(row.dueDate) },
+          { id: 'dueDate', header: 'Due Date', accessor: (row) => displayDate(row.dueDate) },
           { id: 'openQty', header: 'Open Qty', accessor: (row) => row.openQty },
         ];
 
@@ -1232,8 +1964,8 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
           { id: 'recurringOrderNo', header: 'Template', accessor: (row) => row.recurringOrderNo },
           { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
           { id: 'frequencyDays', header: 'Frequency', accessor: (row) => `${row.frequencyDays} days` },
-          { id: 'lastRecurrence', header: 'Last Recurrence', accessor: (row) => formatDate(row.lastRecurrence) },
-          { id: 'stopDate', header: 'Stop Date', accessor: (row) => formatDate(row.stopDate) },
+          { id: 'lastRecurrence', header: 'Last Recurrence', accessor: (row) => displayDate(row.lastRecurrence) },
+          { id: 'stopDate', header: 'Stop Date', accessor: (row) => displayDate(row.stopDate) },
           { id: 'lineCount', header: 'Lines', accessor: (row) => row.lineCount },
         ];
 
@@ -1278,7 +2010,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
                 { id: 'recurringOrderNo', header: 'Template', accessor: (row) => row.recurringOrderNo },
                 { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
                 { id: 'frequencyDays', header: 'Frequency', accessor: (row) => `${row.frequencyDays} days` },
-                { id: 'lastRecurrence', header: 'Last Recurrence', accessor: (row) => formatDate(row.lastRecurrence) },
+                { id: 'lastRecurrence', header: 'Last Recurrence', accessor: (row) => displayDate(row.lastRecurrence) },
               ],
               recurringTemplates,
               'No due recurring templates found.'
@@ -1311,8 +2043,8 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
         const columns: AdvancedTableColumn<SalesOrderStatusRow>[] = [
           { id: 'orderNo', header: 'Order', accessor: (row) => row.orderNo },
           { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
-          { id: 'orderDate', header: 'Ordered', accessor: (row) => formatDate(row.orderDate) },
-          { id: 'deliveryDate', header: 'Delivery', accessor: (row) => formatDate(row.deliveryDate) },
+          { id: 'orderDate', header: 'Ordered', accessor: (row) => displayDate(row.orderDate) },
+          { id: 'deliveryDate', header: 'Delivery', accessor: (row) => displayDate(row.deliveryDate) },
           { id: 'completed', header: 'Completed', accessor: (row) => `${row.completedLines}/${row.lineCount}` },
           {
             id: 'grossTotal',
@@ -1334,7 +2066,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
           { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
           { id: 'reference', header: 'Reference', accessor: (row) => row.reference || '-' },
           { id: 'orderNo', header: 'Order', accessor: (row) => row.orderNo || '-' },
-          { id: 'transactionDate', header: 'Date', accessor: (row) => formatDate(row.transactionDate) },
+          { id: 'transactionDate', header: 'Date', accessor: (row) => displayDate(row.transactionDate) },
           {
             id: 'grossTotal',
             header: 'Amount',
@@ -1351,7 +2083,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
 
       case 'daily-sales-inquiry': {
         const columns: AdvancedTableColumn<SalesDailySalesRow>[] = [
-          { id: 'day', header: 'Day', accessor: (row) => formatDate(row.day) },
+          { id: 'day', header: 'Day', accessor: (row) => displayDate(row.day) },
           { id: 'invoiceCount', header: 'Invoices', accessor: (row) => row.invoiceCount },
           {
             id: 'grossTotal',
@@ -1419,7 +2151,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
               [
                 { id: 'orderNo', header: 'Order', accessor: (row) => row.orderNo },
                 { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
-                { id: 'deliveryDate', header: 'Delivery Date', accessor: (row) => formatDate(row.deliveryDate) },
+                { id: 'deliveryDate', header: 'Delivery Date', accessor: (row) => displayDate(row.deliveryDate) },
                 { id: 'outstandingQty', header: 'Outstanding Qty', accessor: (row) => row.outstandingQty },
                 {
                   id: 'grossTotal',
@@ -1461,7 +2193,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
                 { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
                 { id: 'completedLines', header: 'Completed Lines', accessor: (row) => row.completedLines },
                 { id: 'lineCount', header: 'Total Lines', accessor: (row) => row.lineCount },
-                { id: 'deliveryDate', header: 'Delivery', accessor: (row) => formatDate(row.deliveryDate) },
+                { id: 'deliveryDate', header: 'Delivery', accessor: (row) => displayDate(row.deliveryDate) },
               ],
               orderStatusRows,
               'No DIFOT orders found.'
@@ -1524,7 +2256,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
                       },
                       { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
                       { id: 'statusLabel', header: 'Status', accessor: (row) => row.statusLabel },
-                      { id: 'requiredDate', header: 'Required', accessor: (row) => formatDate(row.requiredDate) },
+                      { id: 'requiredDate', header: 'Required', accessor: (row) => displayDate(row.requiredDate) },
                       { id: 'orderNo', header: 'Order', accessor: (row) => (row.orderNo > 0 ? row.orderNo : '-') },
                       {
                         id: 'totalCost',
@@ -1922,61 +2654,77 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
 
   return (
     <>
-      <div className="space-y-4 md:space-y-5">
-        <section className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-slate-900 px-4 py-4 md:px-5 md:py-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-xs md:text-sm font-semibold text-gray-900 dark:text-white">{modeTitle}</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                Manage sales transactions and customer order activity.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 ${
-                  isOnline
-                    ? 'bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300'
-                    : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                }`}
-              >
-                {isOnline ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
-                {isOnline ? 'Online' : 'Offline'}
-              </span>
-              {mode === 'transactions' ? (
-                <span className="inline-flex items-center rounded-full px-2.5 py-1 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
-                  Sync: {syncState}
-                </span>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 bg-brand-600 text-white hover:bg-brand-700"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Refresh
-              </button>
-            </div>
-          </div>
-        </section>
+      <div className="akiva-page-shell px-3 py-3 sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+        <div className="mx-auto max-w-[1520px]">
+          <section className="akiva-frame overflow-hidden rounded-[28px] backdrop-blur">
+            <header className="border-b border-akiva-border px-4 py-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                      <Building2 className="h-4 w-4 text-akiva-accent-text" />
+                      Sales
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                      <CalendarDays className="h-4 w-4 text-akiva-accent-text" />
+                      Updated {dashboardUpdatedLabel}
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                      {isOnline ? <Wifi className="h-4 w-4 text-akiva-accent-text" /> : <WifiOff className="h-4 w-4 text-akiva-text-muted" />}
+                      {isOnline ? 'Online' : 'Offline'}
+                    </span>
+                    {mode === 'transactions' ? (
+                      <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                        <span className={`akiva-status-dot ${syncState === 'error' ? 'bg-red-600' : syncState === 'active' ? 'bg-emerald-600' : 'bg-slate-500'}`} />
+                        Sync {syncState}
+                      </span>
+                    ) : null}
+                  </div>
+                  <h1 className="mt-4 akiva-page-title">{modeTitle}</h1>
+                  <p className="akiva-page-subtitle">{modeSubtitle}</p>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void Promise.all([
+                        reloadSalesDashboard(),
+                        reloadCustomerTrend(customerTrendRange),
+                      ]).catch((error) => setErrorMessage(String(error)));
+                    }}
+                    disabled={loading || customerTrendLoading}
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-60"
+                    aria-label="Refresh sales dashboard"
+                    title="Refresh sales dashboard"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loading || customerTrendLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openSalesDashboardAction('enter-order')}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-full bg-akiva-accent px-4 text-sm font-semibold text-white shadow-sm shadow-violet-950/10 transition hover:bg-akiva-accent-strong"
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Order
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div className="space-y-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-7">
 
         {mode === 'transactions' && !routeTemplateRoute ? (
           <>
-            <section className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-brand-100 dark:border-brand-900/60 bg-white dark:bg-slate-900 p-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Orders</p>
-                <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">{metrics.orderCount}</p>
-              </div>
-              <div className="rounded-xl border border-brand-100 dark:border-brand-900/60 bg-white dark:bg-slate-900 p-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Sales Amount</p>
-                <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
-                  {formatCurrency(metrics.totalAmount)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-brand-100 dark:border-brand-900/60 bg-white dark:bg-slate-900 p-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Pending Sync</p>
-                <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">{metrics.pendingDrafts}</p>
-              </div>
-            </section>
+            <SalesDashboardPanel
+              dashboard={salesDashboard}
+              loading={loading}
+              dateFormat={dateFormat}
+              customerTrend={customerTrend}
+              customerTrendLoading={customerTrendLoading}
+              customerTrendRange={customerTrendRange}
+              onCustomerTrendRangeChange={setCustomerTrendRange}
+              onOpenAction={openSalesDashboardAction}
+            />
 
             <section className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-slate-900 p-4">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Quick Draft</h2>
@@ -2048,7 +2796,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
                         </div>
                       ),
                     },
-                    { id: 'transactionDate', header: 'Date', accessor: (row) => formatDate(row.transactionDate) },
+                    { id: 'transactionDate', header: 'Date', accessor: (row) => displayDate(row.transactionDate) },
                     {
                       id: 'grossTotal',
                       header: 'Amount',
@@ -2079,7 +2827,7 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
                   [
                     { id: 'orderNo', header: 'Order', accessor: (row) => row.orderNo },
                     { id: 'customerName', header: 'Customer', accessor: (row) => row.customerName },
-                    { id: 'orderDate', header: 'Date', accessor: (row) => formatDate(row.orderDate) },
+                    { id: 'orderDate', header: 'Date', accessor: (row) => displayDate(row.orderDate) },
                     {
                       id: 'grossTotal',
                       header: 'Amount',
@@ -2100,37 +2848,50 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
         ) : null}
 
         {mode === 'reports' && !routeTemplateRoute ? (
-          <section className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-slate-900 p-4">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Sales Summary Report</h2>
-            {loading || !reportSummary ? (
-              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading reports...</p>
-            ) : (
-              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-lg border border-brand-100 dark:border-brand-900/50 p-3">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Monthly Sales</h3>
-                  <div className="space-y-2">
-                    {reportSummary.monthly.map((row) => (
-                      <div key={row.month} className="flex items-center justify-between text-sm">
-                        <span className="text-gray-700 dark:text-gray-300">{row.month}</span>
-                        <span className="text-gray-900 dark:text-white">{formatCurrency(row.grossTotal)}</span>
-                      </div>
-                    ))}
+          <>
+            <SalesDashboardPanel
+              dashboard={salesDashboard}
+              loading={loading}
+              dateFormat={dateFormat}
+              customerTrend={customerTrend}
+              customerTrendLoading={customerTrendLoading}
+              customerTrendRange={customerTrendRange}
+              onCustomerTrendRangeChange={setCustomerTrendRange}
+              onOpenAction={openSalesDashboardAction}
+            />
+
+            <section className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-slate-900 p-4">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Sales Summary Report</h2>
+              {loading || !reportSummary ? (
+                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading reports...</p>
+              ) : (
+                <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="rounded-lg border border-brand-100 dark:border-brand-900/50 p-3">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Monthly Sales</h3>
+                    <div className="space-y-2">
+                      {reportSummary.monthly.map((row) => (
+                        <div key={row.month} className="flex items-center justify-between text-sm">
+                          <span className="text-gray-700 dark:text-gray-300">{row.month}</span>
+                          <span className="text-gray-900 dark:text-white">{formatCurrency(row.grossTotal)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-brand-100 dark:border-brand-900/50 p-3">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Top Customers</h3>
+                    <div className="space-y-2">
+                      {reportSummary.topCustomers.map((row) => (
+                        <div key={row.debtorNo} className="flex items-center justify-between text-sm">
+                          <span className="text-gray-700 dark:text-gray-300">{row.customerName}</span>
+                          <span className="text-gray-900 dark:text-white">{formatCurrency(row.grossTotal)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="rounded-lg border border-brand-100 dark:border-brand-900/50 p-3">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Top Customers</h3>
-                  <div className="space-y-2">
-                    {reportSummary.topCustomers.map((row) => (
-                      <div key={row.debtorNo} className="flex items-center justify-between text-sm">
-                        <span className="text-gray-700 dark:text-gray-300">{row.customerName}</span>
-                        <span className="text-gray-900 dark:text-white">{formatCurrency(row.grossTotal)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
+              )}
+            </section>
+          </>
         ) : null}
 
         {mode === 'settings' && !routeTemplateRoute ? (
@@ -2175,9 +2936,21 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
 
         {routeTemplateRoute && drawerKey && drawerDetails ? (
           <section className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-slate-900 p-4 space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{drawerDetails.title}</h2>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{drawerDetails.subtitle}</p>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{drawerDetails.title}</h2>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{drawerDetails.subtitle}</p>
+              </div>
+              {dashboardDrawerKey && !routeDrawerKey ? (
+                <button
+                  type="button"
+                  onClick={() => setDashboardDrawerKey(null)}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-brand-200 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300 dark:hover:bg-brand-900/20"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Close
+                </button>
+              ) : null}
             </div>
 
             {drawerSupportsSearch(drawerKey) ? (
@@ -2209,10 +2982,13 @@ export function SalesOrders({ mode = 'transactions', sourceSlug = '' }: SalesOrd
         ) : null}
 
         {errorMessage ? (
-          <p className="text-xs text-brand-700 dark:text-brand-300">{errorMessage}</p>
+          <p className="text-xs font-semibold text-akiva-accent-text">{errorMessage}</p>
         ) : null}
-        {confirmationDialog}
+            </div>
+          </section>
+        </div>
       </div>
+      {confirmationDialog}
     </>
   );
 }

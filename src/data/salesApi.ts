@@ -7,6 +7,8 @@ import {
   SalesContractPayload,
   SalesContractQuoteResult,
   SalesContractSummary,
+  SalesCustomerTrendPayload,
+  SalesDashboardPayload,
   SalesCustomer,
   SalesDailySalesRow,
   SalesLowGrossRow,
@@ -74,6 +76,35 @@ export async function fetchSalesReportSummary(months = 12): Promise<SalesReportS
     return data.success && data.data ? data.data : null;
   } catch (error) {
     console.error('Failed to fetch sales report summary:', error);
+    return null;
+  }
+}
+
+export async function fetchSalesDashboard(days = 14): Promise<SalesDashboardPayload | null> {
+  try {
+    const response = await apiFetch(buildApiUrl(`/api/sales/dashboard?days=${days}`));
+    if (!response.ok) return null;
+    const data: ApiObjectResponse<SalesDashboardPayload> = await response.json();
+    return data.success && data.data ? data.data : null;
+  } catch (error) {
+    console.error('Failed to fetch sales dashboard:', error);
+    return null;
+  }
+}
+
+export async function fetchSalesCustomerTrend(from: string, to: string, limit = 5): Promise<SalesCustomerTrendPayload | null> {
+  try {
+    const query = new URLSearchParams({
+      from,
+      to,
+      limit: String(limit),
+    });
+    const response = await apiFetch(buildApiUrl(`/api/sales/reports/customer-trend?${query.toString()}`));
+    if (!response.ok) return null;
+    const data: ApiObjectResponse<SalesCustomerTrendPayload> = await response.json();
+    return data.success && data.data ? data.data : null;
+  } catch (error) {
+    console.error('Failed to fetch sales customer trend:', error);
     return null;
   }
 }

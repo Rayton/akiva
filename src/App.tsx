@@ -1098,6 +1098,10 @@ function AppContent() {
       return <PurchasesDashboard />;
     }
 
+    if (normalizedPath === '/sales') {
+      return <SalesOrders mode="transactions" sourceSlug="sales" />;
+    }
+
     if (normalizedPath === '/payables' || normalizedPath.startsWith('/payables/')) {
       return <AccountsPayable sourceSlug={locationPathname} />;
     }
@@ -1136,6 +1140,10 @@ function AppContent() {
 
       if (mainModule && normalizedSlugKey(mainModule.caption) === 'payables') {
         return <AccountsPayable sourceSlug="payables" sourceCaption={mainModule.caption} />;
+      }
+
+      if (mainModule && normalizedSlugKey(mainModule.caption) === 'sales') {
+        return <SalesOrders mode="transactions" sourceSlug="sales" />;
       }
 
       if (mainModule && isConfigurationMenuCaption(mainModule.caption)) {

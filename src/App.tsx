@@ -4,6 +4,7 @@ import { Header } from './components/layout/Header';
 import { OfflineStatusBar } from './components/layout/OfflineStatusBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './pages/Dashboard';
+import { LoginPage } from './pages/Login';
 import { ChartOfAccounts } from './pages/ChartOfAccounts';
 import { GeneralLedger } from './pages/GeneralLedger';
 import { AccountsReceivable } from './pages/AccountsReceivable';
@@ -2082,6 +2083,13 @@ function AppContent() {
 
     return <Dashboard />;
   };
+
+  const normalizedPath = locationPathname.replace(/\/+$/, '').toLowerCase();
+  const isLoginRoute = normalizedPath === '/login' || normalizedPath === '/sign-in' || normalizedPath === '/signin';
+
+  if (isLoginRoute) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-akiva-bg transition-colors duration-300 dark:bg-slate-950">

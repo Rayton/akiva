@@ -113,6 +113,7 @@ function isDashboardLinkedMainMenu(caption: string): boolean {
   const key = normalizedSlugKey(caption);
   return (
     key === 'inventory' ||
+    key === 'manufacturing' ||
     key === 'purchases' ||
     key === 'generalledger' ||
     key === 'gl' ||

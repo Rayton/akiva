@@ -11,6 +11,7 @@ import { AccountsPayable } from './pages/AccountsPayable';
 import { AssetManager } from './pages/AssetManager';
 import { PettyCash } from './pages/PettyCash';
 import { Inventory } from './pages/Inventory';
+import { ManufacturingDashboard } from './pages/ManufacturingDashboard';
 import { InventoryItems } from './pages/InventoryItems';
 import { MarkupPrices } from './pages/MarkupPrices';
 import { SalesCategories } from './pages/SalesCategories';
@@ -1122,6 +1123,10 @@ function AppContent() {
       return <Inventory />;
     }
 
+    if (normalizedPath === '/manufacturing' || normalizedPath === '/manufacturing/dashboard' || normalizedPath.startsWith('/manufacturing/')) {
+      return <ManufacturingDashboard />;
+    }
+
     if (normalizedPath === '/purchases') {
       return <PurchasesDashboard />;
     }
@@ -1200,6 +1205,10 @@ function AppContent() {
         return <PurchasesDashboard />;
       }
 
+      if (mainModule && normalizedSlugKey(mainModule.caption) === 'manufacturing') {
+        return <ManufacturingDashboard />;
+      }
+
       if (mainModule && ['generalledger', 'gl'].includes(normalizedSlugKey(mainModule.caption))) {
         return <GeneralLedger sourceSlug="general-ledger" sourceCaption={mainModule.caption} />;
       }
@@ -1260,6 +1269,7 @@ function AppContent() {
     const isInventorySetupPathContext = normalizedSlugKey(locationPathname).includes('configurationinventorysetup');
     const isManufacturingSetupMenuContext = currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'manufacturingsetup');
     const isManufacturingSetupPathContext = normalizedSlugKey(locationPathname).includes('configurationmanufacturingsetup');
+    const isManufacturingMenuContext = primaryPathSegment === 'manufacturing' || currentMenuTrail.some((node) => normalizedSlugKey(node.caption) === 'manufacturing');
 
     if (menuSlug) {
       if (isEnterpriseConfigurationMenuSlug(menuSlug, currentMenuCaption)) {
@@ -1381,6 +1391,10 @@ function AppContent() {
         isManufacturingSetupMenuSlug(menuSlug)
       ) {
         return <ManufacturingSetup initialTab={resolveManufacturingSetupTab(menuSlug)} />;
+      }
+
+      if (isManufacturingMenuContext) {
+        return <ManufacturingDashboard />;
       }
 
       if ((primaryPathSegment === 'configuration' || isConfigurationMenuContext) && !isPurchasesPayablesSetupMenuContext && isSalesReceivablesSetupMenuSlug(menuSlug)) {
@@ -1649,6 +1663,10 @@ function AppContent() {
         return <AccountsPayable sourceSlug="payables" />;
       case 'inventory':
         return <Inventory />;
+      case 'manufacturing':
+      case 'manufacturing-dashboard':
+      case 'manufacturingdashboard':
+        return <ManufacturingDashboard />;
       case 'selectproduct':
       case 'stocks':
       case 'inventory-items':

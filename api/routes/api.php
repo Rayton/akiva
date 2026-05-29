@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\UserLocationController;
 use App\Http\Controllers\Api\DepartmentAuthorizationController;
 use App\Http\Controllers\Api\InternalStockCategoryRoleController;
 use App\Http\Controllers\Api\AllInventoryUsageController;
+use App\Http\Controllers\Api\ManufacturingDashboardController;
 use App\Http\Controllers\Api\ManufacturingSetupController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\InventoryTransferController;
@@ -309,6 +310,10 @@ Route::prefix('inventory')->group(function () {
     Route::post('/transfers', [InventoryTransferController::class, 'store']);
     Route::post('/transfers/{reference}/receive', [InventoryTransferController::class, 'receive']);
     Route::put('/transfers/{reference}', [InventoryTransferController::class, 'update']);
+});
+
+Route::prefix('manufacturing')->group(function () {
+    Route::get('/dashboard', [ManufacturingDashboardController::class, 'show']);
 });
 
 Route::prefix('gl')->group(function () {

@@ -1,7 +1,8 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   BadgeDollarSign,
+  ArrowRight,
   CalendarClock,
   CheckCircle2,
   ClipboardCheck,
@@ -397,6 +398,189 @@ function StatusPill({ value }: { value?: string | null }) {
     <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${statusClass(value)}`}>
       {formatStatus(value)}
     </span>
+  );
+}
+
+type PayablesTone = 'danger' | 'warning' | 'pending' | 'success' | 'info' | 'neutral';
+
+interface PayablesAction {
+  id: string;
+  priority: number;
+  title: string;
+  detail: string;
+  tone: PayablesTone;
+  valueLabel: string;
+  actionLabel: string;
+  path: string;
+  icon: typeof ReceiptText;
+}
+
+function payablesToneDot(tone: PayablesTone): string {
+  if (tone === 'danger') return 'bg-red-600 dark:bg-red-300';
+  if (tone === 'warning') return 'bg-orange-600 dark:bg-orange-300';
+  if (tone === 'pending') return 'bg-purple-600 dark:bg-purple-300';
+  if (tone === 'success') return 'bg-emerald-600 dark:bg-emerald-300';
+  if (tone === 'info') return 'bg-blue-600 dark:bg-blue-300';
+  return 'bg-slate-500 dark:bg-slate-300';
+}
+
+function payablesToneClasses(tone: PayablesTone): string {
+  if (tone === 'danger') return 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100';
+  if (tone === 'warning') return 'border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100';
+  if (tone === 'pending') return 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-100';
+  if (tone === 'success') return 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100';
+  if (tone === 'info') return 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100';
+  return 'border-akiva-border bg-akiva-surface-muted text-akiva-text';
+}
+
+function payablesToneTextClass(tone: PayablesTone): string {
+  if (tone === 'danger') return 'text-red-700 dark:text-red-200';
+  if (tone === 'warning') return 'text-orange-700 dark:text-orange-200';
+  if (tone === 'pending') return 'text-purple-700 dark:text-purple-200';
+  if (tone === 'success') return 'text-emerald-700 dark:text-emerald-200';
+  if (tone === 'info') return 'text-blue-700 dark:text-blue-200';
+  return 'text-akiva-text-muted';
+}
+
+function payablesSubtleToneClass(tone: PayablesTone): string {
+  if (tone === 'danger') return 'border-red-300/80 bg-red-50/75 text-red-800 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-100';
+  if (tone === 'warning') return 'border-orange-300/80 bg-orange-50/75 text-orange-800 dark:border-orange-800/80 dark:bg-orange-950/30 dark:text-orange-100';
+  if (tone === 'pending') return 'border-purple-300/80 bg-purple-50/75 text-purple-800 dark:border-purple-800/80 dark:bg-purple-950/30 dark:text-purple-100';
+  if (tone === 'success') return 'border-emerald-300/80 bg-emerald-50/75 text-emerald-800 dark:border-emerald-800/80 dark:bg-emerald-950/30 dark:text-emerald-100';
+  if (tone === 'info') return 'border-blue-300/80 bg-blue-50/75 text-blue-800 dark:border-blue-800/80 dark:bg-blue-950/30 dark:text-blue-100';
+  return 'border-akiva-border bg-akiva-surface-muted text-akiva-text';
+}
+
+function PayablesPanel({
+  title,
+  detail,
+  icon: Icon,
+  actions,
+  children,
+}: {
+  title: string;
+  detail?: string;
+  icon: typeof ReceiptText;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-muted text-akiva-accent-text">
+            <Icon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-akiva-text">{title}</h2>
+            {detail ? <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{detail}</p> : null}
+          </div>
+        </div>
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function PayablesMetricCard({
+  label,
+  value,
+  note,
+  status,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  status: string;
+  icon: typeof ReceiptText;
+  tone: PayablesTone;
+}) {
+  return (
+    <article className="akiva-panel relative overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
+      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${payablesToneDot(tone)}`} aria-hidden="true" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-normal text-akiva-text-muted">{label}</p>
+          <p className="akiva-financial-value mt-2 truncate text-2xl font-semibold text-akiva-text">{value}</p>
+        </div>
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-akiva-border bg-akiva-surface-muted ${payablesToneTextClass(tone)}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-sm leading-5 text-akiva-text-muted">{note}</p>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+          <span className={`akiva-status-dot ${payablesToneDot(tone)}`} />
+          {status}
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function PayablesActionRow({
+  action,
+  onOpen,
+}: {
+  action: PayablesAction;
+  onOpen: (path: string) => void;
+}) {
+  const Icon = action.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(action.path)}
+      className="relative w-full overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted"
+    >
+      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${payablesToneDot(action.tone)}`} aria-hidden="true" />
+      <div className="flex gap-3">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${payablesToneClasses(action.tone)}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${payablesToneClasses(action.tone)}`}>P{action.priority}</span>
+            <span className="akiva-financial-value text-xs font-semibold text-akiva-text">{action.valueLabel}</span>
+          </span>
+          <span className="mt-2 block text-sm font-semibold leading-5 text-akiva-text">{action.title}</span>
+          <span className="mt-1 block text-xs leading-5 text-akiva-text-muted">{action.detail}</span>
+          <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-akiva-accent-text">
+            {action.actionLabel}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function PayablesAgingSnapshot({ rows }: { rows: AgingRow[] }) {
+  const total = Math.max(rows.reduce((sum, row) => sum + row.amount, 0), 1);
+  const colors = ['bg-emerald-600', 'bg-amber-500', 'bg-orange-600', 'bg-red-600', 'bg-slate-700'];
+
+  if (rows.length === 0) {
+    return <p className="text-sm text-akiva-text-muted">No aging data available.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {rows.map((row, index) => (
+        <div key={row.bucket} className="grid gap-2 text-xs sm:grid-cols-[104px_minmax(0,1fr)_auto] sm:items-center lg:grid-cols-1 xl:grid-cols-[104px_minmax(0,1fr)_auto]">
+          <div className="flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${colors[index % colors.length]}`} />
+            <span className="font-semibold text-akiva-text-muted">{row.bucket}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-akiva-surface-muted">
+            <div className={`h-full rounded-full ${colors[index % colors.length]}`} style={{ width: `${Math.max(3, Math.round((row.amount / total) * 100))}%` }} />
+          </div>
+          <span className="akiva-financial-value text-right text-sm font-semibold text-akiva-text">{formatMoney(row.amount)}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -932,6 +1116,12 @@ export function AccountsPayable({ sourceSlug = 'payables', sourceCaption = '' }:
         return { tableId: 'payables-exceptions', columns: exceptionColumns, rows: payload?.exceptions ?? [], emptyMessage: 'No payable exceptions found.', selectable: false };
       case 'forecasting':
         return { tableId: 'payables-forecast', columns: forecastColumns, rows: forecastRows, emptyMessage: 'No forecast rows found.', selectable: false };
+      case 'overview':
+        return { tableId: 'payables-overview-bills', columns: billColumns, rows: billRows, emptyMessage: 'No supplier bills found.', selectable: true };
+      case 'suppliers':
+      case 'prior-balances':
+      case 'factor-companies':
+        return { tableId: 'payables-suppliers', columns: supplierColumns, rows: suppliers, emptyMessage: 'No suppliers found.', selectable: false };
       case 'bills':
         return { tableId: 'payables-bills', columns: billColumns, rows: billRows, emptyMessage: 'No supplier bills found.', selectable: true };
       default:
@@ -961,6 +1151,172 @@ export function AccountsPayable({ sourceSlug = 'payables', sourceCaption = '' }:
     suppliers,
     view,
   ]);
+
+  const payablesActions = useMemo<PayablesAction[]>(() => {
+    const actions: PayablesAction[] = [];
+    const overdueBills = summary?.overdueBills ?? 0;
+    const exceptionQueue = governance?.exceptionQueue ?? 0;
+    const approvalQueue = governance?.approvalQueue ?? 0;
+    const matchingQueue = governance?.matchingQueue ?? 0;
+    const dueThisWeek = summary?.dueThisWeek ?? 0;
+
+    if (exceptionQueue > 0) {
+      actions.push({
+        id: 'exceptions',
+        priority: 1,
+        title: 'Resolve payable exceptions',
+        detail: `${exceptionQueue.toLocaleString()} exception records need owner review.`,
+        tone: 'danger',
+        valueLabel: exceptionQueue.toLocaleString(),
+        actionLabel: 'Open exceptions',
+        path: '/payables/exceptions',
+        icon: AlertTriangle,
+      });
+    }
+
+    if (overdueBills > 0) {
+      actions.push({
+        id: 'overdue-bills',
+        priority: 2,
+        title: 'Prioritize overdue supplier bills',
+        detail: `${overdueBills.toLocaleString()} open bills are past due.`,
+        tone: 'warning',
+        valueLabel: overdueBills.toLocaleString(),
+        actionLabel: 'Open bills',
+        path: '/payables/bills',
+        icon: CalendarClock,
+      });
+    }
+
+    if (approvalQueue > 0) {
+      actions.push({
+        id: 'approvals',
+        priority: 3,
+        title: 'Clear approval queue',
+        detail: `${approvalQueue.toLocaleString()} submitted bills are waiting for approval.`,
+        tone: 'pending',
+        valueLabel: approvalQueue.toLocaleString(),
+        actionLabel: 'Open approvals',
+        path: '/payables/approvals',
+        icon: ClipboardCheck,
+      });
+    }
+
+    if (matchingQueue > 0) {
+      actions.push({
+        id: 'matching',
+        priority: 4,
+        title: 'Complete invoice matching',
+        detail: `${matchingQueue.toLocaleString()} bills are in the matching workbench.`,
+        tone: 'info',
+        valueLabel: matchingQueue.toLocaleString(),
+        actionLabel: 'Open matching',
+        path: '/payables/matching',
+        icon: Workflow,
+      });
+    }
+
+    if (dueThisWeek > 0) {
+      actions.push({
+        id: 'due-this-week',
+        priority: 5,
+        title: 'Stage payments due this week',
+        detail: 'Supplier cash requirements are due in the current week.',
+        tone: 'warning',
+        valueLabel: formatMoney(dueThisWeek),
+        actionLabel: 'Open forecast',
+        path: '/payables/forecasting',
+        icon: CreditCard,
+      });
+    }
+
+    if (actions.length === 0) {
+      actions.push({
+        id: 'payables-clear',
+        priority: 1,
+        title: 'No urgent payable exceptions',
+        detail: 'Approvals, matching, exceptions, and due-week pressure are clear.',
+        tone: 'success',
+        valueLabel: 'Clear',
+        actionLabel: 'Review bills',
+        path: '/payables/bills',
+        icon: CheckCircle2,
+      });
+    }
+
+    return actions.sort((first, second) => first.priority - second.priority).slice(0, 5);
+  }, [governance?.approvalQueue, governance?.exceptionQueue, governance?.matchingQueue, summary?.dueThisWeek, summary?.overdueBills]);
+
+  const metricCards = [
+    {
+      label: 'Total payables',
+      value: formatMoney(summary?.totalPayables ?? 0),
+      note: `${(governance?.nativeOpenBills ?? 0).toLocaleString()} native open bills in AP`,
+      status: (summary?.totalPayables ?? 0) > 0 ? 'Plan' : 'Clear',
+      icon: ReceiptText,
+      tone: (summary?.totalPayables ?? 0) > 0 ? 'info' as const : 'success' as const,
+    },
+    {
+      label: 'Due this week',
+      value: formatMoney(summary?.dueThisWeek ?? 0),
+      note: 'Supplier cash requirement in the current week',
+      status: (summary?.dueThisWeek ?? 0) > 0 ? 'Stage' : 'Clear',
+      icon: CreditCard,
+      tone: (summary?.dueThisWeek ?? 0) > 0 ? 'warning' as const : 'success' as const,
+    },
+    {
+      label: 'Overdue bills',
+      value: String(summary?.overdueBills ?? 0),
+      note: 'Bills past due date and still open',
+      status: (summary?.overdueBills ?? 0) > 0 ? 'Collect' : 'Clear',
+      icon: CalendarClock,
+      tone: (summary?.overdueBills ?? 0) > 0 ? 'danger' as const : 'success' as const,
+    },
+    {
+      label: 'Exceptions',
+      value: String(governance?.exceptionQueue ?? 0),
+      note: 'Open matching, duplicate, credit, or workflow exceptions',
+      status: (governance?.exceptionQueue ?? 0) > 0 ? 'Review' : 'Clear',
+      icon: AlertCircle,
+      tone: (governance?.exceptionQueue ?? 0) > 0 ? 'pending' as const : 'success' as const,
+    },
+  ];
+
+  const workloadTotal = (summary?.overdueBills ?? 0)
+    + (governance?.approvalQueue ?? 0)
+    + (governance?.matchingQueue ?? 0)
+    + (governance?.exceptionQueue ?? 0);
+  const workloadTone: PayablesTone = workloadTotal > 0 ? 'warning' : 'success';
+  const workloadTiles = [
+    {
+      label: 'Approvals',
+      value: String(governance?.approvalQueue ?? 0),
+      note: 'Submitted bills waiting',
+      tone: (governance?.approvalQueue ?? 0) > 0 ? 'pending' as const : 'success' as const,
+      path: '/payables/approvals',
+    },
+    {
+      label: 'Matching',
+      value: String(governance?.matchingQueue ?? 0),
+      note: 'Bills in match review',
+      tone: (governance?.matchingQueue ?? 0) > 0 ? 'info' as const : 'success' as const,
+      path: '/payables/matching',
+    },
+    {
+      label: 'Payment batches',
+      value: String(governance?.paymentBatches ?? 0),
+      note: 'Draft, approved, or executed',
+      tone: (governance?.paymentBatches ?? 0) > 0 ? 'neutral' as const : 'success' as const,
+      path: '/payables/payments',
+    },
+    {
+      label: 'Due this week',
+      value: formatMoney(summary?.dueThisWeek ?? 0),
+      note: 'Cash requirement',
+      tone: (summary?.dueThisWeek ?? 0) > 0 ? 'warning' as const : 'success' as const,
+      path: '/payables/forecasting',
+    },
+  ];
 
   const renderViewAction = () => {
     if (view === 'suppliers' || view === 'overview') {
@@ -1006,29 +1362,37 @@ export function AccountsPayable({ sourceSlug = 'payables', sourceCaption = '' }:
     <div className="akiva-page-shell px-3 py-3 sm:px-4 sm:py-4 lg:px-5 lg:py-5">
       <div className="mx-auto max-w-[1520px]">
         <section className="akiva-frame overflow-hidden rounded-[28px] backdrop-blur">
-          <div className="flex flex-col gap-4 border-b border-akiva-border px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-akiva-text px-3 py-1 text-xs font-semibold text-akiva-surface-raised">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Payables control
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
-                  <Layers3 className="h-3.5 w-3.5" />
-                  {payablesNavigation.find((item) => item.view === view)?.label ?? 'Overview'}
-                </span>
+          <header className="border-b border-akiva-border px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                    <ShieldCheck className="h-4 w-4 text-akiva-accent-text" />
+                    Payables
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+                    <Layers3 className="h-4 w-4 text-akiva-accent-text" />
+                    {payablesNavigation.find((item) => item.view === view)?.label ?? 'Overview'}
+                  </span>
+                </div>
+                <h1 className="mt-4 akiva-page-title">{copy.title}</h1>
+                <p className="akiva-page-subtitle">{copy.description}</p>
               </div>
-              <h1 className="mt-4 akiva-page-title">{copy.title}</h1>
-              <p className="akiva-page-subtitle">{copy.description}</p>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void loadPayables()}
+                  disabled={loading}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-akiva-border bg-akiva-surface-raised text-akiva-text-muted shadow-sm transition hover:bg-akiva-surface-muted hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label="Refresh payables dashboard"
+                  title="Refresh payables dashboard"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                {renderViewAction()}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <Button variant="secondary" onClick={() => void loadPayables()} disabled={loading}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              {renderViewAction()}
-            </div>
-          </div>
+          </header>
 
           <div className="border-b border-akiva-border px-4 py-3 sm:px-6 lg:px-8">
             <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Accounts payable views">
@@ -1054,149 +1418,158 @@ export function AccountsPayable({ sourceSlug = 'payables', sourceCaption = '' }:
             </nav>
           </div>
 
-          <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-7">
-            <div className="space-y-4 lg:col-span-8">
-              {(message || error) && (
-                <div
-                  className={`rounded-lg border px-4 py-3 text-sm ${
-                    error
-                      ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200'
-                      : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200'
-                  }`}
-                >
-                  {error || message}
-                </div>
-              )}
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { label: 'Total Payables', value: formatMoney(summary?.totalPayables ?? 0), icon: ReceiptText, tone: 'text-red-600' },
-                  { label: 'Active Suppliers', value: String(summary?.activeSuppliers ?? 0), icon: Users, tone: 'text-blue-600' },
-                  { label: 'Open Bills', value: String(governance?.nativeOpenBills ?? 0), icon: FileText, tone: 'text-purple-600' },
-                  { label: 'Exceptions', value: String(governance?.exceptionQueue ?? 0), icon: AlertCircle, tone: 'text-orange-600' },
-                ].map((stat) => {
-                  const Icon = stat.icon;
-                  return (
-                    <article key={stat.label} className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-3 shadow-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-semibold uppercase text-akiva-text-muted">{stat.label}</p>
-                        <Icon className={`h-4 w-4 ${stat.tone}`} />
-                      </div>
-                      <p className={`mt-2 text-2xl font-semibold ${stat.tone}`}>{stat.value}</p>
-                    </article>
-                  );
-                })}
+          <div className="space-y-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-7">
+            {(message || error) && (
+              <div
+                className={`rounded-lg border px-4 py-3 text-sm ${
+                  error
+                    ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200'
+                }`}
+              >
+                {error || message}
               </div>
+            )}
 
-              <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
-                <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] lg:items-center">
-                  <div>
-                    <h2 className="text-sm font-semibold text-akiva-text">{copy.title}</h2>
-                    <p className="mt-1 text-xs leading-5 text-akiva-text-muted">
-                      {loading ? 'Loading records...' : `${tableConfig.rows.length.toLocaleString()} records available`}
-                    </p>
-                  </div>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-                    <input
-                      type="text"
-                      placeholder={copy.searchPlaceholder}
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                      className={`${inputClassName} pl-10`}
-                    />
-                  </div>
-                </div>
-
-                <AdvancedTable
-                  tableId={tableConfig.tableId}
-                  ariaLabel={copy.title}
-                  columns={tableConfig.columns as AdvancedTableColumn<object>[]}
-                  rows={tableConfig.rows as object[]}
-                  rowKey={(row) => String((row as { id?: string | number; bucket?: string }).id ?? (row as { bucket?: string }).bucket ?? JSON.stringify(row))}
-                  emptyMessage={tableConfig.emptyMessage}
-                  loading={loading}
-                  loadingMessage="Loading accounts payable records..."
-                  density="compact"
-                  maxTableHeight="min(68vh, 720px)"
-                  selectableRows={tableConfig.selectable}
-                  bulkActions={view === 'bills' ? [{ id: 'payment-batch', label: 'Create payment batch', onClick: (rows) => void createPaymentBatch(rows as BillRow[]) }] : []}
-                  showSearch={false}
-                />
-              </div>
-
-              {view === 'forecasting' && (
-                <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-sm font-semibold text-akiva-text">Overdue Trend</h2>
-                      <p className="mt-1 text-xs leading-5 text-akiva-text-muted">Recent supplier overdue movement from the forecasting service.</p>
-                    </div>
-                    <Layers3 className="h-5 w-5 text-akiva-text-muted" />
-                  </div>
-                  <AdvancedTable
-                    tableId="payables-overdue-trend"
-                    ariaLabel="Payables overdue trend"
-                    columns={trendColumns}
-                    rows={trendRows}
-                    rowKey={(row, index) => `${row.month ?? row.bucket ?? 'trend'}-${index}`}
-                    emptyMessage="No overdue trend rows found."
-                    density="compact"
-                    maxTableHeight="360px"
-                  />
-                </div>
-              )}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {metricCards.map((card) => (
+                <PayablesMetricCard key={card.label} {...card} />
+              ))}
             </div>
 
-            <aside className="space-y-4 lg:col-span-4">
-              <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-akiva-text">Workflow Coverage</h2>
-                    <p className="mt-1 text-xs leading-5 text-akiva-text-muted">Routes backed by native AP tables and APIs.</p>
+            <section className="akiva-panel rounded-2xl border border-akiva-border bg-akiva-surface-raised/90 p-4 shadow-sm">
+              <div className="grid gap-4 xl:grid-cols-[220px_1fr] xl:items-center">
+                <div className={`rounded-xl border p-4 ${payablesSubtleToneClass(workloadTone)}`}>
+                  <p className="text-xs font-semibold uppercase tracking-wide">Payables workload</p>
+                  <div className="mt-3 flex items-end gap-2">
+                    <span className="akiva-financial-value text-4xl font-semibold">{workloadTotal.toLocaleString()}</span>
                   </div>
-                  <Workflow className="h-5 w-5 text-akiva-accent" />
+                  <p className="mt-2 text-sm font-semibold">{workloadTotal > 0 ? 'Open work' : 'Clear'}</p>
+                  <p className="mt-1 text-xs leading-5 opacity-80">Combined overdue bills, approvals, matching, and exception queues.</p>
                 </div>
-                <div className="space-y-2.5">
-                  {[
-                    { label: 'Native suppliers', value: governance?.nativeSupplierCount ?? 0, ready: true },
-                    { label: 'Approvals', value: governance?.approvalQueue ?? 0, ready: true },
-                    { label: 'Matching', value: governance?.matchingQueue ?? 0, ready: true },
-                    { label: 'Payment batches', value: governance?.paymentBatches ?? 0, ready: true },
-                    { label: 'Credits', value: governance?.creditNotes ?? 0, ready: true },
-                    { label: 'Recurring bills', value: governance?.recurringTemplates ?? 0, ready: true },
-                    { label: 'Statements', value: governance?.supplierStatements ?? 0, ready: true },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2.5 shadow-sm">
-                      <span className="text-sm font-semibold text-akiva-text">{item.label}</span>
-                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-akiva-text-muted">
-                        {item.value.toLocaleString()}
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </section>
 
-              <section className="rounded-2xl border border-akiva-border bg-akiva-surface-raised/80 p-4 shadow-sm">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-akiva-text">Aging Snapshot</h2>
-                    <p className="mt-1 text-xs leading-5 text-akiva-text-muted">Current payable exposure by due bucket.</p>
-                  </div>
-                  <CalendarClock className="h-5 w-5 text-akiva-accent" />
-                </div>
-                <div className="space-y-2">
-                  {agingRows.map((row) => (
-                    <div key={row.bucket} className="flex items-center justify-between gap-3 rounded-lg bg-akiva-surface-muted px-3 py-2">
-                      <span className="text-xs font-semibold text-akiva-text-muted">{row.bucket}</span>
-                      <span className="text-sm font-semibold text-akiva-text">{formatMoney(row.amount)}</span>
-                    </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {workloadTiles.map((tile) => (
+                    <button
+                      key={tile.label}
+                      type="button"
+                      onClick={() => navigateToView(tile.path)}
+                      className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{tile.label}</p>
+                      <p className="akiva-financial-value mt-2 truncate text-lg font-semibold text-akiva-text">{tile.value}</p>
+                      <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{tile.note}</p>
+                      <span className={`mt-2 inline-flex h-2 w-2 rounded-full ${payablesToneDot(tile.tone)}`} aria-hidden="true" />
+                    </button>
                   ))}
-                  {agingRows.length === 0 && <p className="text-sm text-akiva-text-muted">No aging data available.</p>}
                 </div>
-              </section>
-            </aside>
+              </div>
+            </section>
+
+            <div className="grid gap-4 lg:grid-cols-12">
+              <main className="space-y-4 lg:col-span-8">
+                <PayablesPanel
+                  title={view === 'overview' ? 'Supplier Bill Workbench' : copy.title}
+                  detail={loading ? 'Loading accounts payable records...' : `${tableConfig.rows.length.toLocaleString()} records available for this view.`}
+                  icon={view === 'overview' ? ReceiptText : payablesNavigation.find((item) => item.view === view)?.icon ?? FileText}
+                  actions={
+                    <div className="relative w-full sm:w-80">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                      <input
+                        type="text"
+                        placeholder={copy.searchPlaceholder}
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        className={`${inputClassName} pl-10`}
+                      />
+                    </div>
+                  }
+                >
+                  <AdvancedTable
+                    tableId={tableConfig.tableId}
+                    ariaLabel={copy.title}
+                    columns={tableConfig.columns as AdvancedTableColumn<object>[]}
+                    rows={tableConfig.rows as object[]}
+                    rowKey={(row) => String((row as { id?: string | number; bucket?: string }).id ?? (row as { bucket?: string }).bucket ?? JSON.stringify(row))}
+                    emptyMessage={tableConfig.emptyMessage}
+                    loading={loading}
+                    loadingMessage="Loading accounts payable records..."
+                    density="compact"
+                    maxTableHeight="min(68vh, 720px)"
+                    selectableRows={tableConfig.selectable}
+                    bulkActions={view === 'bills' || view === 'overview' ? [{ id: 'payment-batch', label: 'Create payment batch', onClick: (rows) => void createPaymentBatch(rows as BillRow[]) }] : []}
+                    showSearch={false}
+                  />
+                </PayablesPanel>
+
+                {view === 'forecasting' && (
+                  <PayablesPanel
+                    title="Overdue Trend"
+                    detail="Recent supplier overdue movement from the forecasting service."
+                    icon={Layers3}
+                  >
+                    <AdvancedTable
+                      tableId="payables-overdue-trend"
+                      ariaLabel="Payables overdue trend"
+                      columns={trendColumns}
+                      rows={trendRows}
+                      rowKey={(row, index) => `${row.month ?? row.bucket ?? 'trend'}-${index}`}
+                      emptyMessage="No overdue trend rows found."
+                      density="compact"
+                      maxTableHeight="360px"
+                    />
+                  </PayablesPanel>
+                )}
+              </main>
+
+              <aside className="space-y-4 lg:col-span-4">
+                <PayablesPanel
+                  title="AI Payables Actions"
+                  detail="Recommended supplier-payment actions ranked by operational pressure."
+                  icon={AlertTriangle}
+                >
+                  <div className="space-y-2">
+                    {payablesActions.map((action) => (
+                      <PayablesActionRow key={action.id} action={action} onOpen={navigateToView} />
+                    ))}
+                  </div>
+                </PayablesPanel>
+
+                <PayablesPanel
+                  title="Aging Snapshot"
+                  detail="Current payable exposure by due bucket."
+                  icon={CalendarClock}
+                >
+                  <PayablesAgingSnapshot rows={agingRows} />
+                </PayablesPanel>
+
+                <PayablesPanel
+                  title="Workflow Coverage"
+                  detail="Native AP routes backed by live tables and workflow APIs."
+                  icon={Workflow}
+                >
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Native suppliers', value: governance?.nativeSupplierCount ?? 0, tone: 'info' as const },
+                      { label: 'Approvals', value: governance?.approvalQueue ?? 0, tone: (governance?.approvalQueue ?? 0) > 0 ? 'pending' as const : 'success' as const },
+                      { label: 'Matching', value: governance?.matchingQueue ?? 0, tone: (governance?.matchingQueue ?? 0) > 0 ? 'info' as const : 'success' as const },
+                      { label: 'Payment batches', value: governance?.paymentBatches ?? 0, tone: 'neutral' as const },
+                      { label: 'Credits', value: governance?.creditNotes ?? 0, tone: 'success' as const },
+                      { label: 'Recurring bills', value: governance?.recurringTemplates ?? 0, tone: 'success' as const },
+                      { label: 'Statements', value: governance?.supplierStatements ?? 0, tone: 'success' as const },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2.5">
+                        <span className="text-sm font-semibold text-akiva-text">{item.label}</span>
+                        <span className="inline-flex items-center gap-2 text-xs font-semibold text-akiva-text-muted">
+                          <span className={`h-2 w-2 rounded-full ${payablesToneDot(item.tone)}`} />
+                          {item.value.toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </PayablesPanel>
+              </aside>
+            </div>
           </div>
         </section>
       </div>

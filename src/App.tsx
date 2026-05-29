@@ -8,6 +8,8 @@ import { ChartOfAccounts } from './pages/ChartOfAccounts';
 import { GeneralLedger } from './pages/GeneralLedger';
 import { AccountsReceivable } from './pages/AccountsReceivable';
 import { AccountsPayable } from './pages/AccountsPayable';
+import { AssetManager } from './pages/AssetManager';
+import { PettyCash } from './pages/PettyCash';
 import { Inventory } from './pages/Inventory';
 import { InventoryItems } from './pages/InventoryItems';
 import { MarkupPrices } from './pages/MarkupPrices';
@@ -167,6 +169,32 @@ function isGeneralLedgerMenuSlug(slug: string): boolean {
 function isGeneralLedgerPathSegment(segment: string): boolean {
   const key = segment.toLowerCase().replace(/[^a-z0-9]/g, '');
   return key === 'generalledger' || key === 'gl';
+}
+
+function isAssetManagerMenuSlug(slug: string, caption = ''): boolean {
+  const key = normalizedSlugKey(`${slug} ${caption}`);
+  return (
+    key === 'assetmanager' ||
+    key === 'fixedassets' ||
+    key.includes('fixedasset') ||
+    key.includes('selectasset') ||
+    key.includes('assetregister') ||
+    key.includes('assetdepreciation') ||
+    key.includes('assettransfer') ||
+    key.includes('assetlocation')
+  );
+}
+
+function isPettyCashMenuSlug(slug: string, caption = ''): boolean {
+  const key = normalizedSlugKey(`${slug} ${caption}`);
+  return (
+    key === 'pettycash' ||
+    key === 'pcash' ||
+    key.includes('pettycash') ||
+    key.includes('pcash') ||
+    key.includes('pctab') ||
+    key.includes('pcexpense')
+  );
 }
 
 function isConfigurationMenuCaption(caption: string): boolean {
@@ -1098,8 +1126,42 @@ function AppContent() {
       return <PurchasesDashboard />;
     }
 
+    if (normalizedPath === '/general-ledger' || normalizedPath === '/gl') {
+      return <GeneralLedger sourceSlug="general-ledger" sourceCaption="General Ledger" />;
+    }
+
+    if (normalizedPath.startsWith('/general-ledger/') || normalizedPath.startsWith('/gl/')) {
+      const glView = resolveGeneralLedgerView(locationPathname);
+      if (glView === 'accounts') {
+        return <ChartOfAccounts sourceSlug={locationPathname} />;
+      }
+      return <GeneralLedger sourceSlug={locationPathname} sourceHref={locationPathname} />;
+    }
+
+    if (
+      normalizedPath === '/asset-manager' ||
+      normalizedPath.startsWith('/asset-manager/') ||
+      normalizedPath === '/fixed-assets' ||
+      normalizedPath.startsWith('/fixed-assets/')
+    ) {
+      return <AssetManager />;
+    }
+
+    if (
+      normalizedPath === '/petty-cash' ||
+      normalizedPath.startsWith('/petty-cash/') ||
+      normalizedPath === '/pettycash' ||
+      normalizedPath.startsWith('/pettycash/')
+    ) {
+      return <PettyCash />;
+    }
+
     if (normalizedPath === '/sales') {
       return <SalesOrders mode="transactions" sourceSlug="sales" />;
+    }
+
+    if (normalizedPath === '/receivables' || normalizedPath.startsWith('/receivables/')) {
+      return <AccountsReceivable />;
     }
 
     if (normalizedPath === '/payables' || normalizedPath.startsWith('/payables/')) {
@@ -1138,12 +1200,28 @@ function AppContent() {
         return <PurchasesDashboard />;
       }
 
+      if (mainModule && ['generalledger', 'gl'].includes(normalizedSlugKey(mainModule.caption))) {
+        return <GeneralLedger sourceSlug="general-ledger" sourceCaption={mainModule.caption} />;
+      }
+
+      if (mainModule && isAssetManagerMenuSlug('', mainModule.caption)) {
+        return <AssetManager />;
+      }
+
+      if (mainModule && isPettyCashMenuSlug('', mainModule.caption)) {
+        return <PettyCash />;
+      }
+
       if (mainModule && normalizedSlugKey(mainModule.caption) === 'payables') {
         return <AccountsPayable sourceSlug="payables" sourceCaption={mainModule.caption} />;
       }
 
       if (mainModule && normalizedSlugKey(mainModule.caption) === 'sales') {
         return <SalesOrders mode="transactions" sourceSlug="sales" />;
+      }
+
+      if (mainModule && normalizedSlugKey(mainModule.caption) === 'receivables') {
+        return <AccountsReceivable />;
       }
 
       if (mainModule && isConfigurationMenuCaption(mainModule.caption)) {
@@ -1319,6 +1397,14 @@ function AppContent() {
           return <ChartOfAccounts sourceSlug={menuSlug} />;
         }
         return <GeneralLedger sourceSlug={menuSlug} sourceHref={currentMenuHref} sourceCaption={currentMenuCaption} />;
+      }
+
+      if (!isConfigurationMenuContext && isAssetManagerMenuSlug(menuSlug, currentMenuCaption)) {
+        return <AssetManager />;
+      }
+
+      if (!isConfigurationMenuContext && isPettyCashMenuSlug(menuSlug, currentMenuCaption)) {
+        return <PettyCash />;
       }
 
       if (isStockAdjustmentMenuSlug(menuSlug)) {
@@ -1795,8 +1881,29 @@ function AppContent() {
         return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Bank Accounts</h2><p className="akiva-page-subtitle">Manage company bank accounts</p></div>;
       case 'bank-reconciliation':
         return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Bank Reconciliation</h2><p className="akiva-page-subtitle">Reconcile bank statements</p></div>;
+      case 'asset-manager':
       case 'fixed-assets':
-        return <div className="p-4 md:p-8"><h2 className="akiva-page-title">Fixed Assets</h2><p className="akiva-page-subtitle">Manage company fixed assets and depreciation</p></div>;
+      case 'fixedassets':
+      case 'selectasset':
+      case 'fixedassetregister':
+      case 'fixedassetdepreciation':
+      case 'fixedassettransfer':
+        return <AssetManager />;
+      case 'petty-cash':
+      case 'pettycash':
+      case 'pcash':
+      case 'pcassigncashtotab':
+      case 'pcauthorizecash':
+      case 'pcclaimexpensesfromtab':
+      case 'pcauthorizeexpenses':
+      case 'pcexpenses':
+      case 'pcexpensestypetab':
+      case 'pcreportexpense':
+      case 'pcreporttab':
+      case 'pctabexpenseslist':
+      case 'pctabs':
+      case 'pctypetabs':
+        return <PettyCash />;
       
       // Inventory Management
       case 'stock-loc-movements':

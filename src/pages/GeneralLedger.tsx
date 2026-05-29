@@ -1,25 +1,38 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
+  BarChart3,
+  BookOpen,
+  CalendarClock,
   CheckCircle2,
   Download,
+  FileText,
+  Landmark,
+  ListChecks,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
+  Scale,
   Search,
+  ShieldCheck,
+  TrendingUp,
   Trash2,
   Upload,
+  WalletCards,
+  type LucideIcon,
 } from 'lucide-react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card } from '../components/common/Card';
-import { Table } from '../components/common/Table';
+import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
 import { Button } from '../components/common/Button';
 import { SearchableSelect } from '../components/common/SearchableSelect';
 import { Modal } from '../components/ui/Modal';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { DatePicker } from '../components/common/DatePicker';
 import { DateRangePicker, getDefaultDateRange } from '../components/common/DateRangePicker';
+import { formatDateWithSystemFormat } from '../lib/dateFormat';
 import {
   DEFAULT_GL_SETTINGS,
   createGlJournalEntry,
@@ -316,10 +329,11 @@ function formatMoney(value: number, settings: GlSettings): string {
   }
 }
 
-function formatDate(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString();
+function formatDate(value: string | null | undefined, dateFormat = DEFAULT_GL_SETTINGS.dateFormat): string {
+  if (!value) return '';
+  const raw = String(value);
+  const isoDate = raw.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? raw;
+  return formatDateWithSystemFormat(isoDate, dateFormat) || raw;
 }
 
 function todayIsoDate(): string {
@@ -342,6 +356,288 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
   anchor.click();
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
+}
+
+function formatCount(value: number): string {
+  return new Intl.NumberFormat('en-US').format(value || 0);
+}
+
+type GlDashboardTone = 'default' | 'success' | 'amber' | 'danger' | 'blue';
+
+interface LedgerTrendRow {
+  label: string;
+  value: number;
+  entries: number;
+}
+
+interface LegacyTableColumn<T extends object> {
+  key: string;
+  header: string;
+  render?: (value: unknown, row: T) => ReactNode;
+  className?: string;
+}
+
+function toneIconClass(tone: GlDashboardTone): string {
+  if (tone === 'success') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200';
+  if (tone === 'amber') return 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200';
+  if (tone === 'danger') return 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-200';
+  if (tone === 'blue') return 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200';
+  return 'bg-akiva-accent-soft text-akiva-accent-text';
+}
+
+function tonePillClass(tone: GlDashboardTone): string {
+  if (tone === 'success') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200';
+  if (tone === 'amber') return 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200';
+  if (tone === 'danger') return 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-200';
+  if (tone === 'blue') return 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200';
+  return 'bg-akiva-surface-muted text-akiva-text-muted';
+}
+
+function DashboardChip({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-akiva-border bg-akiva-surface-raised px-3 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm">
+      <Icon className="h-4 w-4 text-akiva-accent-text" />
+      {children}
+    </span>
+  );
+}
+
+function GlMetricCard({
+  label,
+  value,
+  note,
+  icon: Icon,
+  tone = 'default',
+  onClick,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  icon: LucideIcon;
+  tone?: GlDashboardTone;
+  onClick?: () => void;
+}) {
+  const content = (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">{label}</p>
+        <p className="mt-3 truncate text-2xl font-semibold text-akiva-text">{value}</p>
+        <p className="mt-3 text-sm leading-5 text-akiva-text-muted">{note}</p>
+      </div>
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${toneIconClass(tone)}`}>
+        <Icon className="h-5 w-5" />
+      </span>
+    </div>
+  );
+
+  if (!onClick) {
+    return <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">{content}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg border border-akiva-border bg-akiva-surface-raised p-4 text-left shadow-sm transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted/70"
+    >
+      {content}
+    </button>
+  );
+}
+
+function GlPanel({
+  title,
+  note,
+  icon: Icon,
+  children,
+  className = '',
+}: {
+  title: string;
+  note?: string;
+  icon: LucideIcon;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`min-w-0 rounded-2xl border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm ${className}`}>
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-akiva-accent-soft text-akiva-accent-text">
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-akiva-text">{title}</h2>
+          {note ? <p className="mt-1 text-xs leading-5 text-akiva-text-muted">{note}</p> : null}
+        </div>
+      </div>
+      <div className="mt-4 min-w-0">{children}</div>
+    </section>
+  );
+}
+
+function GlActionRow({
+  label,
+  value,
+  icon: Icon,
+  tone = 'default',
+  disabled = false,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+  tone?: GlDashboardTone;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 rounded-lg border border-akiva-border bg-akiva-surface p-3 text-left transition hover:border-akiva-accent/70 hover:bg-akiva-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${toneIconClass(tone)}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-akiva-text">{label}</span>
+          <span className="mt-0.5 block truncate text-xs text-akiva-text-muted">{value}</span>
+        </span>
+      </span>
+      <ArrowRight className="h-4 w-4 shrink-0 text-akiva-text-muted" />
+    </button>
+  );
+}
+
+function GlDashboardEmpty({ message }: { message: string }) {
+  return (
+    <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-dashed border-akiva-border bg-akiva-surface px-4 py-8 text-center text-sm text-akiva-text-muted">
+      {message}
+    </div>
+  );
+}
+
+function tableCellValue<T extends object>(row: T, key: string): unknown {
+  return (row as Record<string, unknown>)[key];
+}
+
+function tableCellText(value: unknown): string | number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+function tableColumnAlign<T extends object>(column: LegacyTableColumn<T>): AdvancedTableColumn<T>['align'] {
+  if (column.className?.includes('text-right')) return 'right';
+  if (column.className?.includes('text-center')) return 'center';
+  return 'left';
+}
+
+function toAdvancedColumns<T extends object>(columns: LegacyTableColumn<T>[]): AdvancedTableColumn<T>[] {
+  return columns.map((column) => ({
+    id: column.key,
+    header: column.header,
+    accessor: (row) => tableCellValue(row, column.key),
+    cell: column.render ? (row) => column.render?.(tableCellValue(row, column.key), row) : undefined,
+    exportValue: (row) => tableCellText(tableCellValue(row, column.key)),
+    sortValue: (row) => tableCellValue(row, column.key),
+    align: tableColumnAlign(column),
+    width: column.className?.includes('max-w-md') ? 280 : column.className?.includes('max-w-sm') ? 240 : undefined,
+  }));
+}
+
+function advancedRowKey<T extends object>(tableId: string, row: T, index: number): string {
+  const record = row as Record<string, unknown>;
+  const candidate =
+    record.id ??
+    record.accountCode ??
+    record.bankAccountCode ??
+    record.tagRef ??
+    record.userId ??
+    record.reference ??
+    `${tableId}-${index}`;
+  return String(candidate);
+}
+
+function GlAdvancedTable<T extends object>({
+  tableId,
+  ariaLabel,
+  columns,
+  rows,
+  emptyMessage,
+  loading = false,
+  loadingMessage = 'Loading records...',
+  selectableRows = false,
+}: {
+  tableId: string;
+  ariaLabel: string;
+  columns: LegacyTableColumn<T>[];
+  rows: T[];
+  emptyMessage: string;
+  loading?: boolean;
+  loadingMessage?: string;
+  selectableRows?: boolean;
+}) {
+  const advancedColumns = useMemo(() => toAdvancedColumns(columns), [columns]);
+
+  return (
+    <AdvancedTable<T>
+      tableId={tableId}
+      ariaLabel={ariaLabel}
+      columns={advancedColumns}
+      rows={rows}
+      rowKey={(row, index) => advancedRowKey(tableId, row, index)}
+      emptyMessage={emptyMessage}
+      loading={loading}
+      loadingMessage={loadingMessage}
+      density="compact"
+      maxTableHeight="min(68vh, 720px)"
+      selectableRows={selectableRows}
+      initialPageSize={25}
+    />
+  );
+}
+
+function LedgerTrendChart({ rows, settings, loading }: { rows: LedgerTrendRow[]; settings: GlSettings; loading: boolean }) {
+  if (rows.length === 0) {
+    return <GlDashboardEmpty message={loading ? 'Loading ledger activity...' : 'No ledger activity found for the current filters.'} />;
+  }
+
+  return (
+    <div className="h-[250px] min-h-[250px] min-w-0">
+      <ResponsiveContainer width="100%" height={250} minWidth={1} minHeight={250}>
+        <LineChart data={rows} margin={{ top: 12, right: 16, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--akiva-chart-grid)" />
+          <XAxis dataKey="label" tick={{ fill: 'var(--akiva-text-muted)', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
+          <YAxis
+            tick={{ fill: 'var(--akiva-chart-muted)', fontSize: 12, fontWeight: 600 }}
+            axisLine={false}
+            tickLine={false}
+            width={82}
+            tickFormatter={(value) => formatMoney(Number(value), settings)}
+          />
+          <Tooltip
+            cursor={{ stroke: 'var(--akiva-accent)', strokeDasharray: '4 4' }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const row = payload[0].payload as LedgerTrendRow;
+              return (
+                <div className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-xs text-akiva-text shadow-xl">
+                  <p className="font-semibold">{row.label}</p>
+                  <p className="mt-1 text-akiva-text-muted">{formatMoney(row.value, settings)}</p>
+                  <p className="mt-1 text-akiva-text-muted">{formatCount(row.entries)} entries</p>
+                </div>
+              );
+            }}
+          />
+          <Line type="monotone" dataKey="value" stroke="var(--akiva-accent)" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption = '' }: GeneralLedgerProps) {
@@ -1813,7 +2109,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
     {
       key: 'date',
       header: 'Date',
-      render: (value: string) => formatDate(value),
+      render: (value: string) => formatDate(value, glSettings.dateFormat),
     },
     {
       key: 'reference',
@@ -1919,7 +2215,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
   ];
 
   const accountInquiryColumns = [
-    { key: 'date', header: 'Date', render: (value: string) => formatDate(value) },
+    { key: 'date', header: 'Date', render: (value: string) => formatDate(value, glSettings.dateFormat) },
     { key: 'periodNo', header: 'Period', className: 'font-mono' },
     {
       key: 'accountName',
@@ -1948,7 +2244,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
 
   const accountTrendColumns = [
     { key: 'period', header: 'Period', className: 'font-mono' },
-    { key: 'periodEndDate', header: 'Period End', render: (value: string) => formatDate(value) },
+    { key: 'periodEndDate', header: 'Period End', render: (value: string) => formatDate(value, glSettings.dateFormat) },
     { key: 'balance', header: 'Balance', render: (value: number) => formatMoney(value, glSettings), className: 'text-right font-semibold' },
   ];
 
@@ -1989,7 +2285,7 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
   ];
 
   const bankTransactionColumns = [
-    { key: 'date', header: 'Date', render: (value: string) => formatDate(value) },
+    { key: 'date', header: 'Date', render: (value: string) => formatDate(value, glSettings.dateFormat) },
     { key: 'reference', header: 'Reference' },
     {
       key: 'bankAccountName',
@@ -2131,18 +2427,83 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
       : reportFocus === 'account-inquiry'
         ? 'Search account inquiry'
         : 'Search accounts';
+  const transactionTotalPages = Math.max(effectiveTransactionPagination.totalPages, 1);
+  const selectedAccountLabel =
+    selectedAccount === 'all' ? 'All accounts' : accountOptions.find((option) => option.code === selectedAccount)?.label ?? selectedAccount;
+  const transactionDateRangeLabel = `${formatDate(dateFrom, glSettings.dateFormat)} - ${formatDate(dateTo, glSettings.dateFormat)}`;
+  const ledgerBalanced = Math.abs(calculatedTransactionSummary.balance) < 0.005;
+  const ledgerTrendRows = useMemo<LedgerTrendRow[]>(() => {
+    const grouped = new Map<string, LedgerTrendRow>();
+
+    transactions.forEach((transaction) => {
+      const key = transaction.date || 'Unposted';
+      const existing = grouped.get(key) ?? {
+        label: key === 'Unposted' ? key : formatDate(key, glSettings.dateFormat),
+        value: 0,
+        entries: 0,
+      };
+      existing.value += transaction.amount;
+      existing.entries += 1;
+      grouped.set(key, existing);
+    });
+
+    return [...grouped.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, row]) => row)
+      .slice(-12);
+  }, [transactions, glSettings.dateFormat]);
+  const activeAccountRows = useMemo(() => {
+    const grouped = new Map<string, { account: string; entries: number; value: number }>();
+
+    transactions.forEach((transaction) => {
+      [transaction.debitAccount, transaction.creditAccount].forEach((account) => {
+        if (!account) return;
+        const existing = grouped.get(account) ?? { account, entries: 0, value: 0 };
+        existing.entries += 1;
+        existing.value += transaction.amount;
+        grouped.set(account, existing);
+      });
+    });
+
+    return [...grouped.values()].sort((a, b) => b.value - a.value).slice(0, 5);
+  }, [transactions]);
+  const pendingTone: GlDashboardTone = calculatedTransactionSummary.pendingEntries > 0 ? 'amber' : 'success';
+  const balanceTone: GlDashboardTone = ledgerBalanced ? 'success' : 'danger';
+  const loadedEntriesNote = loading
+    ? 'Refreshing ledger activity'
+    : `${formatCount(effectiveTransactionPagination.total)} entries in current result set`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="akiva-page-title">{header.title}</h1>
-          <p className="text-gray-600 dark:text-gray-400">{header.description}</p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {glSettings.companyName} | Currency: {glSettings.currencyCode} ({glSettings.currencyDecimalPlaces} decimals)
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+      <div className="mx-auto max-w-[1520px]">
+        <section className="akiva-frame overflow-hidden rounded-[28px] backdrop-blur">
+          <header className="border-b border-akiva-border px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap gap-2">
+                  <DashboardChip icon={BookOpen}>{mode === 'transactions' ? 'General Ledger' : header.title}</DashboardChip>
+                  {mode === 'transactions' ? (
+                    <>
+                      <DashboardChip icon={Scale}>{ledgerBalanced ? 'Balanced' : 'Out of balance'}</DashboardChip>
+                      <DashboardChip icon={calculatedTransactionSummary.pendingEntries > 0 ? AlertTriangle : CheckCircle2}>
+                        {loading ? 'Updating ledger' : `${formatCount(calculatedTransactionSummary.pendingEntries)} pending entries`}
+                      </DashboardChip>
+                    </>
+                  ) : (
+                    <>
+                      <DashboardChip icon={Landmark}>{glSettings.companyName}</DashboardChip>
+                      <DashboardChip icon={WalletCards}>{glSettings.currencyCode}</DashboardChip>
+                    </>
+                  )}
+                </div>
+                <h1 className="mt-4 akiva-page-title">{header.title}</h1>
+                <p className="akiva-page-subtitle">{header.description}</p>
+                <p className="mt-2 text-xs font-medium text-akiva-text-muted">
+                  {glSettings.companyName} | {glSettings.currencyCode}
+                  {mode === 'transactions' ? ` | ${transactionDateRangeLabel}` : ''}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Button variant="secondary" onClick={exportCurrentMode} disabled={exportDisabled}>
             <Download className="mr-2 h-4 w-4" />
             Export CSV
@@ -2195,141 +2556,259 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
               Authorise User
             </Button>
           ) : null}
-        </div>
-      </div>
+              </div>
+            </div>
+          </header>
+
+          <div className="space-y-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-7">
 
       {errorMessage ? (
-        <Card className="border border-red-200 bg-red-50">
-          <div className="flex items-start gap-2 text-sm text-red-700">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
+          <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4" />
             <span>{errorMessage}</span>
           </div>
-        </Card>
+        </div>
       ) : null}
 
       {successMessage ? (
-        <Card className="border border-emerald-200 bg-emerald-50">
-          <div className="flex items-start gap-2 text-sm text-emerald-700">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+          <div className="flex items-start gap-2">
             <CheckCircle2 className="mt-0.5 h-4 w-4" />
             <span>{successMessage}</span>
           </div>
-        </Card>
+        </div>
       ) : null}
 
       {mode === 'transactions' ? (
         <>
-          <Card>
-            <div className="mb-5 grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_1fr_1fr_360px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={searchInput}
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <GlMetricCard
+              label="Debits"
+              value={formatMoney(calculatedTransactionSummary.totalDebits, glSettings)}
+              note={loadedEntriesNote}
+              icon={TrendingUp}
+              tone="success"
+              onClick={() => {
+                setStatusFilter('all');
+                setPage(1);
+              }}
+            />
+            <GlMetricCard
+              label="Credits"
+              value={formatMoney(calculatedTransactionSummary.totalCredits, glSettings)}
+              note={`${formatCount(calculatedTransactionSummary.postedEntries)} posted entries`}
+              icon={WalletCards}
+              tone="blue"
+              onClick={() => {
+                setStatusFilter('posted');
+                setPage(1);
+              }}
+            />
+            <GlMetricCard
+              label="Ledger balance"
+              value={formatMoney(calculatedTransactionSummary.balance, glSettings)}
+              note={ledgerBalanced ? 'Debit and credit totals agree' : 'Review unbalanced ledger activity'}
+              icon={Scale}
+              tone={balanceTone}
+            />
+            <GlMetricCard
+              label="Pending entries"
+              value={formatCount(calculatedTransactionSummary.pendingEntries)}
+              note={`${formatCount(calculatedTransactionSummary.entries)} entries in scope`}
+              icon={ListChecks}
+              tone={pendingTone}
+              onClick={() => {
+                setStatusFilter('pending');
+                setPage(1);
+              }}
+            />
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
+            <GlPanel
+              title="Ledger Activity"
+              note={`${selectedAccountLabel} | ${transactionDateRangeLabel}`}
+              icon={BarChart3}
+              className="bg-gradient-to-br from-white via-white to-sky-50/70 dark:from-slate-950/90 dark:via-slate-950/80 dark:to-slate-900/80"
+            >
+              <LedgerTrendChart rows={ledgerTrendRows} settings={glSettings} loading={loading} />
+            </GlPanel>
+
+            <GlPanel title="Period Controls" note="Current filters feeding the ledger dashboard." icon={CalendarClock}>
+              <div className="grid gap-3">
+                <div className="rounded-lg border border-akiva-border bg-akiva-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Account scope</p>
+                  <p className="mt-2 truncate text-sm font-semibold text-akiva-text">{selectedAccountLabel}</p>
+                </div>
+                <div className="rounded-lg border border-akiva-border bg-akiva-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Page</p>
+                  <p className="mt-2 text-sm font-semibold text-akiva-text">
+                    {effectiveTransactionPagination.page} of {transactionTotalPages} | {formatCount(effectiveTransactionPagination.total)} entries
+                  </p>
+                </div>
+                <div className="rounded-lg border border-akiva-border bg-akiva-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Status filter</p>
+                  <p className="mt-2 text-sm font-semibold capitalize text-akiva-text">{statusFilter}</p>
+                </div>
+              </div>
+            </GlPanel>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.45fr_.55fr]">
+            <GlPanel title="Journal Workbench" note="Search, filter, export, and post journal entries from one workspace." icon={FileText}>
+              <div className="mb-5 grid grid-cols-1 gap-3 xl:grid-cols-[1.4fr_1fr_1fr_360px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                  <input
+                    value={searchInput}
+                    onChange={(event) => {
+                      setSearchInput(event.target.value);
+                      setPage(1);
+                    }}
+                    className="h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface pl-10 pr-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent/30"
+                    placeholder="Search transactions, account code or narrative"
+                  />
+                </div>
+
+                <SearchableSelect
+                  value={selectedAccount}
                   onChange={(event) => {
-                    setSearchInput(event.target.value);
+                    setSelectedAccount(event.target.value);
                     setPage(1);
                   }}
-                  className="w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm shadow-sm focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                  placeholder="Search transactions, account code or narrative"
+                  className="h-11 rounded-lg border border-akiva-border bg-akiva-surface px-3 text-sm text-akiva-text shadow-sm focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent/30"
+                >
+                  <option value="all">All accounts</option>
+                  {accountOptions.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.label}
+                    </option>
+                  ))}
+                </SearchableSelect>
+
+                <SearchableSelect
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value as 'all' | 'posted' | 'pending');
+                    setPage(1);
+                  }}
+                  className="h-11 rounded-lg border border-akiva-border bg-akiva-surface px-3 text-sm text-akiva-text shadow-sm focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent/30"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="posted">Posted</option>
+                  <option value="pending">Pending</option>
+                </SearchableSelect>
+
+                <DateRangePicker
+                  value={{ from: dateFrom, to: dateTo, preset: 'custom' }}
+                  onChange={(range) => {
+                    setDateFrom(range.from);
+                    setDateTo(range.to);
+                    setPage(1);
+                  }}
+                  triggerClassName="min-h-11 rounded-lg px-3 py-1"
                 />
               </div>
 
-              <SearchableSelect
-                value={selectedAccount}
-                onChange={(event) => {
-                  setSelectedAccount(event.target.value);
-                  setPage(1);
-                }}
-                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-              >
-                <option value="all">All accounts</option>
-                {accountOptions.map((option) => (
-                  <option key={option.code} value={option.code}>
-                    {option.label}
-                  </option>
-                ))}
-              </SearchableSelect>
-
-              <SearchableSelect
-                value={statusFilter}
-                onChange={(event) => {
-                  setStatusFilter(event.target.value as 'all' | 'posted' | 'pending');
-                  setPage(1);
-                }}
-                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-              >
-                <option value="all">All statuses</option>
-                <option value="posted">Posted</option>
-                <option value="pending">Pending</option>
-              </SearchableSelect>
-
-              <DateRangePicker
-                value={{ from: dateFrom, to: dateTo, preset: 'custom' }}
-                onChange={(range) => {
-                  setDateFrom(range.from);
-                  setDateTo(range.to);
-                  setPage(1);
-                }}
-                triggerClassName="min-h-10 rounded-xl px-3 py-1"
-              />
-            </div>
-
-            {loading ? (
-              <div className="py-10 text-center text-sm text-gray-500">Loading transactions...</div>
-            ) : transactions.length === 0 ? (
-              <div className="py-10 text-center text-sm text-gray-500">No transactions found for the current filters.</div>
-            ) : (
-              <Table columns={transactionColumns} data={transactions} />
-            )}
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-400">
-              <div>
-                Showing page {effectiveTransactionPagination.page} of {Math.max(effectiveTransactionPagination.totalPages, 1)} (
-                {effectiveTransactionPagination.total} entries)
+              <div className="overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface">
+                {loading ? (
+                  <div className="py-10 text-center text-sm text-akiva-text-muted">Loading transactions...</div>
+                ) : transactions.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-akiva-text-muted">No transactions found for the current filters.</div>
+                ) : (
+                  <GlAdvancedTable<GlTransaction>
+                    tableId="gl-journal-workbench"
+                    ariaLabel="General ledger journal workbench"
+                    columns={transactionColumns as LegacyTableColumn<GlTransaction>[]}
+                    rows={transactions}
+                    emptyMessage="No transactions found for the current filters."
+                    loading={loading}
+                    loadingMessage="Loading transactions..."
+                    selectableRows
+                  />
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <SearchableSelect
-                  value={String(pageSize)}
-                  onChange={(event) => {
-                    setPageSize(Number(event.target.value));
-                    setPage(1);
-                  }}
-                  className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                >
-                  <option value="25">25 / page</option>
-                  <option value="50">50 / page</option>
-                  <option value="100">100 / page</option>
-                </SearchableSelect>
-                <Button variant="secondary" disabled={loading || page <= 1} onClick={() => setPage((prev) => prev - 1)}>
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={loading || !effectiveTransactionPagination.hasMore}
-                  onClick={() => setPage((prev) => prev + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </Card>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Card className="text-center">
-              <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Total Debits</h3>
-              <p className="text-2xl font-bold text-emerald-600">{formatMoney(calculatedTransactionSummary.totalDebits, glSettings)}</p>
-            </Card>
-            <Card className="text-center">
-              <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Total Credits</h3>
-              <p className="text-2xl font-bold text-blue-600">{formatMoney(calculatedTransactionSummary.totalCredits, glSettings)}</p>
-            </Card>
-            <Card className="text-center">
-              <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Balance</h3>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatMoney(calculatedTransactionSummary.balance, glSettings)}</p>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Posted: {calculatedTransactionSummary.postedEntries} | Pending: {calculatedTransactionSummary.pendingEntries}
-              </p>
-            </Card>
-          </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-akiva-text-muted">
+                <div>
+                  Showing page {effectiveTransactionPagination.page} of {transactionTotalPages} ({formatCount(effectiveTransactionPagination.total)} entries)
+                </div>
+                <div className="flex items-center gap-2">
+                  <SearchableSelect
+                    value={String(pageSize)}
+                    onChange={(event) => {
+                      setPageSize(Number(event.target.value));
+                      setPage(1);
+                    }}
+                    className="h-9 rounded-lg border border-akiva-border bg-akiva-surface px-2 text-sm text-akiva-text"
+                  >
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="100">100 / page</option>
+                  </SearchableSelect>
+                  <Button variant="secondary" disabled={loading || page <= 1} onClick={() => setPage((prev) => prev - 1)}>
+                    Previous
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={loading || !effectiveTransactionPagination.hasMore}
+                    onClick={() => setPage((prev) => prev + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </GlPanel>
+
+            <div className="space-y-4">
+              <GlPanel title="Next Best Actions" note="Common GL tasks from the dashboard." icon={ShieldCheck}>
+                <div className="space-y-2">
+                  <GlActionRow label="Post journal entry" value="Create a balanced GL entry" icon={Plus} tone="blue" onClick={openNewEntry} />
+                  <GlActionRow
+                    label="Review pending entries"
+                    value={`${formatCount(calculatedTransactionSummary.pendingEntries)} waiting`}
+                    icon={ListChecks}
+                    tone={pendingTone}
+                    onClick={() => {
+                      setStatusFilter('pending');
+                      setPage(1);
+                    }}
+                  />
+                  <GlActionRow label="Refresh ledger" value="Reload current filters" icon={RefreshCw} disabled={loading} onClick={refreshCurrentMode} />
+                  <GlActionRow
+                    label="Export current view"
+                    value={exportDisabled ? 'No rows available' : 'Download CSV'}
+                    icon={Download}
+                    disabled={exportDisabled}
+                    onClick={exportCurrentMode}
+                  />
+                </div>
+              </GlPanel>
+
+              <GlPanel title="Active Accounts" note="Accounts touched by the visible journal rows." icon={Landmark}>
+                {activeAccountRows.length === 0 ? (
+                  <GlDashboardEmpty message={loading ? 'Loading active accounts...' : 'No account activity in this filter.'} />
+                ) : (
+                  <div className="space-y-2">
+                    {activeAccountRows.map((row) => (
+                      <div key={row.account} className="rounded-lg border border-akiva-border bg-akiva-surface p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-akiva-text">{row.account}</p>
+                            <p className="mt-1 text-xs text-akiva-text-muted">{formatCount(row.entries)} touches</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${tonePillClass('blue')}`}>
+                            {formatMoney(row.value, glSettings)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </GlPanel>
+            </div>
+          </section>
         </>
       ) : null}
 
@@ -2497,7 +2976,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                 ) : trialRows.length === 0 ? (
                   <div className="py-8 text-center text-sm text-gray-500">No trial balance rows found.</div>
                 ) : (
-                  <Table columns={trialColumns} data={trialRows} />
+                  <GlAdvancedTable<GlTrialBalanceRow>
+                    tableId="gl-trial-balance"
+                    ariaLabel="General ledger trial balance"
+                    columns={trialColumns as LegacyTableColumn<GlTrialBalanceRow>[]}
+                    rows={trialRows}
+                    emptyMessage="No trial balance rows found."
+                    loading={loading}
+                    loadingMessage="Loading trial balance..."
+                  />
                 )}
               </Card>
             </>
@@ -2523,7 +3010,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
               {cashFlowRows.length === 0 ? (
                 <div className="py-6 text-center text-sm text-gray-500">No cash flow rows found.</div>
               ) : (
-                <Table columns={cashFlowColumns} data={cashFlowRows} />
+                <GlAdvancedTable<GlCashFlowRow>
+                  tableId="gl-cash-flow"
+                  ariaLabel="General ledger cash flow"
+                  columns={cashFlowColumns as LegacyTableColumn<GlCashFlowRow>[]}
+                  rows={cashFlowRows}
+                  emptyMessage="No cash flow rows found."
+                  loading={loading}
+                  loadingMessage="Loading cash flow..."
+                />
               )}
             </Card>
           ) : null}
@@ -2558,7 +3053,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                 ) : financialRows.length === 0 ? (
                   <div className="py-8 text-center text-sm text-gray-500">No statement rows found.</div>
                 ) : (
-                  <Table columns={financialColumns} data={financialRows} />
+                  <GlAdvancedTable<GlFinancialStatementRow>
+                    tableId={`gl-${reportFocus}`}
+                    ariaLabel="General ledger financial statement"
+                    columns={financialColumns as LegacyTableColumn<GlFinancialStatementRow>[]}
+                    rows={financialRows}
+                    emptyMessage="No statement rows found."
+                    loading={loading}
+                    loadingMessage="Loading statement..."
+                  />
                 )}
               </Card>
             </>
@@ -2597,7 +3100,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                 ) : horizontalRows.length === 0 ? (
                   <div className="py-8 text-center text-sm text-gray-500">No rows found.</div>
                 ) : (
-                  <Table columns={horizontalColumns} data={horizontalRows} />
+                  <GlAdvancedTable<GlHorizontalAnalysisRow>
+                    tableId={`gl-${reportFocus}`}
+                    ariaLabel="General ledger horizontal analysis"
+                    columns={horizontalColumns as LegacyTableColumn<GlHorizontalAnalysisRow>[]}
+                    rows={horizontalRows}
+                    emptyMessage="No analysis rows found."
+                    loading={loading}
+                    loadingMessage="Loading analysis..."
+                  />
                 )}
               </Card>
             </>
@@ -2623,7 +3134,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
               {taxRows.length === 0 ? (
                 <div className="py-6 text-center text-sm text-gray-500">No tax rows found.</div>
               ) : (
-                <Table columns={taxColumns} data={taxRows} />
+                <GlAdvancedTable<GlTaxRow>
+                  tableId="gl-tax-report"
+                  ariaLabel="General ledger tax report"
+                  columns={taxColumns as LegacyTableColumn<GlTaxRow>[]}
+                  rows={taxRows}
+                  emptyMessage="No tax rows found."
+                  loading={loading}
+                  loadingMessage="Loading tax report..."
+                />
               )}
             </Card>
           ) : null}
@@ -2655,7 +3174,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
               ) : accountInquiryRows.length === 0 ? (
                 <div className="py-8 text-center text-sm text-gray-500">No account inquiry entries found.</div>
               ) : (
-                <Table columns={accountInquiryColumns} data={accountInquiryRows} />
+                <GlAdvancedTable<GlAccountInquiryRow>
+                  tableId="gl-account-inquiry"
+                  ariaLabel="General ledger account inquiry"
+                  columns={accountInquiryColumns as LegacyTableColumn<GlAccountInquiryRow>[]}
+                  rows={accountInquiryRows}
+                  emptyMessage="No account inquiry rows found."
+                  loading={loading}
+                  loadingMessage="Loading account inquiry..."
+                />
               )}
 
               <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
@@ -2717,7 +3244,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
                     </ResponsiveContainer>
                   </div>
                   <div className="mt-4">
-                    <Table columns={accountTrendColumns} data={accountTrendRows} />
+                    <GlAdvancedTable<GlAccountTrendRow>
+                      tableId="gl-account-trend"
+                      ariaLabel="General ledger account trend"
+                      columns={accountTrendColumns as LegacyTableColumn<GlAccountTrendRow>[]}
+                      rows={accountTrendRows}
+                      emptyMessage="No account trend rows found."
+                      loading={loading}
+                      loadingMessage="Loading account trend..."
+                    />
                   </div>
                 </>
               )}
@@ -2732,7 +3267,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
               ) : accountListingRows.length === 0 ? (
                 <div className="py-8 text-center text-sm text-gray-500">No accounts found.</div>
               ) : (
-                <Table columns={accountListingColumns} data={accountListingRows} />
+                <GlAdvancedTable<GlAccount>
+                  tableId="gl-account-listing"
+                  ariaLabel="General ledger account listing"
+                  columns={accountListingColumns as LegacyTableColumn<GlAccount>[]}
+                  rows={accountListingRows}
+                  emptyMessage="No account rows found."
+                  loading={loading}
+                  loadingMessage="Loading account listing..."
+                />
               )}
             </Card>
           ) : null}
@@ -2751,7 +3294,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
             ) : bankAccounts.length === 0 ? (
               <div className="py-8 text-center text-sm text-gray-500">No bank accounts configured.</div>
             ) : (
-              <Table columns={bankAccountColumns} data={bankAccounts} />
+              <GlAdvancedTable<GlBankAccount>
+                tableId="gl-bank-accounts"
+                ariaLabel="General ledger bank accounts"
+                columns={bankAccountColumns as LegacyTableColumn<GlBankAccount>[]}
+                rows={bankAccounts}
+                emptyMessage="No bank accounts found."
+                loading={loading}
+                loadingMessage="Loading bank accounts..."
+              />
             )}
           </Card>
 
@@ -2834,7 +3385,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
             ) : bankTransactions.length === 0 ? (
               <div className="py-8 text-center text-sm text-gray-500">No bank transactions found for the current filters.</div>
             ) : (
-              <Table columns={bankTransactionColumns} data={bankTransactions} />
+              <GlAdvancedTable<GlBankTransaction>
+                tableId="gl-bank-transactions"
+                ariaLabel="General ledger bank transactions"
+                columns={bankTransactionColumns as LegacyTableColumn<GlBankTransaction>[]}
+                rows={bankTransactions}
+                emptyMessage="No bank transactions found."
+                loading={loading}
+                loadingMessage="Loading bank transactions..."
+              />
             )}
 
             <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
@@ -2917,7 +3476,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
             ) : budgetRows.length === 0 ? (
               <div className="py-8 text-center text-sm text-gray-500">No budget rows found.</div>
             ) : (
-              <Table columns={budgetColumns} data={budgetRows} />
+              <GlAdvancedTable<GlBudgetRow>
+                tableId="gl-budgets"
+                ariaLabel="General ledger budgets"
+                columns={budgetColumns as LegacyTableColumn<GlBudgetRow>[]}
+                rows={budgetRows}
+                emptyMessage="No budget rows found."
+                loading={loading}
+                loadingMessage="Loading budget rows..."
+              />
             )}
           </Card>
         </>
@@ -2950,7 +3517,15 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
           ) : tags.length === 0 ? (
             <div className="py-8 text-center text-sm text-gray-500">No tags found.</div>
           ) : (
-            <Table columns={tagColumns} data={tags} />
+            <GlAdvancedTable<GlTagRow>
+              tableId="gl-tags"
+              ariaLabel="General ledger tags"
+              columns={tagColumns as LegacyTableColumn<GlTagRow>[]}
+              rows={tags}
+              emptyMessage="No tags found."
+              loading={loading}
+              loadingMessage="Loading tags..."
+            />
           )}
         </Card>
       ) : null}
@@ -2977,10 +3552,21 @@ export function GeneralLedger({ sourceSlug = '', sourceHref = '', sourceCaption 
           ) : permissions.length === 0 ? (
             <div className="py-8 text-center text-sm text-gray-500">No user permissions found for this scope.</div>
           ) : (
-            <Table columns={permissionColumns} data={permissions} />
+            <GlAdvancedTable<GlAccountUserPermission>
+              tableId={`gl-${permissionScope}-permissions`}
+              ariaLabel="General ledger account permissions"
+              columns={permissionColumns as LegacyTableColumn<GlAccountUserPermission>[]}
+              rows={permissions}
+              emptyMessage="No user permissions found for this scope."
+              loading={loading}
+              loadingMessage="Loading user permissions..."
+            />
           )}
         </Card>
       ) : null}
+          </div>
+        </section>
+      </div>
 
       <Modal
         isOpen={entryDialogOpen}

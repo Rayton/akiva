@@ -95,6 +95,7 @@ const MAIN_MENU_ICONS: Record<string, PhosphorIcon> = {
   manufacturing: Factory,
   'general ledger': Books,
   'asset manager': Buildings,
+  'fixed assets': Buildings,
   'petty cash': MoneyWavy,
   configuration: GearSix,
 };
@@ -110,7 +111,18 @@ function isConfigurationMenu(caption: string): boolean {
 
 function isDashboardLinkedMainMenu(caption: string): boolean {
   const key = normalizedSlugKey(caption);
-  return key === 'inventory' || key === 'purchases' || key === 'payables' || key === 'sales';
+  return (
+    key === 'inventory' ||
+    key === 'purchases' ||
+    key === 'generalledger' ||
+    key === 'gl' ||
+    key === 'assetmanager' ||
+    key === 'fixedassets' ||
+    key === 'pettycash' ||
+    key === 'payables' ||
+    key === 'receivables' ||
+    key === 'sales'
+  );
 }
 
 function isHiddenMenuNode(node: MenuCategory | MenuItem): boolean {

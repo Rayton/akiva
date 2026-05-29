@@ -54,6 +54,9 @@ use App\Http\Controllers\Api\ReorderLevelLocationController;
 use App\Http\Controllers\Api\StockDispatchController;
 use App\Http\Controllers\Api\ReverseGrnController;
 use App\Http\Controllers\Api\AccountsPayableController;
+use App\Http\Controllers\Api\AccountsReceivableController;
+use App\Http\Controllers\Api\AssetManagerController;
+use App\Http\Controllers\Api\PettyCashController;
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);
@@ -197,6 +200,18 @@ Route::prefix('payables')->group(function () {
     Route::post('/recurring/run', [AccountsPayableController::class, 'runRecurring']);
     Route::post('/statements', [AccountsPayableController::class, 'storeSupplierStatement']);
     Route::post('/statements/{statementId}/reconcile', [AccountsPayableController::class, 'reconcileStatement']);
+});
+
+Route::prefix('receivables')->group(function () {
+    Route::get('/dashboard', [AccountsReceivableController::class, 'dashboard']);
+});
+
+Route::prefix('asset-manager')->group(function () {
+    Route::get('/dashboard', [AssetManagerController::class, 'dashboard']);
+});
+
+Route::prefix('petty-cash')->group(function () {
+    Route::get('/dashboard', [PettyCashController::class, 'dashboard']);
 });
 
 Route::prefix('inventory')->group(function () {

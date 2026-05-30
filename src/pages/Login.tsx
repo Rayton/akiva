@@ -17,17 +17,15 @@ import {
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
-import { authClient } from '../lib/auth/authClient';
-
-function navigate(path: string) {
-  window.history.pushState({}, '', path);
-  window.dispatchEvent(new Event('akiva:navigation'));
-}
+import { useApp } from '../contexts/AppContext';
+import { requestAkivaPasswordReset, signInWithAkiva } from '../lib/auth/authApi';
+import { navigateToPath } from '../lib/navigation';
 
 const inputClass = 'h-12 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-sm font-medium text-akiva-text shadow-sm outline-none transition placeholder:text-akiva-text-muted focus:border-akiva-accent focus:ring-2 focus:ring-akiva-accent/30';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
+  const { setAuthSession } = useApp();
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -61,23 +59,15 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authClient.signIn.email({
-        email,
+      const response = await signInWithAkiva({
+        identifier,
         password,
         rememberMe,
         callbackURL: '/dashboard',
       });
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Sign in failed.');
-      }
-
-      if (response.data?.url) {
-        window.location.assign(response.data.url);
-        return;
-      }
-
-      navigate('/dashboard');
+      setAuthSession(response.session);
+      navigateToPath(response.url || '/dashboard');
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Unable to sign in.');
     } finally {
@@ -89,23 +79,14 @@ export function LoginPage() {
     setFormError('');
     setNotice('');
 
-    if (!email.trim()) {
-      setFormError('Enter your email address before requesting a password reset.');
+    if (!identifier.trim()) {
+      setFormError('Enter your email or user ID before requesting a password reset.');
       return;
     }
 
     setResetLoading(true);
     try {
-      const response = await authClient.requestPasswordReset({
-        email,
-        redirectTo: '/login',
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message || 'Password reset could not be requested.');
-      }
-
-      setNotice(response.data?.message || 'Password reset request sent.');
+      setNotice(await requestAkivaPasswordReset(identifier));
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Password reset could not be requested.');
     } finally {
@@ -119,7 +100,7 @@ export function LoginPage() {
         <section className="akiva-frame grid w-full overflow-hidden rounded-[28px] backdrop-blur lg:grid-cols-[1.05fr_.95fr]">
           <div className="flex min-h-[420px] flex-col justify-between border-b border-akiva-border bg-akiva-surface-raised/80 p-5 sm:p-7 lg:border-b-0 lg:border-r lg:p-8">
             <div className="akiva-login-fade flex items-center justify-between gap-3">
-              <button type="button" onClick={() => navigate('/dashboard')} className="flex min-w-0 items-center gap-3 rounded-lg text-left transition hover:opacity-85">
+              <button type="button" onClick={() => navigateToPath('/dashboard')} className="flex min-w-0 items-center gap-3 rounded-lg text-left transition hover:opacity-85">
                 <img src="/icons/akiva-icon.svg" alt="Akiva" className="h-11 w-11 shrink-0 rounded-2xl shadow-sm" />
                 <span className="min-w-0">
                   <span className="block text-lg font-semibold leading-6 text-akiva-text">Akiva</span>
@@ -189,16 +170,16 @@ export function LoginPage() {
 
               <form onSubmit={submitForm} className="space-y-4">
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Email</span>
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">Email or User ID</span>
                   <span className="relative block">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
                     <input
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
+                      type="text"
+                      autoComplete="username"
+                      value={identifier}
+                      onChange={(event) => setIdentifier(event.target.value)}
                       className={`${inputClass} pl-10`}
-                      placeholder="name@company.com"
+                      placeholder="admin or name@company.com"
                       required
                     />
                   </span>

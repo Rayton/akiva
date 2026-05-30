@@ -1,9 +1,21 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { MenuCategory } from '../types/menu';
+import { fetchCurrentAuthSession, signOutFromAkiva } from '../lib/auth/authApi';
+import {
+  clearStoredAuthSession,
+  getStoredAuthSession,
+  isAuthSessionValid,
+  storeAuthSession,
+} from '../lib/auth/session';
+import type { AkivaAuthSession } from '../lib/auth/session';
 
 interface AppContextType {
   currentUser: User;
+  authSession: AkivaAuthSession | null;
+  isAuthenticated: boolean;
+  setAuthSession: (session: AkivaAuthSession) => void;
+  signOut: () => Promise<void>;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   iconSidebarExpanded: boolean;
@@ -36,6 +48,13 @@ interface AppProviderProps {
 }
 
 const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v6';
+
+const GUEST_USER: User = {
+  id: '',
+  name: 'Guest',
+  email: '',
+  role: 'Unauthenticated',
+};
 
 function normalizedPathKey(pathname: string): string {
   return pathname.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -100,6 +119,7 @@ function initialPageFromPath(pathname: string): string {
 }
 
 export function AppProvider({ children }: AppProviderProps) {
+  const [authSession, setAuthSessionState] = useState<AkivaAuthSession | null>(() => getStoredAuthSession());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [iconSidebarExpanded, setIconSidebarExpanded] = useState(false);
   const [iconSidebarWidth, setIconSidebarWidth] = useState(88);
@@ -177,6 +197,54 @@ export function AppProvider({ children }: AppProviderProps) {
     localStorage.setItem(APP_MENU_CACHE_KEY, JSON.stringify(appMenu));
   }, [appMenu]);
 
+  useEffect(() => {
+    if (!authSession || !isAuthSessionValid(authSession)) {
+      clearStoredAuthSession();
+      setAuthSessionState(null);
+      return;
+    }
+
+    storeAuthSession(authSession);
+  }, [authSession]);
+
+  useEffect(() => {
+    if (!authSession) return;
+    let cancelled = false;
+
+    fetchCurrentAuthSession()
+      .then((session) => {
+        if (!cancelled) setAuthSessionState(session);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          clearStoredAuthSession();
+          setAuthSessionState(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setAuthSession = (session: AkivaAuthSession) => {
+    storeAuthSession(session);
+    setAuthSessionState(session);
+  };
+
+  const signOut = async () => {
+    const token = authSession?.token ?? '';
+    clearStoredAuthSession();
+    setAuthSessionState(null);
+    if (token) {
+      try {
+        await signOutFromAkiva(token);
+      } catch {
+        // Local sign-out should still complete if the network is unavailable.
+      }
+    }
+  };
+
   const expandIconSidebar = () => {
     setIconSidebarExpanded(true);
     setIconSidebarWidth(240);
@@ -187,17 +255,16 @@ export function AppProvider({ children }: AppProviderProps) {
     setIconSidebarWidth(88);
   };
 
-  const currentUser: User = {
-    id: 'admin',
-    name: 'Israel Pascal',
-    email: 'israel@ostech.co.tz',
-    role: 'Administrator',
-    avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=64&h=64&dpr=1'
-  };
+  const currentUser = authSession?.user ?? GUEST_USER;
+  const isAuthenticated = Boolean(authSession && isAuthSessionValid(authSession));
 
   return (
     <AppContext.Provider value={{
       currentUser,
+      authSession,
+      isAuthenticated,
+      setAuthSession,
+      signOut,
       sidebarCollapsed,
       setSidebarCollapsed,
       iconSidebarExpanded,

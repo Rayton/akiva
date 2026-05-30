@@ -1,5 +1,6 @@
 import { emitOfflineMetaUpdate, writeOfflineMeta } from './offlineMeta';
 import { buildApiCandidates } from './apiBase';
+import { getAuthToken, getAuthUserId } from '../auth/session';
 
 function resolveRequestMeta(input: RequestInfo | URL, init?: RequestInit): { method: string; url: string } {
   const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
@@ -40,11 +41,31 @@ function shouldRetryApiResponse(response: Response, method: string): boolean {
   return false;
 }
 
+function withAuthHeaders(init?: RequestInit): RequestInit | undefined {
+  const token = getAuthToken();
+  const userId = getAuthUserId();
+  if (!token && !userId) return init;
+
+  const headers = new Headers(init?.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  if (userId && !headers.has('X-User-Id')) {
+    headers.set('X-User-Id', userId);
+  }
+
+  return {
+    ...init,
+    headers,
+  };
+}
+
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const { method, url } = resolveRequestMeta(input, init);
   const apiPath = extractApiPath(url);
   const isApiRequest = apiPath.includes('/api/');
   const attempts = isApiRequest ? unique([url, ...buildApiCandidates(apiPath)]) : [url];
+  const requestInit = withAuthHeaders(init);
   let lastError: unknown = null;
   let lastUrl = url;
 
@@ -53,7 +74,7 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
     lastUrl = candidate;
 
     try {
-      const response = await fetch(candidate, init);
+      const response = await fetch(candidate, requestInit);
       const shouldRetry = isApiRequest && index < attempts.length - 1 && shouldRetryApiResponse(response, method);
       if (shouldRetry) {
         continue;

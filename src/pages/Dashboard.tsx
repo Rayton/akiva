@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '../lib/network/apiBase';
 import { apiFetch } from '../lib/network/apiClient';
+import { useApp } from '../contexts/AppContext';
 
 type RiskTone = 'danger' | 'warning' | 'pending' | 'success' | 'info' | 'neutral';
 type DashboardCardKey = 'cashAtRisk' | 'overdueReceivables' | 'approvalBacklog' | 'stockExposure';
@@ -730,6 +731,7 @@ function CloseReadinessList({
 }
 
 export function Dashboard() {
+  const { currentUser } = useApp();
   const [dashboardPayload, setDashboardPayload] = useState<DashboardPayload | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState('');
@@ -801,7 +803,7 @@ export function Dashboard() {
   const closingForecast = cashFlowForecast?.summary.closingForecast ?? 0;
   const lowestProjectedCash = cashFlowForecast?.summary.lowestProjectedCash ?? 0;
   const finalForecastLabel = finalForecastPoint?.label ?? 'forecast end';
-  const companyName = dashboardPayload?.companyName || 'Akiva ERP';
+  const companyName = dashboardPayload?.companyName || currentUser.companyName || 'Akiva ERP';
   const dashboardDate = formatDashboardDate(dashboardPayload?.asOf);
 
   return (

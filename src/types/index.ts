@@ -4,6 +4,8 @@ export interface User {
   email: string;
   role: string;
   avatar?: string;
+  companyDatabase?: string;
+  companyName?: string;
 }
 
 export interface Account {

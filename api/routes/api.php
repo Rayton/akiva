@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\SalesController;
 use App\Http\Controllers\Api\GeneralLedgerController;
@@ -58,6 +59,14 @@ use App\Http\Controllers\Api\AccountsPayableController;
 use App\Http\Controllers\Api\AccountsReceivableController;
 use App\Http\Controllers\Api\AssetManagerController;
 use App\Http\Controllers\Api\PettyCashController;
+
+Route::prefix('auth')->group(function () {
+    Route::post('/sign-in/email', [AuthController::class, 'signInEmail']);
+    Route::get('/session', [AuthController::class, 'session']);
+    Route::get('/get-session', [AuthController::class, 'session']);
+    Route::post('/sign-out', [AuthController::class, 'signOut']);
+    Route::post('/request-password-reset', [AuthController::class, 'requestPasswordReset']);
+});
 
 Route::get('/menu', [MenuController::class, 'index']);
 Route::get('/menu/categories', [MenuController::class, 'categories']);

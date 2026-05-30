@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
   Bell,
   Download,
+  LogOut,
   Moon,
-  Plus,
   Search,
   Settings,
   SlidersHorizontal,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { DateRangePicker, getDefaultDateRange } from '../common/DateRangePicker';
+import { navigateToPath } from '../../lib/navigation';
 
 function HeaderIconButton({
   children,
@@ -35,9 +36,19 @@ function HeaderIconButton({
   );
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'A';
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'A';
+}
+
 export function Header() {
-  const { currentUser, isDarkMode, toggleDarkMode } = useApp();
+  const { currentUser, isDarkMode, toggleDarkMode, signOut } = useApp();
   const [timeframe, setTimeframe] = useState(getDefaultDateRange);
+
+  const handleSignOut = () => {
+    void signOut().finally(() => navigateToPath('/login'));
+  };
 
   return (
     <header className="border-b border-akiva-border bg-akiva-surface/95 px-5 py-4 text-akiva-text backdrop-blur transition-colors">
@@ -84,24 +95,31 @@ export function Header() {
           </HeaderIconButton>
 
           <div className="ml-1 flex items-center gap-2 rounded-full bg-akiva-surface-raised p-1.5 shadow-sm">
-            <img
-              src={currentUser.avatar}
-              alt={currentUser.name}
-              className="h-9 w-9 rounded-full object-cover ring-2 ring-akiva-surface-raised"
-            />
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                className="h-9 w-9 rounded-full object-cover ring-2 ring-akiva-surface-raised"
+              />
+            ) : (
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-akiva-accent text-xs font-semibold text-white ring-2 ring-akiva-surface-raised">
+                {initials(currentUser.name)}
+              </span>
+            )}
             <div className="hidden pr-2 md:block">
               <p className="max-w-[110px] truncate text-sm font-semibold text-akiva-text">{currentUser.name}</p>
-              <p className="text-xs text-akiva-text-muted">{currentUser.role}</p>
+              <p className="max-w-[140px] truncate text-xs text-akiva-text-muted">{currentUser.companyName || currentUser.role}</p>
             </div>
           </div>
 
           <button
             type="button"
+            onClick={handleSignOut}
             className="flex h-11 w-11 items-center justify-center rounded-full bg-akiva-accent text-white shadow-sm shadow-violet-950/10 transition hover:bg-akiva-accent-strong"
-            aria-label="Create new item"
-            title="Create new item"
+            aria-label="Sign out"
+            title="Sign out"
           >
-            <Plus className="h-5 w-5" />
+            <LogOut className="h-5 w-5" />
           </button>
         </div>
       </div>

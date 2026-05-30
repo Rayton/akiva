@@ -595,12 +595,12 @@ function Sidebar() {
     appMenu,
     setAppMenu,
     menuLoading,
-    setMenuLoading
+    setMenuLoading,
+    authSession
   } = useApp();
   
 	  const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
 	  const [railTooltip, setRailTooltip] = useState<{ label: string; top: number } | null>(null);
-	  const [companyDatabase, setCompanyDatabase] = useState(DEFAULT_COMPANY_DATABASE);
   const [isResizingIcon, setIsResizingIcon] = useState(false);
   const [isResizingMain, setIsResizingMain] = useState(false);
   
@@ -621,6 +621,13 @@ function Sidebar() {
   const primaryMainMenus = React.useMemo(
     () => mainMenus.filter((menu) => !isConfigurationMenu(menu.caption)),
     [mainMenus]
+  );
+  const currentCompanyDatabase = authSession?.company.database ?? DEFAULT_COMPANY_DATABASE;
+  const currentCompanyOptions = React.useMemo(
+    () => authSession?.company
+      ? [{ value: authSession.company.database, label: authSession.company.name }]
+      : COMPANY_OPTIONS,
+    [authSession?.company]
   );
   const routeIndex = React.useMemo(() => buildMenuRouteIndex(mainMenus), [mainMenus]);
   const mainMenuPageId = (id: number) => 'main-' + id;
@@ -1157,9 +1164,9 @@ function Sidebar() {
             <div className="flex-shrink-0 border-b border-akiva-border p-4 dark:border-slate-800">
               <div className="relative rounded-full bg-white/78 px-3 py-2 shadow-sm shadow-slate-200/60 dark:bg-slate-950/50 dark:shadow-black/20">
                 <SearchableSelect
-                  value={companyDatabase}
-                  onChange={setCompanyDatabase}
-                  options={COMPANY_OPTIONS}
+                  value={currentCompanyDatabase}
+                  onChange={() => undefined}
+                  options={currentCompanyOptions}
                   className="w-full cursor-pointer appearance-none border-none bg-transparent pr-6 text-sm font-semibold text-slate-900 focus:ring-0 dark:text-white"
                   placeholder="Search company"
                 />

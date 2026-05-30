@@ -80,6 +80,7 @@ import {
   FileText,
   FolderOpen,
   Home,
+  LogOut,
   MapPin,
   Menu,
   Package,
@@ -95,10 +96,9 @@ import {
 } from 'lucide-react';
 import { hrefToSlug } from './data/menuApi';
 import { menuDisplayCaption } from './data/menuPresentation';
+import { NAVIGATION_EVENT, navigateToPath } from './lib/navigation';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { MenuCategory, MenuItem } from './types/menu';
-
-const NAVIGATION_EVENT = 'akiva:navigation';
 
 function normalizeMenuSlug(pageId: string): string {
   if (!pageId.startsWith('menu-')) return '';
@@ -1103,8 +1103,14 @@ function getMobileMenuIcon(node: MenuNode, hasChildren: boolean): LucideIcon {
   return FileText;
 }
 
+function userInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'A';
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'A';
+}
+
 function AppContent() {
-  const { currentPage, setCurrentPage, mobileSidebarOpen, appMenu } = useApp();
+  const { currentPage, setCurrentPage, mobileSidebarOpen, appMenu, isAuthenticated } = useApp();
   const [locationPathname, setLocationPathname] = useState(() => window.location.pathname);
 
   useEffect(() => {
@@ -2087,7 +2093,18 @@ function AppContent() {
   const normalizedPath = locationPathname.replace(/\/+$/, '').toLowerCase();
   const isLoginRoute = normalizedPath === '/login' || normalizedPath === '/sign-in' || normalizedPath === '/signin';
 
-  if (isLoginRoute) {
+  useEffect(() => {
+    if (!isAuthenticated && !isLoginRoute) {
+      navigateToPath('/login', { replace: true });
+      return;
+    }
+
+    if (isAuthenticated && isLoginRoute) {
+      navigateToPath('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, isLoginRoute]);
+
+  if (isLoginRoute || !isAuthenticated) {
     return <LoginPage />;
   }
 
@@ -2127,7 +2144,11 @@ function AppContent() {
 }
 
 function MobileHeader() {
-  const { isDarkMode, toggleDarkMode, setMobileSidebarOpen } = useApp();
+  const { currentUser, isDarkMode, toggleDarkMode, setMobileSidebarOpen, signOut } = useApp();
+
+  const handleSignOut = () => {
+    void signOut().finally(() => navigateToPath('/login'));
+  };
   
   return (
     <header className="flex-shrink-0 border-b border-akiva-border bg-akiva-surface/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
@@ -2172,9 +2193,18 @@ function MobileHeader() {
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
           
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-akiva-accent shadow-sm shadow-violet-950/10 dark:bg-akiva-accent">
-            <span className="text-white text-xs font-medium">JD</span>
-          </div>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-akiva-accent text-xs font-semibold text-white shadow-sm shadow-violet-950/10 dark:bg-akiva-accent">
+            {userInitials(currentUser.name)}
+          </span>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            aria-label="Sign out"
+            title="Sign out"
+            className="rounded-full bg-white/78 p-2 text-slate-600 shadow-sm shadow-slate-200/60 hover:bg-white dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
         </div>
       </div>
     </header>

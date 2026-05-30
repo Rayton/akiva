@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { jsPDF } from 'jspdf';
 import {
   Banknote,
   Building2,
@@ -48,6 +49,7 @@ import {
   fetchOutstandingSalesOrders,
   fetchSalesCustomers,
   fetchSalesOrderStatus,
+  fetchSalesTransactionDocument,
   fetchSalesTransactions,
 } from '../data/salesApi';
 import { formatDateWithSystemFormat, useSystemDateFormat } from '../lib/dateFormat';
@@ -58,6 +60,7 @@ import type {
   SalesOrderStatusRow,
   SalesOutstandingOrder,
   SalesTransaction,
+  SalesTransactionDocument,
 } from '../types/sales';
 
 type CustomerActionId =
@@ -386,6 +389,34 @@ function paymentTermLabel(customer: SalesCustomer | null | undefined): string {
   return customer.paymentTerms || '-';
 }
 
+function formatCustomerPercent(value: number | null | undefined): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(Number(value)) ? Number(value) : 0);
+}
+
+function customerLanguageLabel(languageId: string | null | undefined): string {
+  const normalized = String(languageId || '').replace(/\.utf-?8$/i, '').replace('-', '_');
+  const knownLanguages: Record<string, string> = {
+    en_US: 'English United States',
+    en_GB: 'English United Kingdom',
+    sw_TZ: 'Swahili Tanzania',
+  };
+  if (knownLanguages[normalized]) return knownLanguages[normalized];
+
+  const [language, region] = normalized.split('_');
+  if (!language) return '-';
+
+  try {
+    const languageName = new Intl.DisplayNames(['en'], { type: 'language' }).of(language) || language;
+    const regionName = region ? new Intl.DisplayNames(['en'], { type: 'region' }).of(region) : '';
+    return [languageName, regionName].filter(Boolean).join(' ');
+  } catch {
+    return normalized || '-';
+  }
+}
+
 function dueDateForTransaction(transactionDate: string, customer: SalesCustomer | null): Date | null {
   const isoDate = extractIsoDate(transactionDate);
   if (!isoDate) return null;
@@ -434,6 +465,11 @@ function buildAgingBuckets(transactions: SalesTransaction[], customer: SalesCust
       },
       { total: 0, current: 0, nowDue: 0, over30: 0, over60: 0 }
     );
+}
+
+function statementFileName(customer: SalesCustomer | null): string {
+  const debtorNo = customer?.debtorNo || 'customer';
+  return `customer-statement-${debtorNo}-${localIsoDate(new Date())}.pdf`;
 }
 
 function CustomerWorkspaceBadge({ children, icon: Icon }: { children: ReactNode; icon: LucideIcon }) {
@@ -1150,23 +1186,92 @@ function WorkspaceOverview({
   );
 }
 
-function CustomerDetailsPage({ customer }: { customer: SalesCustomer | null }) {
+function CustomerDetailLine({ label, value, valueClassName = '' }: { label: string; value: ReactNode; valueClassName?: string }) {
+  return (
+    <div className="grid min-h-8 grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] gap-5 text-[15px] leading-6 text-black">
+      <div>{label}:</div>
+      <div className={`min-w-0 whitespace-pre-line font-normal ${valueClassName}`}>{value ?? ''}</div>
+    </div>
+  );
+}
+
+function CustomerDetailsPage({ customer, dateFormat }: { customer: SalesCustomer | null; dateFormat: string }) {
+  const addressLine = (line: 1 | 2 | 3 | 4 | 5 | 6) => {
+    const directValue = customer?.[`addressLine${line}` as keyof SalesCustomer];
+    if (typeof directValue === 'string' && directValue.trim() !== '') return directValue;
+    const fallbackParts = String(customer?.address || '').split(',').map((part) => part.trim()).filter(Boolean);
+    return fallbackParts[line - 1] || '';
+  };
+  const contacts = customer?.contacts ?? [];
+  const customerSince = customer?.customerSince
+    ? formatDisplayDate(customer.customerSince, dateFormat)
+    : '-';
+  const salesTypeLabel = customer?.salesTypeName || customer?.salesType || '-';
+  const customerTypeLabel = customer?.customerType || customer?.customerTypeId || '-';
+
   return (
     <ActionPanel actionId="customer-details">
       {!customer ? (
         <EmptyPanel title="No customer selected" detail="Choose a customer to view the master record." />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <InfoTile label="Customer name" value={customer.customerName} />
-          <InfoTile label="Customer code" value={customer.debtorNo} />
-          <InfoTile label="Branch" value={`${customer.branchCode || '-'} ${customer.branchName ? `- ${customer.branchName}` : ''}`} />
-          <InfoTile label="Phone" value={customer.phone || '-'} />
-          <InfoTile label="Email" value={customer.email || '-'} />
-          <InfoTile label="Address" value={customer.address || '-'} />
-          <InfoTile label="Sales type" value={customer.salesType || '-'} />
-          <InfoTile label="Payment terms" value={customer.paymentTerms || '-'} />
-          <InfoTile label="Default location" value={customer.defaultLocation || '-'} />
-          <InfoTile label="Default shipper" value={customer.defaultShipperId ? String(customer.defaultShipperId) : '-'} />
+        <div className="rounded-sm bg-white px-5 py-5 shadow-md shadow-slate-950/20" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="mx-auto w-fit bg-[#fff0bf] px-3 py-2 text-[16px] leading-6 text-black">
+            Customer Code: {customer.debtorNo}
+          </div>
+
+          <div className="mt-4 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+            <section className="bg-[#fff0bf] px-3 py-3">
+              <CustomerDetailLine label="Customer Name" value={customer.customerName} valueClassName="text-center text-[16px] uppercase leading-6" />
+              <CustomerDetailLine label="Address Line 1 (Street)" value={addressLine(1)} />
+              <CustomerDetailLine label="Address Line 2 (Street)" value={addressLine(2)} />
+              <CustomerDetailLine label="Address Line 3 (Suburb/City)" value={addressLine(3)} />
+              <CustomerDetailLine label="Address Line 4 (State/Province)" value={addressLine(4)} />
+              <CustomerDetailLine label="Address Line 5 (Postal Code)" value={addressLine(5)} />
+              <CustomerDetailLine label="Country" value={addressLine(6)} />
+              <CustomerDetailLine label="Sales Type" value={salesTypeLabel} />
+              <CustomerDetailLine label="Customer Type" value={customerTypeLabel} />
+              <CustomerDetailLine label="Customer Since (d/m/Y)" value={customerSince} />
+            </section>
+
+            <section className="bg-[#fff0bf] px-3 py-3">
+              <CustomerDetailLine label="Discount Percent" value={formatCustomerPercent(customer.discountPercent)} />
+              <CustomerDetailLine label="Discount Code" value={customer.discountCode || ''} />
+              <CustomerDetailLine label="Payment Discount Percent" value={formatCustomerPercent(customer.paymentDiscountPercent)} />
+              <CustomerDetailLine label="Credit Limit" value={formatNumber(customer.creditLimit ?? 0)} />
+              <CustomerDetailLine label="Tax Reference" value={customer.taxReference || ''} />
+              <CustomerDetailLine label="Payment Terms" value={paymentTermLabel(customer)} />
+              <CustomerDetailLine label="Credit Status" value={customer.creditStatus || 'Good History'} />
+              <CustomerDetailLine label="Customer Currency" value={currencyDisplayName(customerCurrency(customer))} />
+              <CustomerDetailLine label="Language" value={customerLanguageLabel(customer.languageId)} />
+              <CustomerDetailLine label="Require Customer PO Line on SO" value={customer.customerPoLineRequired ? 'Yes' : 'No'} />
+              <CustomerDetailLine label="Invoice Addressing" value={customer.invoiceAddressing || 'Address to HO'} />
+            </section>
+          </div>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="mx-auto border-separate border-spacing-1 text-[15px] text-black">
+              <thead>
+                <tr>
+                  {['Name', 'Role', 'Phone Number', 'Email', 'Notes'].map((heading) => (
+                    <th key={heading} className="bg-[#ffda80] px-1 py-1 text-left font-normal">{heading}</th>
+                  ))}
+                </tr>
+              </thead>
+              {contacts.length > 0 ? (
+                <tbody>
+                  {contacts.map((contact, index) => (
+                    <tr key={`${contact.name}-${contact.email}-${index}`} className={index % 2 === 0 ? 'bg-[#f4ead1]' : 'bg-[#f1ffbe]'}>
+                      <td className="px-1 py-1">{contact.name || '-'}</td>
+                      <td className="px-1 py-1">{contact.role || '-'}</td>
+                      <td className="px-1 py-1">{contact.phone || '-'}</td>
+                      <td className="px-1 py-1">{contact.email || '-'}</td>
+                      <td className="px-1 py-1">{contact.notes || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              ) : null}
+            </table>
+          </div>
         </div>
       )}
     </ActionPanel>
@@ -1267,6 +1372,11 @@ function TransactionInquiryPage({
         <EmptyPanel title="No customer selected" detail="Choose a customer to view transaction inquiry details." />
       ) : (
         <div className="space-y-3">
+          {pdfError ? (
+            <div className="rounded-lg border border-akiva-danger/40 bg-akiva-danger-soft px-3 py-2 text-xs font-semibold text-akiva-danger">
+              {pdfError}
+            </div>
+          ) : null}
           <section className="rounded-xl border border-akiva-border bg-akiva-surface p-3">
             <div className="flex flex-col gap-3 text-center lg:flex-row lg:items-start lg:justify-between lg:text-left">
               <div className="min-w-0">
@@ -1362,82 +1472,617 @@ function TransactionInquiryPage({
   );
 }
 
+type AccountStatementRow = SalesTransaction & {
+  typeLabel: string;
+  number: string;
+  dateLabel: string;
+  branch: string;
+  comments: string;
+  orderLabel: string;
+  charges: number;
+  credits: number;
+  allocated: number;
+  balance: number;
+  runningBalance: number;
+};
+
 function AccountStatementPage({
+  customer,
   transactions,
   loading,
   dateFormat,
 }: {
+  customer: SalesCustomer | null;
   transactions: SalesTransaction[];
   loading: boolean;
   dateFormat: string;
 }) {
-  const statementRows = useMemo(() => {
+  const currency = customerCurrency(customer);
+  const outstandingTransactions = useMemo(() => transactions.filter((row) => !row.settled), [transactions]);
+  const aging = useMemo(() => buildAgingBuckets(transactions, customer), [customer, transactions]);
+  const statementRows = useMemo<AccountStatementRow[]>(() => {
     let runningBalance = 0;
-    return [...transactions]
-      .sort((first, second) => String(first.transactionDate).localeCompare(String(second.transactionDate)))
+    return [...outstandingTransactions]
+      .sort((first, second) => String(first.transactionDate).localeCompare(String(second.transactionDate)) || String(first.transNo).localeCompare(String(second.transNo), undefined, { numeric: true }))
       .map((row) => {
-        runningBalance += row.grossTotal;
+        const charges = row.grossTotal >= 0 ? row.grossTotal : 0;
+        const credits = row.grossTotal < 0 ? Math.abs(row.grossTotal) : 0;
+        const allocated = row.settled ? Math.abs(row.grossTotal) : 0;
+        const balance = row.grossTotal - (row.grossTotal >= 0 ? allocated : -allocated);
+        runningBalance += balance;
         return {
           ...row,
-          debit: row.grossTotal >= 0 ? row.grossTotal : 0,
-          credit: row.grossTotal < 0 ? Math.abs(row.grossTotal) : 0,
+          typeLabel: transactionTypeLabel(row.transType),
+          number: row.transNo || row.reference || '-',
+          dateLabel: formatDisplayDate(row.transactionDate, dateFormat),
+          branch: customer?.branchCode || '-',
+          comments: row.reference || '',
+          orderLabel: row.orderNo || '-',
+          charges,
+          credits,
+          allocated,
+          balance,
           runningBalance,
         };
       });
-  }, [transactions]);
+  }, [customer?.branchCode, dateFormat, outstandingTransactions]);
 
-  const columns = useMemo<AdvancedTableColumn<(typeof statementRows)[number]>[]>(() => [
-    {
-      id: 'date',
-      header: 'Date',
-      accessor: (row) => row.transactionDate,
-      cell: (row) => formatDisplayDate(row.transactionDate, dateFormat),
-      width: 120,
+  const statementTotals = useMemo(() => ({
+    charges: statementRows.reduce((sum, row) => sum + row.charges, 0),
+    credits: statementRows.reduce((sum, row) => sum + row.credits, 0),
+    allocated: statementRows.reduce((sum, row) => sum + row.allocated, 0),
+    balance: statementRows.reduce((sum, row) => sum + row.balance, 0),
+  }), [statementRows]);
+
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+
+  const invoiceAmount = (value: number) => new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0);
+
+  const fallbackDocument = (row: AccountStatementRow): SalesTransactionDocument => ({
+    company: {
+      name: 'Akiva',
+      address: [],
+      phone: '',
+      fax: '',
+      email: '',
+      taxReference: '',
     },
-    { id: 'document', header: 'Document', accessor: (row) => `${transactionTypeLabel(row.transType)} ${row.reference || row.transNo}`, minWidth: 190 },
-    {
-      id: 'debit',
-      header: 'Debit',
-      accessor: (row) => row.debit,
-      cell: (row) => <span className="akiva-financial-value">{row.debit ? formatMoney(row.debit) : '-'}</span>,
-      align: 'right',
-      width: 140,
-    },
-    {
-      id: 'credit',
-      header: 'Credit',
-      accessor: (row) => row.credit,
-      cell: (row) => <span className="akiva-financial-value">{row.credit ? formatMoney(row.credit) : '-'}</span>,
-      align: 'right',
-      width: 140,
-    },
-    {
-      id: 'balance',
-      header: 'Balance',
-      accessor: (row) => row.runningBalance,
-      cell: (row) => <span className="akiva-financial-value font-semibold">{formatMoney(row.runningBalance)}</span>,
-      align: 'right',
-      width: 150,
-    },
-  ], [dateFormat]);
+    transNo: row.number,
+    transType: row.transType,
+    debtorNo: row.debtorNo,
+    branchCode: row.branch,
+    customerName: row.customerName || customer?.customerName || '',
+    transactionDate: row.transactionDate,
+    orderNo: row.orderNo || row.orderLabel,
+    orderDate: row.transactionDate,
+    customerReference: row.reference || '',
+    salesPerson: '',
+    dispatchDetail: 'Default Shipper',
+    dispatchedFrom: customer?.defaultLocation || '',
+    currencyCode: currency,
+    paymentTerms: paymentTermLabel(customer),
+    dueDate: dueDateForTransaction(row.transactionDate, customer)?.toISOString().slice(0, 10) || '',
+    taxReference: customer?.taxReference || '',
+    soldTo: [
+      customer?.customerName || row.customerName || '',
+      customer?.addressLine1 || '',
+      customer?.addressLine2 || '',
+      customer?.addressLine3 || '',
+      customer?.addressLine5 || '',
+      customer?.addressLine6 || '',
+    ].filter(Boolean),
+    deliveredTo: [
+      customer?.customerName || row.customerName || '',
+      ...(customer?.address || '').split(',').map((part) => part.trim()).filter(Boolean),
+    ],
+    subTotal: row.charges || row.balance,
+    freight: 0,
+    tax: 0,
+    discount: 0,
+    total: row.balance || row.charges,
+    lines: [{
+      stockId: '',
+      description: row.typeLabel,
+      quantity: 1,
+      discountPercent: 0,
+      unitPrice: row.charges || row.balance,
+      netAmount: row.balance || row.charges,
+      narrative: row.comments,
+      units: '',
+    }],
+  });
+
+  const loadTransactionDocuments = async (rows: AccountStatementRow[]) => {
+    const documents: SalesTransactionDocument[] = [];
+    for (const row of rows) {
+      if (![10, 11].includes(row.transType)) {
+        documents.push(fallbackDocument(row));
+        continue;
+      }
+      const document = await fetchSalesTransactionDocument(row.transType, row.transNo);
+      documents.push(document ?? fallbackDocument(row));
+    }
+    return documents;
+  };
+
+  const drawTaxInvoicePage = (doc: jsPDF, document: SalesTransactionDocument) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 34;
+    const right = pageWidth - margin;
+    const ink: [number, number, number] = [17, 24, 39];
+    const muted: [number, number, number] = [71, 85, 105];
+    const lineColor: [number, number, number] = [55, 65, 81];
+    const softLine: [number, number, number] = [203, 213, 225];
+    const surface: [number, number, number] = [248, 250, 252];
+    const headerFill: [number, number, number] = [226, 232, 240];
+    const accent: [number, number, number] = [109, 40, 217];
+    const clean = (value: unknown) => String(value ?? '').trim();
+    const line = (x1: number, y1: number, x2: number, y2: number) => doc.line(x1, y1, x2, y2);
+    const text = (value: unknown, x: number, y: number, options?: Parameters<jsPDF['text']>[3]) => {
+      doc.text(clean(value), x, y, options);
+    };
+    const fitText = (
+      value: unknown,
+      x: number,
+      y: number,
+      maxWidth: number,
+      options?: Parameters<jsPDF['text']>[3],
+      minFontSize = 6.6,
+    ) => {
+      const originalSize = doc.getFontSize();
+      let nextText = clean(value);
+      let nextSize = originalSize;
+
+      while (nextText && doc.getTextWidth(nextText) > maxWidth && nextSize > minFontSize) {
+        nextSize -= 0.35;
+        doc.setFontSize(nextSize);
+      }
+
+      if (nextText && doc.getTextWidth(nextText) > maxWidth) {
+        while (nextText.length > 1 && doc.getTextWidth(`${nextText.slice(0, -1).trimEnd()}...`) > maxWidth) {
+          nextText = nextText.slice(0, -1).trimEnd();
+        }
+        nextText = nextText.length > 1 ? `${nextText.slice(0, -1).trimEnd()}...` : nextText;
+      }
+
+      doc.text(nextText, x, y, options);
+      doc.setFontSize(originalSize);
+    };
+    const split = (value: unknown, width: number, maxLines: number) => {
+      const rawLines = doc.splitTextToSize(clean(value), width) as string[];
+      const lines = rawLines.slice(0, maxLines);
+      if (rawLines.length > maxLines && lines.length > 0) {
+        const last = lines[lines.length - 1];
+        lines[lines.length - 1] = last.length > 3 ? `${last.slice(0, -3).trimEnd()}...` : `${last}...`;
+      }
+      return lines;
+    };
+    const drawWrapped = (value: unknown, x: number, y: number, width: number, lineHeight: number, maxLines: number, options?: Parameters<jsPDF['text']>[3]) => {
+      const lines = split(value, width, maxLines);
+      lines.forEach((lineText, index) => doc.text(lineText, x, y + index * lineHeight, options));
+      return y + Math.max(lines.length, 1) * lineHeight;
+    };
+    const drawAddressCard = (title: string, values: string[], x: number, y: number, width: number, height: number) => {
+      doc.setDrawColor(...softLine);
+      doc.setFillColor(...surface);
+      doc.roundedRect(x, y, width, height, 6, 6, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...muted);
+      text(title.toUpperCase(), x + 10, y + 13);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...ink);
+      drawWrapped(values.filter(Boolean).join('\n'), x + 10, y + 28, width - 20, 10.5, 5);
+    };
+    const formattedDate = (value: string) => value ? formatDisplayDate(value, dateFormat) : '';
+    const documentTitle = document.transType === 11 ? 'TAX CREDIT NOTE' : 'TAX INVOICE';
+
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, pageWidth, pageHeight, 'F');
+    doc.setFillColor(...accent);
+    doc.rect(0, 0, pageWidth, 5, 'F');
+    doc.setDrawColor(...lineColor);
+    doc.setTextColor(...ink);
+    doc.setLineWidth(0.55);
+    doc.setFont('helvetica', 'normal');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    text(documentTitle, pageWidth / 2, 42, { align: 'center' });
+    doc.setFontSize(8.5);
+    doc.setTextColor(...muted);
+    text('Page 1', right, 32, { align: 'right' });
+
+    doc.setFontSize(10);
+    doc.setTextColor(...ink);
+    fitText(document.company.name || 'Akiva', margin + 2, 60, 210);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.2);
+    doc.setTextColor(...muted);
+    let companyY = drawWrapped((document.company.address || []).join('\n'), margin + 2, 73, 210, 9.5, 4);
+    const companyContacts = [
+      document.company.phone ? `Phone: ${document.company.phone}` : '',
+      document.company.fax ? `Fax: ${document.company.fax}` : '',
+      document.company.email ? `Email: ${document.company.email}` : '',
+      document.company.taxReference ? `Tax Ref: ${document.company.taxReference}` : '',
+    ].filter(Boolean);
+    companyY += 1;
+    drawWrapped(companyContacts.join('\n'), margin + 2, companyY, 210, 9.5, 4);
+
+    const metaX = 312;
+    const metaY = 52;
+    const metaW = right - metaX;
+    const metaH = 126;
+    doc.setDrawColor(...softLine);
+    doc.setFillColor(...surface);
+    doc.roundedRect(metaX, metaY, metaW, metaH, 8, 8, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.3);
+    const metaRows = [
+      ['Number', document.transNo],
+      ['Customer Code', `${document.debtorNo} Branch ${document.branchCode || document.debtorNo}`],
+      ['Date', formattedDate(document.transactionDate)],
+      ['Order No', document.orderNo || document.transNo],
+      ['Order Date', formattedDate(document.orderDate || document.transactionDate)],
+      ['Dispatch Detail', document.dispatchDetail || 'Default Shipper'],
+      ['Dispatched From', document.dispatchedFrom || 'ADMINISTRATION'],
+    ];
+    metaRows.forEach(([label, value], index) => {
+      const y = metaY + 16 + index * 15.3;
+      doc.setTextColor(...muted);
+      doc.setFont('helvetica', 'bold');
+      text(label, metaX + 10, y);
+      doc.setTextColor(...ink);
+      doc.setFont('helvetica', 'normal');
+      fitText(value, metaX + 98, y, metaW - 108);
+    });
+
+    drawAddressCard('Sold To', document.soldTo || [], margin, 190, 244, 74);
+    drawAddressCard('Delivered To', document.deliveredTo || [], 318, 190, right - 318, 74);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.2);
+    doc.setTextColor(...muted);
+    fitText(`All amounts stated in: ${document.currencyCode || currency} - ${currencyDisplayName(document.currencyCode || currency)}`, margin + 2, 282, 330);
+    fitText(`Due Date: ${formattedDate(document.dueDate)}`, right - 2, 282, 150, { align: 'right' });
+
+    const tableX = margin;
+    const tableY = 292;
+    const tableW = pageWidth - margin * 2;
+    const tableRight = tableX + tableW;
+    const infoY = 328;
+    const headerY = 350;
+    const footerY = pageHeight - 92;
+    const tableBottom = pageHeight - 28;
+    const col = {
+      item: tableX,
+      desc: tableX + 76,
+      unit: tableX + 262,
+      qty: tableX + 338,
+      uom: tableX + 382,
+      disc: tableX + 424,
+      price: tableX + 466,
+      right: tableRight,
+    };
+
+    doc.setDrawColor(...lineColor);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(tableX, tableY, tableW, tableBottom - tableY, 9, 9, 'F');
+    doc.setFillColor(...surface);
+    doc.roundedRect(tableX + 0.4, tableY + 0.4, tableW - 0.8, infoY - tableY - 0.4, 9, 9, 'F');
+    doc.rect(tableX + 0.4, tableY + 9, tableW - 0.8, infoY - tableY - 9, 'F');
+    doc.setFillColor(...headerFill);
+    doc.rect(tableX + 0.4, infoY + 0.4, tableW - 0.8, headerY - infoY - 0.8, 'F');
+    line(tableX + 0.4, infoY, tableRight - 0.4, infoY);
+    line(tableX + 0.4, headerY, tableRight - 0.4, headerY);
+    line(tableX + 0.4, footerY, tableRight - 0.4, footerY);
+    line(tableX + 174, tableY, tableX + 174, infoY);
+    line(tableX + 360, tableY, tableX + 360, infoY);
+    [col.desc, col.unit, col.qty, col.uom, col.disc, col.price].forEach((x) => line(x, infoY, x, footerY));
+    line(tableX + 308, footerY, tableX + 308, tableBottom);
+    line(tableX + 308, tableBottom - 18, tableRight, tableBottom - 18);
+
+    const infoCols = [
+      { x: tableX + 8, width: 154, label: 'Cust. Tax Ref:', value: document.taxReference || '' },
+      { x: tableX + 184, width: 160, label: 'Cust. Reference No.:', value: document.customerReference || '' },
+      { x: tableX + 370, width: tableRight - tableX - 378, label: 'Sales Person:', value: document.salesPerson || '' },
+    ];
+    infoCols.forEach((item) => {
+      doc.setFontSize(8.2);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...muted);
+      text(item.label, item.x, tableY + 13);
+      doc.setFontSize(9);
+      doc.setTextColor(...ink);
+      fitText(item.value, item.x, tableY + 28, item.width);
+    });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.6);
+    doc.setTextColor(...ink);
+    text('Item Code', col.item + 5, infoY + 14);
+    text('Description', col.desc + 5, infoY + 14);
+    text('Unit Price', col.unit + 5, infoY + 14);
+    text('Qty', col.qty + 6, infoY + 14);
+    text('UOM', col.uom + 5, infoY + 14);
+    text('Disc.', col.disc + 5, infoY + 14);
+    text('Price', col.price + 5, infoY + 14);
+
+    let rowTop = headerY;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.6);
+    for (const lineItem of document.lines || []) {
+      const descriptionLines = split(lineItem.description || '', col.unit - col.desc - 10, 2);
+      const narrativeLines = lineItem.narrative ? split(lineItem.narrative, col.unit - col.desc - 20, 2) : [];
+      const contentY = rowTop + 15;
+      const descriptionLineHeight = 9.1;
+      const narrativeLineHeight = 7.8;
+      const narrativeY = contentY + descriptionLines.length * descriptionLineHeight + 1.5;
+      const rowHeight = Math.max(24, 14 + descriptionLines.length * descriptionLineHeight + narrativeLines.length * narrativeLineHeight + (narrativeLines.length > 0 ? 3 : 0));
+      if (rowTop + rowHeight > footerY - 8) break;
+      doc.setDrawColor(...softLine);
+      line(tableX + 0.4, rowTop + rowHeight, tableRight - 0.4, rowTop + rowHeight);
+      doc.setTextColor(...ink);
+      fitText(lineItem.stockId || '', col.item + 8, contentY, col.desc - col.item - 16);
+      descriptionLines.forEach((descriptionLine, index) => text(descriptionLine, col.desc + 5, contentY + index * descriptionLineHeight));
+      fitText(invoiceAmount(lineItem.unitPrice), col.qty - 8, contentY, col.qty - col.unit - 13, { align: 'right' });
+      fitText(invoiceAmount(lineItem.quantity).replace(/\.00$/, ''), col.uom - 8, contentY, col.uom - col.qty - 14, { align: 'right' });
+      fitText(lineItem.units || '', col.uom + 5, contentY, col.disc - col.uom - 10);
+      fitText(lineItem.discountPercent > 0 ? `${invoiceAmount(lineItem.discountPercent)}%` : '', col.price - 5, contentY, col.price - col.disc - 10, { align: 'right' });
+      fitText(invoiceAmount(lineItem.netAmount), col.right - 10, contentY, col.right - col.price - 16, { align: 'right' });
+      doc.setFontSize(7.8);
+      doc.setTextColor(...muted);
+      narrativeLines.forEach((narrativeLine, index) => text(narrativeLine, col.desc + 13, narrativeY + index * narrativeLineHeight));
+      doc.setFontSize(8.6);
+      rowTop += rowHeight;
+    }
+
+    doc.setTextColor(...ink);
+    doc.setFontSize(8.4);
+    doc.setFont('helvetica', 'bold');
+    drawWrapped(`Payment Terms: ${document.paymentTerms || paymentTermLabel(customer)}`, tableX + 8, footerY + 13, 286, 9.5, 2);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.2);
+    doc.setTextColor(...muted);
+    drawWrapped('Ownership will not pass to the buyer until the goods have been paid for in full.', tableX + 8, footerY + 35, 286, 8, 2);
+
+    doc.setFontSize(8.8);
+    doc.setTextColor(...ink);
+    const totalLabelX = tableX + 316;
+    const totalValueX = tableRight - 12;
+    const totalRows = [
+      ['Sub Total', document.subTotal],
+      ['Freight', document.freight],
+      ['Tax', document.tax],
+    ];
+    totalRows.forEach(([label, amount], index) => {
+      const y = footerY + 13 + index * 16;
+      fitText(String(label), totalLabelX, y, 96);
+      fitText(invoiceAmount(Number(amount)), totalValueX, y, tableRight - totalLabelX - 112, { align: 'right' });
+    });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    fitText(document.transType === 11 ? 'TOTAL CREDIT' : 'TOTAL INVOICE', totalLabelX, tableBottom - 6, 112);
+    fitText(invoiceAmount(document.total), totalValueX, tableBottom - 6, tableRight - totalLabelX - 124, { align: 'right' });
+    doc.setDrawColor(...lineColor);
+    doc.setLineWidth(0.55);
+    doc.roundedRect(tableX, tableY, tableW, tableBottom - tableY, 9, 9, 'S');
+  };
+
+  const createPdf = async (rows: AccountStatementRow[] = statementRows) => {
+    const documents = await loadTransactionDocuments(rows);
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    documents.forEach((document, index) => {
+      if (index > 0) doc.addPage();
+      drawTaxInvoicePage(doc, document);
+    });
+    return doc;
+  };
+
+  const openPdf = async (rows: AccountStatementRow[] = statementRows) => {
+    setPdfBusy(true);
+    setPdfError('');
+    try {
+      const doc = await createPdf(rows);
+      doc.save(statementFileName(customer));
+    } catch {
+      setPdfError('Unable to generate the invoice PDF.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  const printPdf = async () => {
+    setPdfBusy(true);
+    setPdfError('');
+    try {
+      const doc = await createPdf();
+      doc.autoPrint();
+      const pdfUrl = doc.output('bloburl');
+      window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      setPdfError('Unable to print the invoice PDF.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  const emailStatement = async (rows: AccountStatementRow[] = statementRows) => {
+    setPdfBusy(true);
+    setPdfError('');
+    try {
+      const doc = await createPdf(rows);
+      doc.save(statementFileName(customer));
+    } catch {
+      setPdfError('Unable to generate the invoice PDF for email.');
+      setPdfBusy(false);
+      return;
+    }
+    setPdfBusy(false);
+    const subject = `Customer statement ${customer?.debtorNo ?? ''}`.trim();
+    const body = [
+      `Hello,`,
+      '',
+      `Please find the customer transaction PDF generated for attachment.`,
+      '',
+      `Customer: ${customer ? `${customer.debtorNo} - ${customer.customerName}` : '-'}`,
+      `Total balance: ${formatMoney(aging.total, currency)}`,
+      `Current: ${formatMoney(aging.current, currency)}`,
+      `Now due: ${formatMoney(aging.nowDue, currency)}`,
+      `30-60 days overdue: ${formatMoney(aging.over30, currency)}`,
+      `Over 60 days overdue: ${formatMoney(aging.over60, currency)}`,
+    ].join('\n');
+
+    window.location.href = `mailto:${encodeURIComponent(customer?.email ?? '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
 
   return (
-    <ActionPanel actionId="account-statement">
-      <AdvancedTable
-        tableId="customer-workspace-statement"
-        ariaLabel="Customer account statement"
-        columns={columns}
-        rows={statementRows}
-        rowKey={(row) => `${row.transType}-${row.transNo}-${row.transactionDate}`}
-        emptyMessage="No statement rows found for this customer."
-        loading={loading}
-        loadingMessage="Loading statement..."
-        density="compact"
-        initialPageSize={14}
-        maxTableHeight="560px"
-        showSearch
-        searchPlaceholder="Search statement rows"
-      />
+    <ActionPanel
+      actionId="account-statement"
+      headerActions={
+        customer ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void printPdf()}
+              disabled={statementRows.length === 0 || pdfBusy}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-xs font-semibold text-akiva-text-muted shadow-sm transition hover:border-akiva-accent hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={() => void openPdf()}
+              disabled={statementRows.length === 0 || pdfBusy}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-xs font-semibold text-akiva-text-muted shadow-sm transition hover:border-akiva-accent hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => void emailStatement()}
+              disabled={statementRows.length === 0 || pdfBusy}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-xs font-semibold text-akiva-text-muted shadow-sm transition hover:border-akiva-accent hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              Email
+            </button>
+          </div>
+        ) : null
+      }
+    >
+      {!customer ? (
+        <EmptyPanel title="No customer selected" detail="Choose a customer to view an account statement." />
+      ) : (
+        <div className="space-y-3">
+          <section className="rounded-xl border border-akiva-border bg-akiva-surface p-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-normal text-akiva-text-muted">Customer</p>
+                <h3 className="mt-1 truncate text-lg font-semibold text-akiva-text">{customer.debtorNo} - {customer.customerName}</h3>
+                <p className="mt-1 text-xs font-semibold text-akiva-text-muted">Outstanding transactions as at {formatDisplayDate(localIsoDate(new Date()), dateFormat)}</p>
+              </div>
+              <div className="text-sm font-semibold leading-6 text-akiva-text lg:text-right">
+                <p>All amounts stated in: {currencyDisplayName(currency)}</p>
+                <p>Terms: {paymentTermLabel(customer)}</p>
+                <p>Credit Limit: {formatMoney(customer.creditLimit ?? 0, currency)}</p>
+                <p>Credit Status: {customer.creditStatus || 'Good History'}</p>
+              </div>
+            </div>
+          </section>
+
+          <div className="overflow-auto rounded-xl border border-akiva-border bg-akiva-surface-raised shadow-sm">
+            <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr className="bg-akiva-table-header text-left text-xs font-semibold uppercase tracking-normal text-akiva-table-header-text">
+                  <th className="border-b border-akiva-border px-3 py-2">Type</th>
+                  <th className="border-b border-akiva-border px-3 py-2 text-right">Number</th>
+                  <th className="border-b border-akiva-border px-3 py-2">Date</th>
+                  <th className="border-b border-akiva-border px-3 py-2">Branch</th>
+                  <th className="border-b border-akiva-border px-3 py-2">Reference</th>
+                  <th className="border-b border-akiva-border px-3 py-2">Comments</th>
+                  <th className="border-b border-akiva-border px-3 py-2 text-right">Order</th>
+                  <th className="border-b border-akiva-border px-3 py-2 text-right">Charges</th>
+                  <th className="border-b border-akiva-border px-3 py-2 text-right">Credits</th>
+                  <th className="border-b border-akiva-border px-3 py-2 text-right">Allocated</th>
+                  <th className="border-b border-akiva-border px-3 py-2 text-right">Balance</th>
+                  <th className="border-b border-akiva-border px-3 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={12} className="px-3 py-8 text-center text-sm text-akiva-text-muted">Loading statement...</td>
+                  </tr>
+                ) : statementRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="px-3 py-8 text-center text-sm text-akiva-text-muted">No outstanding statement rows found for this customer.</td>
+                  </tr>
+                ) : (
+                  statementRows.map((row, index) => (
+                    <tr key={`${row.transType}-${row.transNo}-${row.transactionDate}`} className={index % 2 === 0 ? 'bg-akiva-surface-raised' : 'bg-akiva-table-stripe'}>
+                      <td className="border-b border-akiva-border px-3 py-2 font-medium text-akiva-text">{row.typeLabel}</td>
+                      <td className="border-b border-akiva-border px-3 py-2 text-right text-akiva-text">{row.number}</td>
+                      <td className="border-b border-akiva-border px-3 py-2 text-akiva-text">{row.dateLabel}</td>
+                      <td className="border-b border-akiva-border px-3 py-2 text-akiva-text">{row.branch}</td>
+                      <td className="border-b border-akiva-border px-3 py-2 text-akiva-text">{row.reference || '-'}</td>
+                      <td className="border-b border-akiva-border px-3 py-2 text-akiva-text-muted">{row.comments || '-'}</td>
+                      <td className="border-b border-akiva-border px-3 py-2 text-right text-akiva-text">{row.orderLabel}</td>
+                      <td className="akiva-financial-value border-b border-akiva-border px-3 py-2 text-right font-semibold text-akiva-text">{row.charges ? formatMoney(row.charges, currency) : '-'}</td>
+                      <td className="akiva-financial-value border-b border-akiva-border px-3 py-2 text-right font-semibold text-akiva-text">{row.credits ? formatMoney(row.credits, currency) : '-'}</td>
+                      <td className="akiva-financial-value border-b border-akiva-border px-3 py-2 text-right text-akiva-text">{formatMoney(row.allocated, currency)}</td>
+                      <td className="akiva-financial-value border-b border-akiva-border px-3 py-2 text-right font-semibold text-akiva-text">{formatMoney(row.balance, currency)}</td>
+                      <td className="border-b border-akiva-border px-3 py-2">
+                        <div className="flex justify-end gap-1">
+                          <button type="button" disabled={pdfBusy} onClick={() => void openPdf([row])} className="rounded-md border border-akiva-border bg-akiva-surface px-2 py-1 text-xs font-semibold text-akiva-text-muted hover:border-akiva-accent hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-60">PDF</button>
+                          <button type="button" disabled={pdfBusy} onClick={() => void emailStatement([row])} className="rounded-md border border-akiva-border bg-akiva-surface px-2 py-1 text-xs font-semibold text-akiva-text-muted hover:border-akiva-accent hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-60">Email</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              {statementRows.length > 0 ? (
+                <tfoot>
+                  <tr className="bg-akiva-surface-muted text-sm font-semibold text-akiva-text">
+                    <td className="px-3 py-2" colSpan={7}>Totals</td>
+                    <td className="akiva-financial-value px-3 py-2 text-right">{formatMoney(statementTotals.charges, currency)}</td>
+                    <td className="akiva-financial-value px-3 py-2 text-right">{formatMoney(statementTotals.credits, currency)}</td>
+                    <td className="akiva-financial-value px-3 py-2 text-right">{formatMoney(statementTotals.allocated, currency)}</td>
+                    <td className="akiva-financial-value px-3 py-2 text-right">{formatMoney(statementTotals.balance, currency)}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              ) : null}
+            </table>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-akiva-border bg-akiva-surface-raised shadow-sm">
+            <div className="grid min-w-[720px] grid-cols-5 border-b border-akiva-border bg-akiva-table-header text-xs font-semibold uppercase tracking-normal text-akiva-table-header-text">
+              <div className="border-r border-akiva-border px-3 py-2 text-center">Total Balance</div>
+              <div className="border-r border-akiva-border px-3 py-2 text-center">Current</div>
+              <div className="border-r border-akiva-border px-3 py-2 text-center">Now Due</div>
+              <div className="border-r border-akiva-border px-3 py-2 text-center">30-60 Days Overdue</div>
+              <div className="px-3 py-2 text-center">Over 60 Days Overdue</div>
+            </div>
+            <div className="grid min-w-[720px] grid-cols-5 text-sm font-semibold text-akiva-text">
+              <div className="akiva-financial-value border-r border-akiva-border px-3 py-2 text-right">{formatMoney(aging.total, currency)}</div>
+              <div className="akiva-financial-value border-r border-akiva-border px-3 py-2 text-right">{formatMoney(aging.current, currency)}</div>
+              <div className="akiva-financial-value border-r border-akiva-border px-3 py-2 text-right">{formatMoney(aging.nowDue, currency)}</div>
+              <div className="akiva-financial-value border-r border-akiva-border px-3 py-2 text-right">{formatMoney(aging.over30, currency)}</div>
+              <div className="akiva-financial-value px-3 py-2 text-right">{formatMoney(aging.over60, currency)}</div>
+            </div>
+          </div>
+        </div>
+      )}
     </ActionPanel>
   );
 }
@@ -1866,7 +2511,7 @@ function CustomerActionContent({
     return <WorkspaceOverview selectedCustomer={selectedCustomer} data={data} dataLoading={dataLoading} openAction={openAction} dateFormat={dateFormat} />;
   }
 
-  if (activeAction === 'customer-details') return <CustomerDetailsPage customer={selectedCustomer} />;
+  if (activeAction === 'customer-details') return <CustomerDetailsPage customer={selectedCustomer} dateFormat={dateFormat} />;
   if (activeAction === 'transaction-inquiries') {
     return (
       <TransactionInquiryPage
@@ -1879,7 +2524,7 @@ function CustomerActionContent({
     );
   }
   if (activeAction === 'account-statement') {
-    return <AccountStatementPage transactions={data.transactions} loading={dataLoading} dateFormat={dateFormat} />;
+    return <AccountStatementPage customer={selectedCustomer} transactions={data.transactions} loading={dataLoading} dateFormat={dateFormat} />;
   }
   if (activeAction === 'order-inquiries') {
     return <OrderInquiriesPage orders={data.orderStatus} loading={dataLoading} dateFormat={dateFormat} />;

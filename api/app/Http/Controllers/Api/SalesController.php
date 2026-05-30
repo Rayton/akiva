@@ -318,6 +318,13 @@ class SalesController extends Controller
             $currencyExpression = Schema::hasColumn('debtorsmaster', 'currcode')
                 ? 'COALESCE(NULLIF(dm.currcode, ""), "' . $this->companyCurrency() . '")'
                 : '"' . $this->companyCurrency() . '"';
+            $hasSalesTypeName = Schema::hasTable('salestypes')
+                && Schema::hasColumn('salestypes', 'typeabbrev')
+                && Schema::hasColumn('salestypes', 'sales_type');
+            $hasDebtorType = Schema::hasTable('debtortype')
+                && Schema::hasColumn('debtortype', 'typeid')
+                && Schema::hasColumn('debtortype', 'typename')
+                && Schema::hasColumn('debtorsmaster', 'typeid');
 
             $query = DB::table('custbranch as cb')
                 ->join('debtorsmaster as dm', 'dm.debtorno', '=', 'cb.debtorno')
@@ -341,6 +348,49 @@ class SalesController extends Controller
                     'cb.defaultlocation',
                     'cb.defaultshipvia'
                 );
+
+            $selectOptionalDebtorColumn = function (string $column, string $alias, string $default = 'NULL') use ($query): void {
+                if (Schema::hasColumn('debtorsmaster', $column)) {
+                    $query->addSelect("dm.{$column} as {$alias}");
+                } else {
+                    $query->addSelect(DB::raw($default . ' as ' . $alias));
+                }
+            };
+
+            foreach (['address1', 'address2', 'address3', 'address4', 'address5', 'address6'] as $addressColumn) {
+                $selectOptionalDebtorColumn($addressColumn, 'customer_' . $addressColumn);
+            }
+
+            $selectOptionalDebtorColumn('clientsince', 'customer_since');
+            $selectOptionalDebtorColumn('discount', 'discount_percent', '0');
+            $selectOptionalDebtorColumn('discountcode', 'discount_code');
+            $selectOptionalDebtorColumn('pymtdiscount', 'payment_discount_percent', '0');
+            $selectOptionalDebtorColumn('taxref', 'tax_reference');
+            $selectOptionalDebtorColumn('customerpoline', 'customer_po_line', '0');
+            $selectOptionalDebtorColumn('invaddrbranch', 'invoice_addressing_branch', '0');
+            $selectOptionalDebtorColumn('language_id', 'language_id');
+
+            if ($hasSalesTypeName) {
+                $query
+                    ->leftJoin('salestypes as st', 'st.typeabbrev', '=', 'dm.salestype')
+                    ->addSelect('st.sales_type as sales_type_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as sales_type_name'));
+            }
+
+            if ($hasDebtorType) {
+                $query
+                    ->leftJoin('debtortype as dtp', 'dtp.typeid', '=', 'dm.typeid')
+                    ->addSelect(
+                        'dm.typeid as customer_type_id',
+                        'dtp.typename as customer_type_name'
+                    );
+            } else {
+                $query->addSelect(
+                    DB::raw('NULL as customer_type_id'),
+                    DB::raw('NULL as customer_type_name')
+                );
+            }
 
             if ($hasPaymentTerms) {
                 $query
@@ -390,10 +440,43 @@ class SalesController extends Controller
             }
 
             $rows = $query->get();
+            $debtorNos = $rows
+                ->pluck('debtorno')
+                ->map(static fn ($value) => (string) $value)
+                ->filter()
+                ->unique()
+                ->values();
+            $contactsByDebtor = collect();
+
+            if ($debtorNos->isNotEmpty() && Schema::hasTable('custcontacts') && Schema::hasColumn('custcontacts', 'debtorno')) {
+                $contactQuery = DB::table('custcontacts')
+                    ->whereIn('debtorno', $debtorNos)
+                    ->select('debtorno');
+
+                foreach ([
+                    'contactname' => 'contactname',
+                    'role' => 'role',
+                    'phoneno' => 'phoneno',
+                    'email' => 'email',
+                    'notes' => 'notes',
+                ] as $column => $alias) {
+                    if (Schema::hasColumn('custcontacts', $column)) {
+                        $contactQuery->addSelect($column . ' as ' . $alias);
+                    } else {
+                        $contactQuery->addSelect(DB::raw('NULL as ' . $alias));
+                    }
+                }
+
+                if (Schema::hasColumn('custcontacts', 'contid')) {
+                    $contactQuery->orderBy('contid');
+                }
+
+                $contactsByDebtor = $contactQuery->get()->groupBy(static fn ($row) => (string) $row->debtorno);
+            }
 
             return response()->json([
                 'success' => true,
-                'data' => $rows->map(function ($row) {
+                'data' => $rows->map(function ($row) use ($contactsByDebtor) {
                     $address = collect([
                         $row->braddress1 ?? '',
                         $row->braddress2 ?? '',
@@ -411,16 +494,45 @@ class SalesController extends Controller
                         'phone' => (string) ($row->phoneno ?? ''),
                         'email' => (string) ($row->email ?? ''),
                         'address' => $address,
+                        'addressLine1' => (string) ($row->customer_address1 ?? $row->braddress1 ?? ''),
+                        'addressLine2' => (string) ($row->customer_address2 ?? $row->braddress2 ?? ''),
+                        'addressLine3' => (string) ($row->customer_address3 ?? $row->braddress3 ?? ''),
+                        'addressLine4' => (string) ($row->customer_address4 ?? $row->braddress4 ?? ''),
+                        'addressLine5' => (string) ($row->customer_address5 ?? $row->braddress5 ?? ''),
+                        'addressLine6' => (string) ($row->customer_address6 ?? $row->braddress6 ?? ''),
                         'salesType' => (string) ($row->salestype ?? ''),
+                        'salesTypeName' => (string) ($row->sales_type_name ?? ''),
+                        'customerType' => (string) ($row->customer_type_name ?? ''),
+                        'customerTypeId' => (string) ($row->customer_type_id ?? ''),
+                        'customerSince' => (string) ($row->customer_since ?? ''),
                         'paymentTerms' => (string) ($row->paymentterms ?? ''),
                         'paymentTermsName' => (string) ($row->payment_terms_name ?? ''),
                         'daysBeforeDue' => (int) ($row->daysbeforedue ?? 0),
                         'dayInFollowingMonth' => (int) ($row->dayinfollowingmonth ?? 0),
                         'currencyCode' => (string) ($row->currency_code ?? $this->companyCurrency()),
+                        'discountPercent' => (float) ($row->discount_percent ?? 0) * 100,
+                        'discountCode' => (string) ($row->discount_code ?? ''),
+                        'paymentDiscountPercent' => (float) ($row->payment_discount_percent ?? 0) * 100,
                         'creditLimit' => (float) ($row->credit_limit ?? 0),
                         'creditStatus' => (string) ($row->credit_status_name ?? ''),
+                        'taxReference' => (string) ($row->tax_reference ?? ''),
+                        'customerPoLineRequired' => ((int) ($row->customer_po_line ?? 0)) === 1,
+                        'invoiceAddressing' => ((int) ($row->invoice_addressing_branch ?? 0)) === 1 ? 'Address to Branch' : 'Address to HO',
+                        'languageId' => (string) ($row->language_id ?? ''),
                         'defaultLocation' => (string) ($row->defaultlocation ?? ''),
                         'defaultShipperId' => (int) ($row->defaultshipvia ?? 0),
+                        'contacts' => $contactsByDebtor
+                            ->get((string) $row->debtorno, collect())
+                            ->map(static function ($contact) {
+                                return [
+                                    'name' => (string) ($contact->contactname ?? ''),
+                                    'role' => (string) ($contact->role ?? ''),
+                                    'phone' => (string) ($contact->phoneno ?? ''),
+                                    'email' => (string) ($contact->email ?? ''),
+                                    'notes' => (string) ($contact->notes ?? ''),
+                                ];
+                            })
+                            ->values(),
                     ];
                 }),
             ]);
@@ -559,6 +671,300 @@ class SalesController extends Controller
                 'success' => true,
                 'data' => [],
             ]);
+        }
+    }
+
+    public function transactionDocument(Request $request)
+    {
+        $transNo = trim((string) $request->query('transNo', ''));
+        $type = (int) $request->query('type', 10);
+
+        if ($transNo === '' || !in_array($type, [10, 11], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A valid invoice or credit note transaction is required.',
+            ], 422);
+        }
+
+        try {
+            if (!Schema::hasTable('debtortrans')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Customer transactions are not available.',
+                ], 404);
+            }
+
+            $query = DB::table('debtortrans as dt')
+                ->leftJoin('debtorsmaster as dm', 'dm.debtorno', '=', 'dt.debtorno')
+                ->leftJoin('custbranch as cb', function ($join) {
+                    $join->on('cb.debtorno', '=', 'dt.debtorno');
+                    if (Schema::hasColumn('debtortrans', 'branchcode')) {
+                        $join->on('cb.branchcode', '=', 'dt.branchcode');
+                    }
+                })
+                ->where('dt.type', $type)
+                ->where('dt.transno', $transNo)
+                ->select(
+                    'dt.transno',
+                    'dt.type',
+                    'dt.debtorno',
+                    'dt.trandate',
+                    'dt.reference',
+                    'dt.order_',
+                    'dt.ovamount',
+                    'dt.ovdiscount',
+                    'dt.ovfreight',
+                    'dt.ovgst',
+                    'dt.rate',
+                    'dm.name as customer_name',
+                    'dm.address1',
+                    'dm.address2',
+                    'dm.address3',
+                    'dm.address4',
+                    'dm.address5',
+                    'dm.address6',
+                    'dm.currcode',
+                    'dm.taxref',
+                    'cb.brname',
+                    'cb.braddress1',
+                    'cb.braddress2',
+                    'cb.braddress3',
+                    'cb.braddress4',
+                    'cb.braddress5',
+                    'cb.braddress6'
+                );
+
+            $addSelect = function (string $table, string $alias, string $column, string $selectAlias, string $default = 'NULL') use ($query): void {
+                if (Schema::hasColumn($table, $column)) {
+                    $query->addSelect($alias . '.' . $column . ' as ' . $selectAlias);
+                } else {
+                    $query->addSelect(DB::raw($default . ' as ' . $selectAlias));
+                }
+            };
+
+            $addSelect('debtortrans', 'dt', 'branchcode', 'branchcode');
+            $addSelect('debtortrans', 'dt', 'shipvia', 'shipvia');
+            $addSelect('debtortrans', 'dt', 'invtext', 'invoice_text');
+            $addSelect('debtortrans', 'dt', 'consignment', 'consignment');
+            $addSelect('debtorsmaster', 'dm', 'paymentterms', 'paymentterms');
+            $addSelect('debtorsmaster', 'dm', 'invaddrbranch', 'invoice_addressing_branch', '0');
+            $addSelect('custbranch', 'cb', 'salesman', 'salesman');
+
+            if (Schema::hasTable('paymentterms') && Schema::hasColumn('paymentterms', 'termsindicator')) {
+                $query
+                    ->leftJoin('paymentterms as pt', 'pt.termsindicator', '=', 'dm.paymentterms')
+                    ->addSelect(
+                        'pt.terms as payment_terms_name',
+                        'pt.dayinfollowingmonth',
+                        'pt.daysbeforedue'
+                    );
+            } else {
+                $query->addSelect(
+                    DB::raw('NULL as payment_terms_name'),
+                    DB::raw('0 as dayinfollowingmonth'),
+                    DB::raw('0 as daysbeforedue')
+                );
+            }
+
+            if (Schema::hasTable('salesorders')) {
+                $query
+                    ->leftJoin('salesorders as so', 'so.orderno', '=', 'dt.order_')
+                    ->addSelect(
+                        'so.orderno as order_number',
+                        'so.orddate as order_date',
+                        'so.deliverto',
+                        'so.deladd1',
+                        'so.deladd2',
+                        'so.deladd3',
+                        'so.deladd4',
+                        'so.deladd5',
+                        'so.deladd6',
+                        'so.customerref',
+                        'so.fromstkloc'
+                    );
+            } else {
+                $query->addSelect(
+                    DB::raw('NULL as order_number'),
+                    DB::raw('NULL as order_date'),
+                    DB::raw('NULL as deliverto'),
+                    DB::raw('NULL as deladd1'),
+                    DB::raw('NULL as deladd2'),
+                    DB::raw('NULL as deladd3'),
+                    DB::raw('NULL as deladd4'),
+                    DB::raw('NULL as deladd5'),
+                    DB::raw('NULL as deladd6'),
+                    DB::raw('NULL as customerref'),
+                    DB::raw('NULL as fromstkloc')
+                );
+            }
+
+            if (Schema::hasTable('shippers') && Schema::hasColumn('debtortrans', 'shipvia')) {
+                $query
+                    ->leftJoin('shippers as sh', 'sh.shipper_id', '=', 'dt.shipvia')
+                    ->addSelect('sh.shippername as shipper_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as shipper_name'));
+            }
+
+            if (Schema::hasTable('locations') && Schema::hasTable('salesorders')) {
+                $query
+                    ->leftJoin('locations as loc', 'loc.loccode', '=', 'so.fromstkloc')
+                    ->addSelect('loc.locationname as location_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as location_name'));
+            }
+
+            if (Schema::hasTable('salesman') && Schema::hasColumn('custbranch', 'salesman')) {
+                $query
+                    ->leftJoin('salesman as sman', 'sman.salesmancode', '=', 'cb.salesman')
+                    ->addSelect('sman.salesmanname as salesman_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as salesman_name'));
+            }
+
+            $header = $query->first();
+
+            if (!$header) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction document was not found.',
+                ], 404);
+            }
+
+            $rate = (float) ($header->rate ?? 1);
+            $rate = abs($rate) > 0.0001 ? $rate : 1.0;
+            $lines = collect();
+
+            if (Schema::hasTable('stockmoves') && Schema::hasTable('stockmaster')) {
+                $quantityExpression = $type === 10
+                    ? '-COALESCE(sm.qty, 0)'
+                    : 'COALESCE(sm.qty, 0)';
+                $netExpression = $type === 10
+                    ? '((1 - COALESCE(sm.discountpercent, 0)) * COALESCE(sm.price, 0) * ' . $rate . ' * -COALESCE(sm.qty, 0))'
+                    : '((1 - COALESCE(sm.discountpercent, 0)) * COALESCE(sm.price, 0) * ' . $rate . ' * COALESCE(sm.qty, 0))';
+
+                $lineQuery = DB::table('stockmoves as sm')
+                    ->leftJoin('stockmaster as stk', 'stk.stockid', '=', 'sm.stockid')
+                    ->where('sm.type', $type)
+                    ->where('sm.transno', $transNo)
+                    ->select(
+                        'sm.stockid',
+                        'stk.description',
+                        'sm.discountpercent',
+                        'sm.narrative',
+                        'stk.units',
+                        DB::raw($quantityExpression . ' as quantity'),
+                        DB::raw('(COALESCE(sm.price, 0) * ' . $rate . ') as unit_price'),
+                        DB::raw($netExpression . ' as net_amount')
+                    );
+
+                if (Schema::hasColumn('stockmoves', 'debtorno')) {
+                    $lineQuery->where('sm.debtorno', (string) $header->debtorno);
+                }
+
+                if (Schema::hasColumn('stockmoves', 'branchcode') && trim((string) ($header->branchcode ?? '')) !== '') {
+                    $lineQuery->where('sm.branchcode', (string) $header->branchcode);
+                }
+
+                if (Schema::hasColumn('stockmoves', 'show_on_inv_crds')) {
+                    $lineQuery->where('sm.show_on_inv_crds', 1);
+                }
+
+                $lines = $lineQuery->orderBy('sm.stkmoveno')->get();
+            }
+
+            if ($lines->isEmpty()) {
+                $lines = collect([(object) [
+                    'stockid' => '',
+                    'description' => $type === 10 ? 'Sales Invoice' : 'Credit Note',
+                    'quantity' => 1,
+                    'discountpercent' => 0,
+                    'unit_price' => (float) ($header->ovamount ?? 0),
+                    'net_amount' => (float) ($header->ovamount ?? 0),
+                    'narrative' => (string) ($header->invoice_text ?? ''),
+                    'units' => '',
+                ]]);
+            }
+
+            $transactionDate = (string) ($header->trandate ?? '');
+            $dueDate = '';
+            if ($transactionDate !== '') {
+                $baseDate = Carbon::parse($transactionDate);
+                $dayInFollowingMonth = (int) ($header->dayinfollowingmonth ?? 0);
+                $daysBeforeDue = (int) ($header->daysbeforedue ?? 0);
+                $due = $dayInFollowingMonth > 0
+                    ? $baseDate->copy()->firstOfMonth()->addMonthNoOverflow()->day(min($dayInFollowingMonth, $baseDate->copy()->firstOfMonth()->addMonthNoOverflow()->daysInMonth))
+                    : $baseDate->copy()->addDays($daysBeforeDue > 0 ? $daysBeforeDue : 30);
+                $dueDate = $due->toDateString();
+            }
+
+            $soldTo = collect([
+                $header->customer_name ?? '',
+                $header->address1 ?? '',
+                $header->address2 ?? '',
+                $header->address3 ?? '',
+                $header->address4 ?? '',
+                $header->address5 ?? '',
+                $header->address6 ?? '',
+            ])->map(fn ($part) => trim((string) $part))->filter()->values();
+            $deliveredTo = collect([
+                $header->deliverto ?? $header->brname ?? $header->customer_name ?? '',
+                $header->deladd1 ?? $header->braddress1 ?? '',
+                $header->deladd2 ?? $header->braddress2 ?? '',
+                $header->deladd3 ?? $header->braddress3 ?? '',
+                $header->deladd4 ?? $header->braddress4 ?? '',
+                $header->deladd5 ?? $header->braddress5 ?? '',
+                $header->deladd6 ?? $header->braddress6 ?? '',
+            ])->map(fn ($part) => trim((string) $part))->filter()->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'company' => $this->salesCompanyProfile(),
+                    'transNo' => (string) $header->transno,
+                    'transType' => (int) $header->type,
+                    'debtorNo' => (string) $header->debtorno,
+                    'branchCode' => (string) ($header->branchcode ?? ''),
+                    'customerName' => (string) ($header->customer_name ?? ''),
+                    'transactionDate' => $transactionDate,
+                    'orderNo' => (string) ($header->order_number ?? $header->order_ ?? ''),
+                    'orderDate' => (string) ($header->order_date ?? $transactionDate),
+                    'customerReference' => (string) ($header->customerref ?? $header->reference ?? ''),
+                    'salesPerson' => (string) ($header->salesman_name ?? $header->salesman ?? ''),
+                    'dispatchDetail' => (string) ($header->shipper_name ?? ''),
+                    'dispatchedFrom' => (string) ($header->location_name ?? $header->fromstkloc ?? ''),
+                    'currencyCode' => (string) ($header->currcode ?? $this->companyCurrency()),
+                    'paymentTerms' => (string) ($header->payment_terms_name ?? ''),
+                    'dueDate' => $dueDate,
+                    'taxReference' => (string) ($header->taxref ?? ''),
+                    'soldTo' => $soldTo,
+                    'deliveredTo' => $deliveredTo,
+                    'subTotal' => (float) ($header->ovamount ?? 0),
+                    'freight' => (float) ($header->ovfreight ?? 0),
+                    'tax' => (float) ($header->ovgst ?? 0),
+                    'discount' => (float) ($header->ovdiscount ?? 0),
+                    'total' => (float) (($header->ovamount ?? 0) + ($header->ovgst ?? 0) + ($header->ovfreight ?? 0) - ($header->ovdiscount ?? 0)),
+                    'lines' => $lines->map(static function ($line) {
+                        return [
+                            'stockId' => (string) ($line->stockid ?? ''),
+                            'description' => (string) ($line->description ?? ''),
+                            'quantity' => (float) ($line->quantity ?? 0),
+                            'discountPercent' => (float) ($line->discountpercent ?? 0) * 100,
+                            'unitPrice' => (float) ($line->unit_price ?? 0),
+                            'netAmount' => (float) ($line->net_amount ?? 0),
+                            'narrative' => (string) ($line->narrative ?? ''),
+                            'units' => (string) ($line->units ?? ''),
+                        ];
+                    })->values(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to load transaction document.',
+            ], 500);
         }
     }
 
@@ -2903,6 +3309,29 @@ class SalesController extends Controller
         $currency = strtoupper(trim((string) DB::table('companies')->where('coycode', 1)->value('currencydefault')));
 
         return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'TZS';
+    }
+
+    private function salesCompanyProfile(): array
+    {
+        $company = Schema::hasTable('companies')
+            ? DB::table('companies')->where('coycode', 1)->first()
+            : null;
+
+        return [
+            'name' => html_entity_decode((string) ($company->coyname ?? 'Akiva')),
+            'address' => collect([
+                $company->regoffice1 ?? '',
+                $company->regoffice2 ?? '',
+                $company->regoffice3 ?? '',
+                $company->regoffice4 ?? '',
+                $company->regoffice5 ?? '',
+                $company->regoffice6 ?? '',
+            ])->map(fn ($part) => trim((string) $part))->filter()->values(),
+            'phone' => (string) ($company->telephone ?? ''),
+            'fax' => (string) ($company->fax ?? ''),
+            'email' => (string) ($company->email ?? ''),
+            'taxReference' => (string) ($company->gstno ?? ''),
+        ];
     }
 
     private function safeLimit($value, int $min, int $max): int

@@ -68,6 +68,52 @@ export interface SalesTransaction {
   settled: boolean;
 }
 
+export interface SalesTransactionDocumentLine {
+  stockId: string;
+  description: string;
+  quantity: number;
+  discountPercent: number;
+  unitPrice: number;
+  netAmount: number;
+  narrative: string;
+  units: string;
+}
+
+export interface SalesTransactionDocument {
+  company: {
+    name: string;
+    address: string[];
+    phone: string;
+    fax: string;
+    email: string;
+    taxReference: string;
+  };
+  transNo: string;
+  transType: number;
+  debtorNo: string;
+  branchCode: string;
+  customerName: string;
+  transactionDate: string;
+  orderNo: string;
+  orderDate: string;
+  customerReference: string;
+  salesPerson: string;
+  dispatchDetail: string;
+  dispatchedFrom: string;
+  currencyCode: string;
+  paymentTerms: string;
+  dueDate: string;
+  taxReference: string;
+  soldTo: string[];
+  deliveredTo: string[];
+  subTotal: number;
+  freight: number;
+  tax: number;
+  discount: number;
+  total: number;
+  lines: SalesTransactionDocumentLine[];
+}
+
 export interface SalesMonthlySummary {
   month: string;
   invoiceCount: number;
@@ -164,6 +210,14 @@ export interface SalesSettings {
   salesPeople: Array<{ code: string; name: string; current: boolean }>;
 }
 
+export interface SalesCustomerContact {
+  name: string;
+  role: string;
+  phone: string;
+  email: string;
+  notes: string;
+}
+
 export interface SalesCustomer {
   debtorNo: string;
   customerName: string;
@@ -172,16 +226,34 @@ export interface SalesCustomer {
   phone: string;
   email: string;
   address?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  addressLine3?: string;
+  addressLine4?: string;
+  addressLine5?: string;
+  addressLine6?: string;
   salesType: string;
+  salesTypeName?: string;
+  customerType?: string;
+  customerTypeId?: string;
+  customerSince?: string;
   paymentTerms: string;
   paymentTermsName?: string;
   daysBeforeDue?: number;
   dayInFollowingMonth?: number;
   currencyCode?: string;
+  discountPercent?: number;
+  discountCode?: string;
+  paymentDiscountPercent?: number;
   creditLimit?: number;
   creditStatus?: string;
+  taxReference?: string;
+  customerPoLineRequired?: boolean;
+  invoiceAddressing?: string;
+  languageId?: string;
   defaultLocation: string;
   defaultShipperId: number;
+  contacts?: SalesCustomerContact[];
 }
 
 export interface SalesStockItem {

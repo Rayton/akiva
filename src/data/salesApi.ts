@@ -23,6 +23,7 @@ import {
   SalesStockItem,
   SalesTopItem,
   SalesTransaction,
+  SalesTransactionDocument,
 } from '../types/sales';
 import { apiFetch } from '../lib/network/apiClient';
 import { buildApiUrl } from '../lib/network/apiBase';
@@ -65,6 +66,22 @@ export async function fetchSalesTransactions(limit = 250, search = ''): Promise<
   } catch (error) {
     console.error('Failed to fetch sales transactions:', error);
     return [];
+  }
+}
+
+export async function fetchSalesTransactionDocument(transType: number, transNo: string): Promise<SalesTransactionDocument | null> {
+  try {
+    const query = new URLSearchParams({
+      type: String(transType),
+      transNo,
+    });
+    const response = await apiFetch(buildApiUrl(`/api/sales/transaction-document?${query.toString()}`));
+    if (!response.ok) return null;
+    const data: ApiObjectResponse<SalesTransactionDocument> = await response.json();
+    return data.success && data.data ? data.data : null;
+  } catch (error) {
+    console.error('Failed to fetch sales transaction document:', error);
+    return null;
   }
 }
 

@@ -174,6 +174,12 @@ export interface SalesCustomer {
   address?: string;
   salesType: string;
   paymentTerms: string;
+  paymentTermsName?: string;
+  daysBeforeDue?: number;
+  dayInFollowingMonth?: number;
+  currencyCode?: string;
+  creditLimit?: number;
+  creditStatus?: string;
   defaultLocation: string;
   defaultShipperId: number;
 }

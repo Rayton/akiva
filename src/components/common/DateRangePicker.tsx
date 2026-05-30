@@ -28,6 +28,7 @@ interface DateRangePickerProps {
   triggerClassName?: string;
   panelClassName?: string;
   disabled?: boolean;
+  compact?: boolean;
 }
 
 const PRESET_OPTIONS: Array<{ value: DateRangePreset; label: string }> = [
@@ -47,6 +48,7 @@ interface PopoverPosition {
   left: number;
   top: number;
   width: number;
+  maxHeight: number;
 }
 
 function pad(value: number): string {
@@ -125,12 +127,13 @@ export function DateRangePicker({
   triggerClassName = '',
   panelClassName = '',
   disabled = false,
+  compact = false,
 }: DateRangePickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateRangeValue>(value);
-  const [popoverPosition, setPopoverPosition] = useState<PopoverPosition>({ left: 16, top: 16, width: 560 });
+  const [popoverPosition, setPopoverPosition] = useState<PopoverPosition>({ left: 16, top: 16, width: 560, maxHeight: 520 });
   const dateFormat = useSystemDateFormat();
 
   useEffect(() => {
@@ -160,16 +163,16 @@ export function DateRangePicker({
       const rect = anchor.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      const width = Math.min(560, Math.max(288, viewportWidth - 32));
+      const width = compact
+        ? Math.min(420, Math.max(320, rect.width), Math.max(288, viewportWidth - 32))
+        : Math.min(560, Math.max(320, rect.width), Math.max(288, viewportWidth - 32));
       const alignRight = panelClassName.split(/\s+/).includes('right-0');
       const preferredLeft = alignRight ? rect.right - width : rect.left;
       const left = Math.min(Math.max(16, preferredLeft), Math.max(16, viewportWidth - width - 16));
-      const estimatedHeight = 520;
       const belowTop = rect.bottom + 8;
-      const aboveTop = rect.top - estimatedHeight - 8;
-      const top = belowTop + estimatedHeight <= viewportHeight - 16 ? belowTop : Math.max(16, aboveTop);
+      const maxHeight = Math.max(260, viewportHeight - belowTop - 16);
 
-      setPopoverPosition({ left, top, width });
+      setPopoverPosition({ left, top: belowTop, width, maxHeight });
     };
 
     updatePosition();
@@ -179,7 +182,7 @@ export function DateRangePicker({
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open, panelClassName]);
+  }, [compact, open, panelClassName]);
 
   const display = useMemo(() => formatDateRangeDisplay(value.from, value.to, dateFormat), [dateFormat, value.from, value.to]);
 
@@ -242,9 +245,62 @@ export function DateRangePicker({
             top: popoverPosition.top,
             right: 'auto',
             width: popoverPosition.width,
+            maxHeight: popoverPosition.maxHeight,
+            overflowY: 'auto',
             zIndex: DATE_RANGE_POPOVER_Z_INDEX,
           }}
         >
+          {compact ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                {(['this-month', 'last-month', 'last-3-months'] as DateRangePreset[]).map((preset) => {
+                  const option = PRESET_OPTIONS.find((item) => item.value === preset);
+                  const active = draft.preset === preset;
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => selectPreset(preset)}
+                      className={`min-h-9 rounded-lg px-2 text-xs font-semibold transition ${
+                        active ? 'bg-akiva-accent text-white' : 'bg-akiva-surface text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                      }`}
+                    >
+                      {option?.label ?? preset}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="rounded-xl border border-akiva-border bg-akiva-surface p-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">From</span>
+                    <DatePicker
+                      value={draft.from}
+                      onChange={(from) => setDraft((current) => ({ ...current, from, preset: 'custom' }))}
+                      max={draft.to}
+                    />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-akiva-text-muted">To</span>
+                    <DatePicker
+                      value={draft.to}
+                      onChange={(to) => setDraft((current) => ({ ...current, to, preset: 'custom' }))}
+                      min={draft.from}
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={applyCustom}
+                    className="inline-flex h-9 items-center rounded-lg bg-akiva-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-akiva-accent-strong"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="grid gap-3 md:grid-cols-[180px_1fr]">
             <div className="space-y-1">
               {PRESET_OPTIONS.map((option) => {
@@ -295,6 +351,7 @@ export function DateRangePicker({
               </div>
             </div>
           </div>
+          )}
         </div>
       , document.body) : null}
     </div>

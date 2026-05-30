@@ -50,6 +50,7 @@ interface AdvancedTableProps<T> {
   searchPlaceholder?: string;
   serverSearch?: boolean;
   showExports?: boolean;
+  showColumnControls?: boolean;
 }
 
 type WidthMap = Record<string, number>;
@@ -174,6 +175,7 @@ export function AdvancedTable<T>({
   searchPlaceholder = 'Search table',
   serverSearch = false,
   showExports = true,
+  showColumnControls = true,
 }: AdvancedTableProps<T>) {
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [pageIndex, setPageIndex] = useState(0);
@@ -382,6 +384,7 @@ export function AdvancedTable<T>({
   const selectedRows = pagedRows.filter((row, index) => selectedKeySet.has(rowKeyFor(row, index)));
   const allPageRowsSelected = pagedRows.length > 0 && pagedRows.every((row, index) => selectedKeySet.has(rowKeyFor(row, index)));
   const somePageRowsSelected = pagedRows.some((row, index) => selectedKeySet.has(rowKeyFor(row, index)));
+  const showTableViewControls = showColumnControls || enableDensityToggle || enableSavedViews || showExports;
 
   const alignClass = (align: AdvancedTableColumn<T>['align']) => {
     if (align === 'right') return 'text-right';
@@ -502,18 +505,21 @@ export function AdvancedTable<T>({
   return (
     <div className="space-y-3">
       <div className="space-y-2">
+        {showTableViewControls ? (
         <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setShowColumnsPanel((previous) => !previous)}
-              aria-expanded={showColumnsPanel}
-              aria-controls={`${tableId}-columns-panel`}
-              className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
-            >
-              <Columns3 className="h-3.5 w-3.5" />
-              Columns
-            </button>
+            {showColumnControls ? (
+              <button
+                type="button"
+                onClick={() => setShowColumnsPanel((previous) => !previous)}
+                aria-expanded={showColumnsPanel}
+                aria-controls={`${tableId}-columns-panel`}
+                className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
+              >
+                <Columns3 className="h-3.5 w-3.5" />
+                Columns
+              </button>
+            ) : null}
             {enableDensityToggle ? (
               <div
                 role="group"
@@ -592,6 +598,7 @@ export function AdvancedTable<T>({
             </div>
           ) : null}
         </div>
+        ) : null}
 
         <div className="flex flex-col gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-2.5 py-2 sm:flex-row sm:items-center sm:justify-between">
           {showSearch ? (
@@ -640,7 +647,7 @@ export function AdvancedTable<T>({
         </div>
       ) : null}
 
-      {showColumnsPanel ? (
+      {showColumnControls && showColumnsPanel ? (
         <div id={`${tableId}-columns-panel`} className="rounded-lg border border-akiva-border bg-akiva-surface-muted p-3">
           <p className="mb-2 text-xs font-semibold text-akiva-text">Column Visibility</p>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">

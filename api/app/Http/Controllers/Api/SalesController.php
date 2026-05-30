@@ -306,6 +306,19 @@ class SalesController extends Controller
         $search = trim((string) $request->query('q', ''));
 
         try {
+            $hasPaymentTerms = Schema::hasTable('paymentterms')
+                && Schema::hasColumn('paymentterms', 'termsindicator')
+                && Schema::hasColumn('debtorsmaster', 'paymentterms');
+            $hasHoldReasons = Schema::hasTable('holdreasons')
+                && Schema::hasColumn('holdreasons', 'reasoncode')
+                && Schema::hasColumn('debtorsmaster', 'holdreason');
+            $creditLimitExpression = Schema::hasColumn('debtorsmaster', 'creditlimit')
+                ? 'COALESCE(dm.creditlimit, 0)'
+                : '0';
+            $currencyExpression = Schema::hasColumn('debtorsmaster', 'currcode')
+                ? 'COALESCE(NULLIF(dm.currcode, ""), "' . $this->companyCurrency() . '")'
+                : '"' . $this->companyCurrency() . '"';
+
             $query = DB::table('custbranch as cb')
                 ->join('debtorsmaster as dm', 'dm.debtorno', '=', 'cb.debtorno')
                 ->select(
@@ -323,9 +336,37 @@ class SalesController extends Controller
                     'cb.email',
                     'dm.salestype',
                     'dm.paymentterms',
+                    DB::raw($creditLimitExpression . ' as credit_limit'),
+                    DB::raw($currencyExpression . ' as currency_code'),
                     'cb.defaultlocation',
                     'cb.defaultshipvia'
-                )
+                );
+
+            if ($hasPaymentTerms) {
+                $query
+                    ->leftJoin('paymentterms as pt', 'pt.termsindicator', '=', 'dm.paymentterms')
+                    ->addSelect(
+                        'pt.terms as payment_terms_name',
+                        'pt.daysbeforedue',
+                        'pt.dayinfollowingmonth'
+                    );
+            } else {
+                $query->addSelect(
+                    DB::raw('NULL as payment_terms_name'),
+                    DB::raw('0 as daysbeforedue'),
+                    DB::raw('0 as dayinfollowingmonth')
+                );
+            }
+
+            if ($hasHoldReasons) {
+                $query
+                    ->leftJoin('holdreasons as hr', 'hr.reasoncode', '=', 'dm.holdreason')
+                    ->addSelect('hr.reasondescription as credit_status_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as credit_status_name'));
+            }
+
+            $query
                 ->orderBy('dm.name')
                 ->limit($limit);
 
@@ -372,6 +413,12 @@ class SalesController extends Controller
                         'address' => $address,
                         'salesType' => (string) ($row->salestype ?? ''),
                         'paymentTerms' => (string) ($row->paymentterms ?? ''),
+                        'paymentTermsName' => (string) ($row->payment_terms_name ?? ''),
+                        'daysBeforeDue' => (int) ($row->daysbeforedue ?? 0),
+                        'dayInFollowingMonth' => (int) ($row->dayinfollowingmonth ?? 0),
+                        'currencyCode' => (string) ($row->currency_code ?? $this->companyCurrency()),
+                        'creditLimit' => (float) ($row->credit_limit ?? 0),
+                        'creditStatus' => (string) ($row->credit_status_name ?? ''),
                         'defaultLocation' => (string) ($row->defaultlocation ?? ''),
                         'defaultShipperId' => (int) ($row->defaultshipvia ?? 0),
                     ];

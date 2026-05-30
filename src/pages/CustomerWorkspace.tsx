@@ -42,7 +42,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
-import { SearchableSelect } from '../components/common/SearchableSelect';
+import { DateRangePicker, getDefaultDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
 import { Modal } from '../components/ui/Modal';
 import {
   fetchOutstandingSalesOrders,
@@ -361,8 +361,79 @@ function transactionTypeLabel(type: number): string {
   return `Type ${type}`;
 }
 
-function selectedCustomerLabel(customer: SalesCustomer): string {
-  return `${customer.customerName} (${customer.debtorNo}${customer.branchCode ? ` / ${customer.branchCode}` : ''})`;
+function currencyDisplayName(currencyCode: string | undefined): string {
+  const code = (currencyCode || 'TZS').toUpperCase();
+  const names: Record<string, string> = {
+    TZS: 'Tanzania Shilling',
+    USD: 'US Dollar',
+    EUR: 'Euro',
+    GBP: 'British Pound',
+    KES: 'Kenyan Shilling',
+    UGX: 'Ugandan Shilling',
+  };
+  return names[code] ?? code;
+}
+
+function customerCurrency(customer: SalesCustomer | null | undefined): string {
+  return (customer?.currencyCode || 'TZS').toUpperCase();
+}
+
+function paymentTermLabel(customer: SalesCustomer | null | undefined): string {
+  if (!customer) return '-';
+  if (customer.paymentTermsName) return customer.paymentTermsName;
+  if ((customer.dayInFollowingMonth ?? 0) > 0) return `Due on day ${customer.dayInFollowingMonth} of the following month`;
+  if ((customer.daysBeforeDue ?? 0) > 0) return `Due after ${customer.daysBeforeDue} days`;
+  return customer.paymentTerms || '-';
+}
+
+function dueDateForTransaction(transactionDate: string, customer: SalesCustomer | null): Date | null {
+  const isoDate = extractIsoDate(transactionDate);
+  if (!isoDate) return null;
+
+  const date = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const dayInFollowingMonth = Math.max(0, Number(customer?.dayInFollowingMonth ?? 0));
+  if (dayInFollowingMonth > 0) {
+    return new Date(date.getFullYear(), date.getMonth() + 1, dayInFollowingMonth);
+  }
+
+  const daysBeforeDue = Math.max(
+    0,
+    Number(customer?.daysBeforeDue ?? 0) || Number(String(customer?.paymentTerms ?? '').match(/\d+/)?.[0] ?? 0) || 30
+  );
+  const dueDate = new Date(date);
+  dueDate.setDate(dueDate.getDate() + daysBeforeDue);
+  return dueDate;
+}
+
+function daysBetween(first: Date, second: Date): number {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const firstDate = new Date(first.getFullYear(), first.getMonth(), first.getDate()).getTime();
+  const secondDate = new Date(second.getFullYear(), second.getMonth(), second.getDate()).getTime();
+  return Math.floor((firstDate - secondDate) / msPerDay);
+}
+
+function buildAgingBuckets(transactions: SalesTransaction[], customer: SalesCustomer | null) {
+  const today = new Date();
+  return transactions
+    .filter((row) => !row.settled)
+    .reduce(
+      (buckets, row) => {
+        const amount = row.grossTotal;
+        const dueDate = dueDateForTransaction(row.transactionDate, customer);
+        const daysOverdue = dueDate ? daysBetween(today, dueDate) : 0;
+
+        buckets.total += amount;
+        if (daysOverdue <= 0) buckets.current += amount;
+        else if (daysOverdue < 30) buckets.nowDue += amount;
+        else if (daysOverdue <= 60) buckets.over30 += amount;
+        else buckets.over60 += amount;
+
+        return buckets;
+      },
+      { total: 0, current: 0, nowDue: 0, over30: 0, over60: 0 }
+    );
 }
 
 function CustomerWorkspaceBadge({ children, icon: Icon }: { children: ReactNode; icon: LucideIcon }) {
@@ -395,23 +466,28 @@ function EmptyPanel({ title, detail }: { title: string; detail: string }) {
 function ActionPanel({
   actionId,
   children,
+  headerActions,
 }: {
   actionId: CustomerActionId;
   children: ReactNode;
+  headerActions?: ReactNode;
 }) {
   const action = CUSTOMER_ACTION_LOOKUP.get(actionId) ?? CUSTOMER_ACTION_LOOKUP.get('workspace')!;
   const Icon = action.icon;
 
   return (
     <section className="rounded-xl border border-akiva-border bg-akiva-surface-raised p-3 shadow-sm">
-      <div className="mb-3 flex items-center gap-2.5 border-b border-akiva-border pb-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-akiva-border bg-akiva-surface-muted text-akiva-accent-text">
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-akiva-text">{action.label}</h2>
-          <p className="mt-0.5 text-xs leading-5 text-akiva-text-muted">{action.detail}</p>
+      <div className="mb-3 flex flex-col gap-3 border-b border-akiva-border pb-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-akiva-border bg-akiva-surface-muted text-akiva-accent-text">
+            <Icon className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-akiva-text">{action.label}</h2>
+            <p className="mt-0.5 text-xs leading-5 text-akiva-text-muted">{action.detail}</p>
+          </div>
         </div>
+        {headerActions ? <div className="min-w-0 shrink-0">{headerActions}</div> : null}
       </div>
       {children}
     </section>
@@ -435,6 +511,7 @@ function CustomerSearchStrip({
   onSelectCustomer: (customer: SalesCustomer) => void;
   onRefresh: () => void;
 }) {
+  const [resultsOpen, setResultsOpen] = useState(false);
   const selectCustomers = useMemo(() => {
     if (!selectedCustomer) return customers;
     const selectedKey = customerKey(selectedCustomer);
@@ -454,32 +531,64 @@ function CustomerSearchStrip({
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
-              <SearchableSelect
-                value={selectedCustomer ? customerKey(selectedCustomer) : ''}
-                onChange={(value) => {
-                  const nextCustomer = selectCustomers.find((customer) => customerKey(customer) === value);
-                  if (nextCustomer) onSelectCustomer(nextCustomer);
-                }}
-                options={selectCustomers.map((customer) => ({
-                  value: customerKey(customer),
-                  label: selectedCustomerLabel(customer),
-                  searchText: [
-                    customer.customerName,
-                    customer.debtorNo,
-                    customer.branchCode,
-                    customer.branchName,
-                    customer.phone,
-                    customer.email,
-                    customer.address ?? '',
-                  ].join(' '),
-                }))}
-                onSearchChange={onSearchChange}
-                className="pl-9"
-                inputClassName="h-11"
-                panelClassName="z-[160]"
-                placeholder="Search name, code, branch, phone, or email"
-              />
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                <input
+                  value={customerSearch}
+                  onFocus={() => setResultsOpen(true)}
+                  onBlur={() => window.setTimeout(() => setResultsOpen(false), 120)}
+                  onChange={(event) => {
+                    onSearchChange(event.target.value);
+                    setResultsOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setResultsOpen(false);
+                  }}
+                  className="h-11 w-full rounded-xl border border-akiva-border bg-akiva-surface-raised px-3 py-2 pl-9 pr-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                  placeholder="Search name, code, branch, phone, or email"
+                  autoComplete="off"
+                  aria-label="Search customers"
+                />
+              </div>
+              {resultsOpen ? (
+                <div className="absolute left-0 right-0 top-full z-[230] mt-2 max-h-64 overflow-auto rounded-xl border border-akiva-border bg-akiva-surface-raised p-1 shadow-xl shadow-slate-900/10">
+                  {selectCustomers.length === 0 ? (
+                    <div className="px-3 py-3 text-sm font-medium text-akiva-text-muted">
+                      {loadingCustomers ? 'Searching customers...' : 'No customers found'}
+                    </div>
+                  ) : (
+                    selectCustomers.map((customer) => {
+                      const key = customerKey(customer);
+                      const active = selectedCustomer ? customerKey(selectedCustomer) === key : false;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            onSelectCustomer(customer);
+                            onSearchChange('');
+                            setResultsOpen(false);
+                          }}
+                          className={`flex w-full min-w-0 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition ${
+                            active
+                              ? 'bg-akiva-accent-soft text-akiva-text'
+                              : 'text-akiva-text hover:bg-akiva-surface-muted'
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold">{customer.customerName}</span>
+                            <span className="mt-0.5 block truncate text-xs text-akiva-text-muted">
+                              {customer.debtorNo} / {customer.branchCode || '-'}
+                            </span>
+                          </span>
+                          {active ? <span className="h-2 w-2 shrink-0 rounded-full bg-akiva-accent" /> : null}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              ) : null}
             </div>
             <button
               type="button"
@@ -1065,14 +1174,37 @@ function CustomerDetailsPage({ customer }: { customer: SalesCustomer | null }) {
 }
 
 function TransactionInquiryPage({
+  customer,
   transactions,
   loading,
   dateFormat,
+  onRefresh,
 }: {
+  customer: SalesCustomer | null;
   transactions: SalesTransaction[];
   loading: boolean;
   dateFormat: string;
+  onRefresh: () => void;
 }) {
+  const [dateRange, setDateRange] = useState<DateRangeValue>(() => getDefaultDateRange());
+  const [transactionFilter, setTransactionFilter] = useState('all');
+  const currency = customerCurrency(customer);
+  const aging = useMemo(() => buildAgingBuckets(transactions, customer), [customer, transactions]);
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((row) => {
+      const transactionDate = extractIsoDate(row.transactionDate);
+      const inRange = transactionDate !== '' && transactionDate >= dateRange.from && transactionDate <= dateRange.to;
+      if (!inRange) return false;
+
+      if (transactionFilter === 'open') return !row.settled;
+      if (transactionFilter === 'settled') return row.settled;
+      if (transactionFilter === 'invoices') return row.transType === 10;
+      if (transactionFilter === 'credits') return row.transType === 11;
+      if (transactionFilter === 'receipts') return row.transType === 12;
+      return true;
+    });
+  }, [dateRange.from, dateRange.to, transactionFilter, transactions]);
+
   const columns = useMemo<AdvancedTableColumn<SalesTransaction>[]>(() => [
     {
       id: 'date',
@@ -1093,7 +1225,7 @@ function TransactionInquiryPage({
       id: 'amount',
       header: 'Amount',
       accessor: (row) => row.grossTotal,
-      cell: (row) => <span className="akiva-financial-value font-semibold">{formatMoney(row.grossTotal)}</span>,
+      cell: (row) => <span className="akiva-financial-value font-semibold">{formatMoney(row.grossTotal, currency)}</span>,
       align: 'right',
       width: 150,
     },
@@ -1113,25 +1245,119 @@ function TransactionInquiryPage({
       ),
       width: 110,
     },
-  ], [dateFormat]);
+  ], [currency, dateFormat]);
 
   return (
-    <ActionPanel actionId="transaction-inquiries">
-      <AdvancedTable
-        tableId="customer-workspace-transactions"
-        ariaLabel="Customer transactions"
-        columns={columns}
-        rows={transactions}
-        rowKey={(row) => `${row.transType}-${row.transNo}-${row.reference}`}
-        emptyMessage="No transactions found for this customer."
-        loading={loading}
-        loadingMessage="Loading customer transactions..."
-        density="compact"
-        initialPageSize={12}
-        maxTableHeight="520px"
-        showSearch
-        searchPlaceholder="Search reference, order, amount, or status"
-      />
+    <ActionPanel
+      actionId="transaction-inquiries"
+      headerActions={
+        customer ? (
+          <DateRangePicker
+            value={dateRange}
+            onChange={setDateRange}
+            label="Date range"
+            className="w-full sm:w-[360px]"
+            triggerClassName="h-9 rounded-lg px-3"
+            compact
+          />
+        ) : null
+      }
+    >
+      {!customer ? (
+        <EmptyPanel title="No customer selected" detail="Choose a customer to view transaction inquiry details." />
+      ) : (
+        <div className="space-y-3">
+          <section className="rounded-xl border border-akiva-border bg-akiva-surface p-3">
+            <div className="flex flex-col gap-3 text-center lg:flex-row lg:items-start lg:justify-between lg:text-left">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-normal text-akiva-text-muted">Customer</p>
+                <h3 className="mt-1 truncate text-lg font-semibold text-akiva-text">
+                  {customer.debtorNo} - {customer.customerName}
+                </h3>
+              </div>
+              <div className="min-w-0 text-sm font-semibold leading-6 text-akiva-text lg:text-center">
+                <p>All amounts stated in: {currencyDisplayName(currency)}</p>
+                <p>Terms: {paymentTermLabel(customer)}</p>
+                <p>Credit Limit: {formatMoney(customer.creditLimit ?? 0, currency)}</p>
+                <p>Credit Status: {customer.creditStatus || 'Good History'}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-x-auto rounded-lg border border-akiva-border bg-akiva-surface-raised">
+              <div className="grid min-w-[720px] grid-cols-5 border-b border-akiva-border bg-akiva-table-header text-xs font-semibold uppercase tracking-normal text-akiva-table-header-text">
+                <div className="border-r border-akiva-border px-3 py-2 text-center">Total Balance</div>
+                <div className="border-r border-akiva-border px-3 py-2 text-center">Current</div>
+                <div className="border-r border-akiva-border px-3 py-2 text-center">Now Due</div>
+                <div className="border-r border-akiva-border px-3 py-2 text-center">30-60 Days Overdue</div>
+                <div className="px-3 py-2 text-center">Over 60 Days Overdue</div>
+              </div>
+              <div className="grid min-w-[720px] grid-cols-5 text-sm font-semibold text-akiva-text">
+                <div className="akiva-financial-value border-r border-akiva-border px-3 py-2 text-right">{formatMoney(aging.total, currency)}</div>
+                <div className="akiva-financial-value border-r border-akiva-border px-3 py-2 text-right">{formatMoney(aging.current, currency)}</div>
+                <div className="akiva-financial-value border-r border-akiva-border px-3 py-2 text-right">{formatMoney(aging.nowDue, currency)}</div>
+                <div className="akiva-financial-value border-r border-akiva-border px-3 py-2 text-right">{formatMoney(aging.over30, currency)}</div>
+                <div className="akiva-financial-value px-3 py-2 text-right">{formatMoney(aging.over60, currency)}</div>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="inline-flex w-full rounded-lg border border-akiva-border bg-akiva-surface-raised p-1 sm:w-auto">
+                {[
+                  { value: 'all', label: 'All' },
+                  { value: 'open', label: 'Open' },
+                  { value: 'settled', label: 'Settled' },
+                ].map((option) => {
+                  const active = transactionFilter === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setTransactionFilter(option.value)}
+                      className={`min-h-8 flex-1 rounded-md px-3 text-xs font-semibold transition sm:flex-none ${
+                        active
+                          ? 'bg-akiva-accent text-white shadow-sm'
+                          : 'text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={loading}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 text-xs font-semibold text-akiva-text-muted shadow-sm transition hover:border-akiva-accent hover:bg-akiva-surface-muted hover:text-akiva-text disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+
+          </section>
+
+          <AdvancedTable
+            tableId="customer-workspace-transactions"
+            ariaLabel="Customer transactions"
+            columns={columns}
+            rows={filteredTransactions}
+            rowKey={(row) => `${row.transType}-${row.transNo}-${row.reference}`}
+            emptyMessage="No transactions found for this customer and date range."
+            loading={loading}
+            loadingMessage="Loading customer transactions..."
+            density="compact"
+            initialPageSize={12}
+            maxTableHeight="520px"
+            enableDensityToggle={false}
+            enableSavedViews={false}
+            showColumnControls={false}
+            showExports={false}
+            showSearch
+            searchPlaceholder="Search reference, order, amount, or status"
+          />
+        </div>
+      )}
     </ActionPanel>
   );
 }
@@ -1625,6 +1851,7 @@ function CustomerActionContent({
   data,
   dataLoading,
   openAction,
+  onRefreshData,
   dateFormat,
 }: {
   activeAction: CustomerActionId;
@@ -1632,6 +1859,7 @@ function CustomerActionContent({
   data: CustomerWorkspaceData;
   dataLoading: boolean;
   openAction: (actionId: CustomerActionId) => void;
+  onRefreshData: () => void;
   dateFormat: string;
 }) {
   if (activeAction === 'workspace') {
@@ -1640,7 +1868,15 @@ function CustomerActionContent({
 
   if (activeAction === 'customer-details') return <CustomerDetailsPage customer={selectedCustomer} />;
   if (activeAction === 'transaction-inquiries') {
-    return <TransactionInquiryPage transactions={data.transactions} loading={dataLoading} dateFormat={dateFormat} />;
+    return (
+      <TransactionInquiryPage
+        customer={selectedCustomer}
+        transactions={data.transactions}
+        loading={dataLoading}
+        dateFormat={dateFormat}
+        onRefresh={onRefreshData}
+      />
+    );
   }
   if (activeAction === 'account-statement') {
     return <AccountStatementPage transactions={data.transactions} loading={dataLoading} dateFormat={dateFormat} />;
@@ -1676,6 +1912,7 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
   const [selectedCustomer, setSelectedCustomer] = useState<SalesCustomer | null>(null);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [data, setData] = useState<CustomerWorkspaceData>({
     transactions: [],
     outstandingOrders: [],
@@ -1724,7 +1961,7 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
     setDataLoading(true);
 
     Promise.all([
-      fetchSalesTransactions(250, selectedCustomer.debtorNo),
+      fetchSalesTransactions(1000, selectedCustomer.debtorNo),
       fetchOutstandingSalesOrders(selectedCustomer.debtorNo),
       fetchSalesOrderStatus(selectedCustomer.debtorNo),
     ])
@@ -1744,7 +1981,7 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
     return () => {
       active = false;
     };
-  }, [selectedCustomer]);
+  }, [dataRefreshKey, selectedCustomer]);
 
   const openAction = (actionId: CustomerActionId) => {
     setActiveAction(actionId);
@@ -1810,6 +2047,7 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
       data={data}
       dataLoading={dataLoading}
       openAction={openAction}
+      onRefreshData={() => setDataRefreshKey((current) => current + 1)}
       dateFormat={dateFormat}
     />
   );

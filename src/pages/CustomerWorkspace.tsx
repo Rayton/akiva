@@ -1188,10 +1188,40 @@ function WorkspaceOverview({
 
 function CustomerDetailLine({ label, value, valueClassName = '' }: { label: string; value: ReactNode; valueClassName?: string }) {
   return (
-    <div className="grid min-h-8 grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] gap-5 text-[15px] leading-6 text-black">
-      <div>{label}:</div>
-      <div className={`min-w-0 whitespace-pre-line font-normal ${valueClassName}`}>{value ?? ''}</div>
+    <div className="grid min-h-10 gap-1 border-b border-akiva-border/70 py-2 last:border-b-0 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)] sm:gap-4">
+      <div className="text-xs font-semibold uppercase tracking-normal text-akiva-text-muted">{label}</div>
+      <div className={`min-w-0 whitespace-pre-line text-sm font-semibold leading-5 text-akiva-text ${valueClassName}`}>{value || '-'}</div>
     </div>
+  );
+}
+
+function CustomerDetailsSection({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
+  return (
+    <section className="rounded-lg border border-akiva-border bg-akiva-surface p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-akiva-border bg-akiva-surface-muted text-akiva-accent-text">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <h3 className="text-sm font-semibold text-akiva-text">{title}</h3>
+      </div>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+function CustomerSummaryPill({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex min-h-8 items-center rounded-full border border-akiva-border bg-akiva-surface-raised px-3 text-xs font-semibold text-akiva-text-muted shadow-sm">
+      {children}
+    </span>
+  );
+}
+
+function CustomerContactCell({ children, muted = false }: { children: ReactNode; muted?: boolean }) {
+  return (
+    <td className={`border-b border-akiva-border px-3 py-2 align-top text-sm ${muted ? 'text-akiva-text-muted' : 'font-medium text-akiva-text'}`}>
+      {children || '-'}
+    </td>
   );
 }
 
@@ -1208,69 +1238,108 @@ function CustomerDetailsPage({ customer, dateFormat }: { customer: SalesCustomer
     : '-';
   const salesTypeLabel = customer?.salesTypeName || customer?.salesType || '-';
   const customerTypeLabel = customer?.customerType || customer?.customerTypeId || '-';
+  const addressLines = [
+    ['Address Line 1', addressLine(1)],
+    ['Address Line 2', addressLine(2)],
+    ['Address Line 3', addressLine(3)],
+    ['Address Line 4', addressLine(4)],
+    ['Postal Code', addressLine(5)],
+    ['Country', addressLine(6)],
+  ];
 
   return (
     <ActionPanel actionId="customer-details">
       {!customer ? (
         <EmptyPanel title="No customer selected" detail="Choose a customer to view the master record." />
       ) : (
-        <div className="rounded-sm bg-white px-5 py-5 shadow-md shadow-slate-950/20" style={{ fontFamily: 'Arial, sans-serif' }}>
-          <div className="mx-auto w-fit bg-[#fff0bf] px-3 py-2 text-[16px] leading-6 text-black">
-            Customer Code: {customer.debtorNo}
+        <div className="space-y-3">
+          <section className="rounded-lg border border-akiva-border bg-akiva-surface p-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-normal text-akiva-text-muted">Customer master</p>
+                <h3 className="mt-1 truncate text-xl font-semibold text-akiva-text">{customer.customerName}</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <CustomerSummaryPill>Code {customer.debtorNo}</CustomerSummaryPill>
+                  <CustomerSummaryPill>Branch {customer.branchCode || '-'}</CustomerSummaryPill>
+                  <CustomerSummaryPill>{salesTypeLabel}</CustomerSummaryPill>
+                  <CustomerSummaryPill>{customer.creditStatus || 'Good History'}</CustomerSummaryPill>
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[420px]">
+                <InfoTile label="Phone" value={customer.phone || '-'} />
+                <InfoTile label="Email" value={customer.email || '-'} />
+                <InfoTile label="Terms" value={paymentTermLabel(customer)} />
+                <InfoTile label="Credit limit" value={<span className="akiva-financial-value">{formatMoney(customer.creditLimit ?? 0, customerCurrency(customer))}</span>} />
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <CustomerDetailsSection title="Identity & Address" icon={Building2}>
+              <CustomerDetailLine label="Customer type" value={customerTypeLabel} />
+              <CustomerDetailLine label="Customer since" value={customerSince} />
+              {addressLines.map(([label, value]) => (
+                <CustomerDetailLine key={label} label={label} value={value} />
+              ))}
+            </CustomerDetailsSection>
+
+            <CustomerDetailsSection title="Commercial Terms" icon={CreditCard}>
+              <CustomerDetailLine label="Discount percent" value={formatCustomerPercent(customer.discountPercent)} />
+              <CustomerDetailLine label="Discount code" value={customer.discountCode || '-'} />
+              <CustomerDetailLine label="Payment discount" value={formatCustomerPercent(customer.paymentDiscountPercent)} />
+              <CustomerDetailLine label="Payment terms" value={paymentTermLabel(customer)} />
+              <CustomerDetailLine label="Currency" value={currencyDisplayName(customerCurrency(customer))} />
+              <CustomerDetailLine label="Tax reference" value={customer.taxReference || '-'} />
+            </CustomerDetailsSection>
           </div>
 
-          <div className="mt-4 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-            <section className="bg-[#fff0bf] px-3 py-3">
-              <CustomerDetailLine label="Customer Name" value={customer.customerName} valueClassName="text-center text-[16px] uppercase leading-6" />
-              <CustomerDetailLine label="Address Line 1 (Street)" value={addressLine(1)} />
-              <CustomerDetailLine label="Address Line 2 (Street)" value={addressLine(2)} />
-              <CustomerDetailLine label="Address Line 3 (Suburb/City)" value={addressLine(3)} />
-              <CustomerDetailLine label="Address Line 4 (State/Province)" value={addressLine(4)} />
-              <CustomerDetailLine label="Address Line 5 (Postal Code)" value={addressLine(5)} />
-              <CustomerDetailLine label="Country" value={addressLine(6)} />
-              <CustomerDetailLine label="Sales Type" value={salesTypeLabel} />
-              <CustomerDetailLine label="Customer Type" value={customerTypeLabel} />
-              <CustomerDetailLine label="Customer Since (d/m/Y)" value={customerSince} />
-            </section>
-
-            <section className="bg-[#fff0bf] px-3 py-3">
-              <CustomerDetailLine label="Discount Percent" value={formatCustomerPercent(customer.discountPercent)} />
-              <CustomerDetailLine label="Discount Code" value={customer.discountCode || ''} />
-              <CustomerDetailLine label="Payment Discount Percent" value={formatCustomerPercent(customer.paymentDiscountPercent)} />
-              <CustomerDetailLine label="Credit Limit" value={formatNumber(customer.creditLimit ?? 0)} />
-              <CustomerDetailLine label="Tax Reference" value={customer.taxReference || ''} />
-              <CustomerDetailLine label="Payment Terms" value={paymentTermLabel(customer)} />
-              <CustomerDetailLine label="Credit Status" value={customer.creditStatus || 'Good History'} />
-              <CustomerDetailLine label="Customer Currency" value={currencyDisplayName(customerCurrency(customer))} />
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
+            <CustomerDetailsSection title="Controls" icon={Tag}>
               <CustomerDetailLine label="Language" value={customerLanguageLabel(customer.languageId)} />
-              <CustomerDetailLine label="Require Customer PO Line on SO" value={customer.customerPoLineRequired ? 'Yes' : 'No'} />
-              <CustomerDetailLine label="Invoice Addressing" value={customer.invoiceAddressing || 'Address to HO'} />
-            </section>
-          </div>
+              <CustomerDetailLine label="Customer PO required" value={customer.customerPoLineRequired ? 'Yes' : 'No'} />
+              <CustomerDetailLine label="Invoice addressing" value={customer.invoiceAddressing || 'Address to HO'} />
+              <CustomerDetailLine label="Default location" value={customer.defaultLocation || '-'} />
+              <CustomerDetailLine label="Default shipper" value={customer.defaultShipperId ? String(customer.defaultShipperId) : '-'} />
+            </CustomerDetailsSection>
 
-          <div className="mt-6 overflow-x-auto">
-            <table className="mx-auto border-separate border-spacing-1 text-[15px] text-black">
-              <thead>
-                <tr>
-                  {['Name', 'Role', 'Phone Number', 'Email', 'Notes'].map((heading) => (
-                    <th key={heading} className="bg-[#ffda80] px-1 py-1 text-left font-normal">{heading}</th>
-                  ))}
-                </tr>
-              </thead>
-              {contacts.length > 0 ? (
-                <tbody>
-                  {contacts.map((contact, index) => (
-                    <tr key={`${contact.name}-${contact.email}-${index}`} className={index % 2 === 0 ? 'bg-[#f4ead1]' : 'bg-[#f1ffbe]'}>
-                      <td className="px-1 py-1">{contact.name || '-'}</td>
-                      <td className="px-1 py-1">{contact.role || '-'}</td>
-                      <td className="px-1 py-1">{contact.phone || '-'}</td>
-                      <td className="px-1 py-1">{contact.email || '-'}</td>
-                      <td className="px-1 py-1">{contact.notes || '-'}</td>
+            <section className="overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface">
+              <div className="flex items-center gap-2 border-b border-akiva-border px-4 py-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-akiva-border bg-akiva-surface-muted text-akiva-accent-text">
+                  <Users className="h-3.5 w-3.5" />
+                </span>
+                <h3 className="text-sm font-semibold text-akiva-text">Contacts</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-[680px] w-full border-separate border-spacing-0">
+                  <thead>
+                    <tr className="bg-akiva-table-header text-left text-xs font-semibold uppercase tracking-normal text-akiva-table-header-text">
+                      {['Name', 'Role', 'Phone', 'Email', 'Notes'].map((heading) => (
+                        <th key={heading} className="border-b border-akiva-border px-3 py-2">{heading}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              ) : null}
-            </table>
+                  </thead>
+                  <tbody>
+                    {contacts.length > 0 ? (
+                      contacts.map((contact, index) => (
+                        <tr key={`${contact.name}-${contact.email}-${index}`} className={index % 2 === 0 ? 'bg-akiva-surface' : 'bg-akiva-table-stripe'}>
+                          <CustomerContactCell>{contact.name}</CustomerContactCell>
+                          <CustomerContactCell muted>{contact.role}</CustomerContactCell>
+                          <CustomerContactCell muted>{contact.phone}</CustomerContactCell>
+                          <CustomerContactCell muted>{contact.email}</CustomerContactCell>
+                          <CustomerContactCell muted>{contact.notes}</CustomerContactCell>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-3 py-8 text-center text-sm font-semibold text-akiva-text-muted">
+                          No contacts captured for this customer.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         </div>
       )}

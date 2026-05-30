@@ -47,7 +47,7 @@ interface AppProviderProps {
   children: ReactNode;
 }
 
-const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v6';
+const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v7';
 
 const GUEST_USER: User = {
   id: '',
@@ -118,6 +118,29 @@ function initialPageFromPath(pathname: string): string {
   return routeSlug ? `menu-route-${routeSlug}` : 'dashboard';
 }
 
+function appMenuCacheKey(session: AkivaAuthSession | null): string | null {
+  if (!isAuthSessionValid(session)) return null;
+  return `${APP_MENU_CACHE_KEY}.${session.company.database}.${session.user.id}`;
+}
+
+function readCachedAppMenu(session: AkivaAuthSession | null): MenuCategory[] {
+  if (typeof window === 'undefined') return [];
+
+  const cacheKey = appMenuCacheKey(session);
+  if (!cacheKey) return [];
+
+  const raw = localStorage.getItem(cacheKey);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as MenuCategory[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    localStorage.removeItem(cacheKey);
+    return [];
+  }
+}
+
 export function AppProvider({ children }: AppProviderProps) {
   const [authSession, setAuthSessionState] = useState<AkivaAuthSession | null>(() => getStoredAuthSession());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -130,17 +153,7 @@ export function AppProvider({ children }: AppProviderProps) {
   });
   const [activeSection, setActiveSection] = useState('');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [appMenu, setAppMenu] = useState<MenuCategory[]>(() => {
-    if (typeof window === 'undefined') return [];
-    const raw = localStorage.getItem(APP_MENU_CACHE_KEY);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw) as MenuCategory[];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
+  const [appMenu, setAppMenu] = useState<MenuCategory[]>(() => readCachedAppMenu(getStoredAuthSession()));
   const [menuLoading, setMenuLoading] = useState(false);
   
   // Initialize dark mode from localStorage or system preference
@@ -193,14 +206,20 @@ export function AppProvider({ children }: AppProviderProps) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!Array.isArray(appMenu) || appMenu.length === 0) return;
-    localStorage.setItem(APP_MENU_CACHE_KEY, JSON.stringify(appMenu));
-  }, [appMenu]);
+    const cacheKey = appMenuCacheKey(authSession);
+    if (!cacheKey) return;
+    if (!Array.isArray(appMenu) || appMenu.length === 0) {
+      localStorage.removeItem(cacheKey);
+      return;
+    }
+    localStorage.setItem(cacheKey, JSON.stringify(appMenu));
+  }, [appMenu, authSession]);
 
   useEffect(() => {
     if (!authSession || !isAuthSessionValid(authSession)) {
       clearStoredAuthSession();
       setAuthSessionState(null);
+      setAppMenu([]);
       return;
     }
 
@@ -229,13 +248,19 @@ export function AppProvider({ children }: AppProviderProps) {
 
   const setAuthSession = (session: AkivaAuthSession) => {
     storeAuthSession(session);
+    setAppMenu([]);
     setAuthSessionState(session);
   };
 
   const signOut = async () => {
     const token = authSession?.token ?? '';
+    const cacheKey = appMenuCacheKey(authSession);
+    if (typeof window !== 'undefined' && cacheKey) {
+      localStorage.removeItem(cacheKey);
+    }
     clearStoredAuthSession();
     setAuthSessionState(null);
+    setAppMenu([]);
     if (token) {
       try {
         await signOutFromAkiva(token);

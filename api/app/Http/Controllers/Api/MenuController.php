@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Support\AkivaDatabase;
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class MenuController extends Controller
 {
@@ -11,7 +14,7 @@ class MenuController extends Controller
      * Get all menu items (hierarchical). Uses default DB connection.
      * Returns empty array on failure so the UI can load.
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
             $menuItems = DB::table('menu')
@@ -22,6 +25,7 @@ class MenuController extends Controller
             $menuItems = $this->withLegacyPurchasesMenu($menuItems);
             $menuItems = $this->withPayablesMenu($menuItems);
             $menuItems = $this->withEnterpriseConfigurationMenu($menuItems);
+            $menuItems = $this->filterMenuItemsForUser($menuItems, $request);
 
             $hierarchical = $this->buildTree($menuItems);
 
@@ -43,7 +47,7 @@ class MenuController extends Controller
     /**
      * Get top-level menu items (parent = -1).
      */
-    public function categories()
+    public function categories(Request $request)
     {
         try {
             $items = DB::table('menu')
@@ -53,6 +57,7 @@ class MenuController extends Controller
             $items = $this->withLegacyPurchasesMenu($items);
             $items = $this->withPayablesMenu($items);
             $items = $this->withEnterpriseConfigurationMenu($items);
+            $items = $this->filterMenuItemsForUser($items, $request);
             $categories = collect($items)
                 ->where('parent', -1)
                 ->values()
@@ -74,7 +79,7 @@ class MenuController extends Controller
     /**
      * Get menu items by parent ID.
      */
-    public function byParent($parentId)
+    public function byParent(Request $request, $parentId)
     {
         try {
             $items = DB::table('menu')
@@ -84,6 +89,7 @@ class MenuController extends Controller
             $items = $this->withLegacyPurchasesMenu($items);
             $items = $this->withPayablesMenu($items);
             $items = $this->withEnterpriseConfigurationMenu($items);
+            $items = $this->filterMenuItemsForUser($items, $request);
             $items = collect($items)
                 ->where('parent', (int) $parentId)
                 ->values()
@@ -110,6 +116,80 @@ class MenuController extends Controller
         }
 
         return $this->buildNode($grouped, -1);
+    }
+
+    private function filterMenuItemsForUser(array $items, Request $request): array
+    {
+        $userId = $this->userIdFromRequest($request);
+        if ($userId === '' || !Schema::hasTable('usermenurights')) {
+            return $items;
+        }
+
+        $allowedMenuIds = DB::table('usermenurights')
+            ->whereRaw('LOWER(userid) = ?', [strtolower($userId)])
+            ->where('access', 1)
+            ->pluck('menuid')
+            ->map(fn ($menuId) => (int) $menuId)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (count($allowedMenuIds) === 0) {
+            return [];
+        }
+
+        $parentsById = [];
+        foreach ($items as $item) {
+            $parentsById[(int) $item->id] = (int) $item->parent;
+        }
+
+        $visibleIds = [];
+        foreach ($allowedMenuIds as $menuId) {
+            if (!array_key_exists($menuId, $parentsById)) {
+                continue;
+            }
+
+            $currentId = $menuId;
+            while ($currentId !== -1 && array_key_exists($currentId, $parentsById)) {
+                $visibleIds[$currentId] = true;
+                $currentId = $parentsById[$currentId];
+            }
+        }
+
+        return array_values(array_filter($items, function ($item) use ($visibleIds) {
+            return isset($visibleIds[(int) $item->id]);
+        }));
+    }
+
+    private function userIdFromRequest(Request $request): string
+    {
+        $headerUserId = trim((string) $request->header('X-User-Id', ''));
+        if ($headerUserId !== '') {
+            return $headerUserId;
+        }
+
+        $token = $this->bearerToken($request);
+        if ($token === '' || !Schema::connection(AkivaDatabase::controlConnectionName())->hasTable('akiva_auth_sessions')) {
+            return '';
+        }
+
+        $userId = AkivaDatabase::controlConnection()
+            ->table('akiva_auth_sessions')
+            ->where('token_hash', hash('sha256', $token))
+            ->where('expires_at', '>', now())
+            ->value('user_id');
+
+        return trim((string) $userId);
+    }
+
+    private function bearerToken(Request $request): string
+    {
+        $header = trim((string) $request->header('Authorization', ''));
+        if (preg_match('/^Bearer\s+(.+)$/i', $header, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return trim((string) $request->header('X-Akiva-Auth', ''));
     }
 
     private function withLegacyPurchasesMenu(array $items): array

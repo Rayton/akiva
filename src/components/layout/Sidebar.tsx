@@ -631,6 +631,7 @@ function Sidebar() {
   );
   const routeIndex = React.useMemo(() => buildMenuRouteIndex(mainMenus), [mainMenus]);
   const mainMenuPageId = (id: number) => 'main-' + id;
+  const menuScopeKey = `${authSession?.company.database ?? ''}:${authSession?.user.id ?? ''}:${authSession?.token ?? ''}`;
 
   useEffect(() => {
     latestMainSidebarWidthRef.current = mainSidebarWidth;
@@ -639,25 +640,29 @@ function Sidebar() {
   useEffect(() => {
     latestIconSidebarWidthRef.current = iconSidebarWidth;
   }, [iconSidebarWidth]);
+
+  useEffect(() => {
+    menuFetchAttemptedRef.current = false;
+    routeBootstrapDoneRef.current = false;
+    setExpandedSubItems([]);
+  }, [menuScopeKey]);
   
   // Fetch main menus (parent = -1) and full tree from menus table
   useEffect(() => {
     const loadMenu = async () => {
-      if (menuFetchAttemptedRef.current || menuLoading) return;
+      if (!authSession?.token || menuFetchAttemptedRef.current || menuLoading) return;
 
       menuFetchAttemptedRef.current = true;
       setMenuLoading(true);
       try {
         const menu = await fetchMenu();
-        if (menu.length > 0 || appMenu.length === 0) {
-          setAppMenu(menu);
-        }
+        setAppMenu(menu);
       } finally {
         setMenuLoading(false);
       }
     };
     loadMenu();
-  }, [appMenu.length, menuLoading, setAppMenu, setMenuLoading]);
+  }, [authSession?.token, menuLoading, setAppMenu, setMenuLoading]);
 
   const resolvePageIdFromPath = useCallback(
     (pathname: string): string | null => {

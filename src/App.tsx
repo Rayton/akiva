@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import { Menu as HeadlessMenu, Transition } from '@headlessui/react';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { Header } from './components/layout/Header';
 import { OfflineStatusBar } from './components/layout/OfflineStatusBar';
@@ -80,6 +81,7 @@ import {
   FileText,
   FolderOpen,
   Home,
+  LibraryBig,
   LogOut,
   MapPin,
   Menu,
@@ -91,13 +93,17 @@ import {
   Star,
   Tags,
   Truck,
+  UserCircle,
+  Users,
   X,
   type LucideIcon,
 } from 'lucide-react';
 import { hrefToSlug } from './data/menuApi';
 import { menuDisplayCaption } from './data/menuPresentation';
+import { DIRECTORY_LINKS, type DirectoryLink } from './lib/directoryLinks';
 import { NAVIGATION_EVENT, navigateToPath } from './lib/navigation';
 import type { SalesModuleMode } from './pages/SalesOrders';
+import type { User } from './types';
 import type { MenuCategory, MenuItem } from './types/menu';
 
 function normalizeMenuSlug(pageId: string): string {
@@ -1109,8 +1115,49 @@ function userInitials(name: string): string {
   return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'A';
 }
 
+const directoryLinkIcons: Record<DirectoryLink['id'], LucideIcon> = {
+  customers: Users,
+  items: Package,
+  suppliers: Truck,
+};
+
+function ProfilePage({ user }: { user: User }) {
+  const profileRows = [
+    { label: 'Name', value: user.name },
+    { label: 'Email', value: user.email || '-' },
+    { label: 'Role', value: user.role || '-' },
+    { label: 'Company', value: user.companyName || user.companyDatabase || '-' },
+  ];
+
+  return (
+    <div className="min-h-full bg-akiva-bg px-3 py-3 text-akiva-text sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+      <section className="akiva-frame mx-auto max-w-4xl overflow-hidden rounded-[28px]">
+        <div className="border-b border-akiva-border px-5 py-5 sm:px-7">
+          <div className="flex items-center gap-4">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-akiva-accent text-base font-semibold text-white">
+              {userInitials(user.name)}
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-semibold text-akiva-text">{user.name}</h1>
+              <p className="mt-1 truncate text-sm text-akiva-text-muted">{user.companyName || user.role}</p>
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-7">
+          {profileRows.map((row) => (
+            <div key={row.label} className="rounded-lg border border-akiva-border bg-akiva-surface-raised px-4 py-3">
+              <p className="text-xs font-semibold uppercase text-akiva-text-muted">{row.label}</p>
+              <p className="mt-1 truncate text-sm font-semibold text-akiva-text">{row.value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function AppContent() {
-  const { currentPage, setCurrentPage, mobileSidebarOpen, appMenu, isAuthenticated } = useApp();
+  const { currentPage, setCurrentPage, mobileSidebarOpen, appMenu, isAuthenticated, currentUser } = useApp();
   const [locationPathname, setLocationPathname] = useState(() => window.location.pathname);
 
   useEffect(() => {
@@ -1125,6 +1172,10 @@ function AppContent() {
 
   const renderCurrentPage = () => {
     const normalizedPath = locationPathname.replace(/\/+$/, '').toLowerCase();
+
+    if (normalizedPath === '/profile' || currentPage === 'profile') {
+      return <ProfilePage user={currentUser} />;
+    }
 
     if (normalizedPath === '/inventory') {
       return <Inventory />;
@@ -2144,14 +2195,24 @@ function AppContent() {
 }
 
 function MobileHeader() {
-  const { currentUser, isDarkMode, toggleDarkMode, setMobileSidebarOpen, signOut } = useApp();
+  const { currentUser, isDarkMode, toggleDarkMode, setMobileSidebarOpen, signOut, setCurrentPage } = useApp();
 
   const handleSignOut = () => {
     void signOut().finally(() => navigateToPath('/login'));
   };
+
+  const openProfile = () => {
+    setCurrentPage('profile');
+    navigateToPath('/profile');
+  };
+
+  const openDirectoryLink = (link: DirectoryLink) => {
+    setCurrentPage(link.pageId);
+    navigateToPath(link.path);
+  };
   
   return (
-    <header className="flex-shrink-0 border-b border-akiva-border bg-akiva-surface/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+    <header className="relative z-[80] flex-shrink-0 border-b border-akiva-border bg-akiva-surface/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
       <div className="flex items-center justify-between">
         {/* Left: Menu button and Logo */}
         <div className="flex items-center space-x-3">
@@ -2193,18 +2254,107 @@ function MobileHeader() {
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
           
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-akiva-accent text-xs font-semibold text-white shadow-sm shadow-violet-950/10 dark:bg-akiva-accent">
-            {userInitials(currentUser.name)}
-          </span>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            aria-label="Sign out"
-            title="Sign out"
-            className="rounded-full bg-white/78 p-2 text-slate-600 shadow-sm shadow-slate-200/60 hover:bg-white dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800"
-          >
-            <LogOut className="h-5 w-5" />
-          </button>
+          <HeadlessMenu as="div" className="relative">
+            <HeadlessMenu.Button
+              aria-label="Open user menu"
+              title="Open user menu"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-akiva-accent text-xs font-semibold text-white shadow-sm shadow-violet-950/10 transition hover:bg-akiva-accent-strong focus:outline-none focus:ring-2 focus:ring-akiva-accent dark:bg-akiva-accent"
+            >
+              {userInitials(currentUser.name)}
+            </HeadlessMenu.Button>
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-100"
+              enterFrom="scale-95 opacity-0"
+              enterTo="scale-100 opacity-100"
+              leave="transition ease-in duration-75"
+              leaveFrom="scale-100 opacity-100"
+              leaveTo="scale-95 opacity-0"
+            >
+              <HeadlessMenu.Items className="absolute right-0 z-[120] mt-2 w-56 origin-top-right overflow-hidden rounded-lg border border-akiva-border bg-akiva-surface-raised text-akiva-text shadow-lg focus:outline-none">
+                <div className="border-b border-akiva-border px-4 py-3">
+                  <p className="truncate text-sm font-semibold">{currentUser.name}</p>
+                  <p className="truncate text-xs text-akiva-text-muted">{currentUser.email || currentUser.role}</p>
+                </div>
+                <div className="p-1">
+                  <HeadlessMenu.Item>
+                    {({ active }) => (
+                      <button
+                        type="button"
+                        onClick={openProfile}
+                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                          active ? 'bg-akiva-accent-soft text-akiva-text' : 'text-akiva-text'
+                        }`}
+                      >
+                        <UserCircle className="h-4 w-4" />
+                        Profile
+                      </button>
+                    )}
+                  </HeadlessMenu.Item>
+                  <HeadlessMenu.Item>
+                    {({ active }) => (
+                      <button
+                        type="button"
+                        onClick={handleSignOut}
+                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                          active ? 'bg-akiva-accent-soft text-akiva-text' : 'text-akiva-text'
+                        }`}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Logout
+                      </button>
+                    )}
+                  </HeadlessMenu.Item>
+                </div>
+              </HeadlessMenu.Items>
+            </Transition>
+          </HeadlessMenu>
+
+          <HeadlessMenu as="div" className="relative">
+            <HeadlessMenu.Button
+              type="button"
+              aria-label="Open directory links"
+              title="Open directory links"
+              className="rounded-full bg-white/78 p-2 text-slate-600 shadow-sm shadow-slate-200/60 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-akiva-accent dark:bg-slate-900/80 dark:text-slate-300 dark:shadow-black/20 dark:hover:bg-slate-800"
+            >
+              <LibraryBig className="h-5 w-5" />
+            </HeadlessMenu.Button>
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-100"
+              enterFrom="scale-95 opacity-0"
+              enterTo="scale-100 opacity-100"
+              leave="transition ease-in duration-75"
+              leaveFrom="scale-100 opacity-100"
+              leaveTo="scale-95 opacity-0"
+            >
+              <HeadlessMenu.Items className="absolute right-0 z-[120] mt-2 w-72 origin-top-right rounded-lg border border-akiva-border bg-akiva-surface-raised p-2 shadow-lg focus:outline-none">
+                <div className="grid grid-cols-3 gap-2">
+                  {DIRECTORY_LINKS.map((link) => {
+                    const Icon = directoryLinkIcons[link.id];
+                    return (
+                      <HeadlessMenu.Item key={link.id}>
+                        {({ active }) => (
+                          <button
+                            type="button"
+                            onClick={() => openDirectoryLink(link)}
+                            className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg border px-1 text-xs font-semibold transition ${
+                              active
+                                ? 'border-akiva-accent bg-akiva-accent-soft text-akiva-text'
+                                : 'border-akiva-border bg-akiva-surface text-akiva-text'
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span className="truncate">{link.label}</span>
+                          </button>
+                        )}
+                      </HeadlessMenu.Item>
+                    );
+                  })}
+                </div>
+              </HeadlessMenu.Items>
+            </Transition>
+          </HeadlessMenu>
         </div>
       </div>
     </header>
@@ -2353,7 +2503,7 @@ function MobileSidebarOverlay() {
   if (!mobileSidebarOpen) return null;
   
   return (
-    <div className="fixed inset-0 z-50 lg:hidden">
+    <div className="fixed inset-0 z-[140] lg:hidden">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/50 transition-opacity"

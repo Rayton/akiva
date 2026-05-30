@@ -313,6 +313,12 @@ class SalesController extends Controller
                     'dm.name as customer_name',
                     'cb.branchcode',
                     'cb.brname',
+                    'cb.braddress1',
+                    'cb.braddress2',
+                    'cb.braddress3',
+                    'cb.braddress4',
+                    'cb.braddress5',
+                    'cb.braddress6',
                     'cb.phoneno',
                     'cb.email',
                     'dm.salestype',
@@ -330,7 +336,15 @@ class SalesController extends Controller
                         ->where('dm.debtorno', 'like', $like)
                         ->orWhere('dm.name', 'like', $like)
                         ->orWhere('cb.branchcode', 'like', $like)
-                        ->orWhere('cb.brname', 'like', $like);
+                        ->orWhere('cb.brname', 'like', $like)
+                        ->orWhere('cb.phoneno', 'like', $like)
+                        ->orWhere('cb.email', 'like', $like)
+                        ->orWhere('cb.braddress1', 'like', $like)
+                        ->orWhere('cb.braddress2', 'like', $like)
+                        ->orWhere('cb.braddress3', 'like', $like)
+                        ->orWhere('cb.braddress4', 'like', $like)
+                        ->orWhere('cb.braddress5', 'like', $like)
+                        ->orWhere('cb.braddress6', 'like', $like);
                 });
             }
 
@@ -339,6 +353,15 @@ class SalesController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $rows->map(function ($row) {
+                    $address = collect([
+                        $row->braddress1 ?? '',
+                        $row->braddress2 ?? '',
+                        $row->braddress3 ?? '',
+                        $row->braddress4 ?? '',
+                        $row->braddress5 ?? '',
+                        $row->braddress6 ?? '',
+                    ])->map(fn ($part) => trim((string) $part))->filter()->implode(', ');
+
                     return [
                         'debtorNo' => (string) $row->debtorno,
                         'customerName' => (string) $row->customer_name,
@@ -346,6 +369,7 @@ class SalesController extends Controller
                         'branchName' => (string) ($row->brname ?? ''),
                         'phone' => (string) ($row->phoneno ?? ''),
                         'email' => (string) ($row->email ?? ''),
+                        'address' => $address,
                         'salesType' => (string) ($row->salestype ?? ''),
                         'paymentTerms' => (string) ($row->paymentterms ?? ''),
                         'defaultLocation' => (string) ($row->defaultlocation ?? ''),

@@ -501,77 +501,80 @@ export function AdvancedTable<T>({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowColumnsPanel((previous) => !previous)}
-            aria-expanded={showColumnsPanel}
-            aria-controls={`${tableId}-columns-panel`}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
-          >
-            <Columns3 className="h-3.5 w-3.5" />
-            Columns
-          </button>
-          {enableDensityToggle ? (
-            <div
-              role="group"
-              aria-label="Table row density"
-              className="inline-flex min-h-9 items-center gap-1 rounded-md border border-akiva-border bg-akiva-surface-raised p-1 text-xs font-semibold shadow-sm"
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowColumnsPanel((previous) => !previous)}
+              aria-expanded={showColumnsPanel}
+              aria-controls={`${tableId}-columns-panel`}
+              className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
             >
-              <Rows3 className="ml-1 h-3.5 w-3.5 text-akiva-text-muted" aria-hidden="true" />
-              {DENSITY_OPTIONS.map((option) => {
-                const active = activeDensity === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setActiveDensity(option.value)}
-                    aria-pressed={active}
-                    className={`min-h-7 rounded px-2 text-xs font-semibold ${
-                      active
-                        ? 'bg-akiva-surface-muted text-akiva-text shadow-sm'
-                        : 'text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-          {enableSavedViews ? (
-            <>
-              <button
-                type="button"
-                onClick={saveCurrentView}
-                title="Save current table view"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
+              <Columns3 className="h-3.5 w-3.5" />
+              Columns
+            </button>
+            {enableDensityToggle ? (
+              <div
+                role="group"
+                aria-label="Table row density"
+                className="inline-flex min-h-8 items-center gap-1 rounded-md border border-akiva-border bg-akiva-surface-raised p-0.5 text-xs font-semibold shadow-sm"
               >
-                <Save className="h-3.5 w-3.5" />
-                Save view
-              </button>
-              {savedViews.length > 0 ? (
-                <SearchableSelect
-                  value=""
-                  onChange={applySavedView}
-                  options={[{ value: '', label: 'Saved views' }, ...savedViews.map((view) => ({ value: view.name, label: view.name }))]}
-                  className="w-36"
-                  inputClassName="h-9 rounded-md py-1 pl-2 pr-7 text-xs font-semibold"
-                  panelClassName="max-h-48"
-                  placeholder="Saved views"
-                />
-              ) : null}
-            </>
-          ) : null}
+                <Rows3 className="ml-1 h-3.5 w-3.5 text-akiva-text-muted" aria-hidden="true" />
+                {DENSITY_OPTIONS.map((option) => {
+                  const active = activeDensity === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setActiveDensity(option.value)}
+                      aria-pressed={active}
+                      className={`min-h-6 rounded px-2 text-xs font-semibold ${
+                        active
+                          ? 'bg-akiva-surface-muted text-akiva-text shadow-sm'
+                          : 'text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            {enableSavedViews ? (
+              <>
+                <button
+                  type="button"
+                  onClick={saveCurrentView}
+                  title="Save current table view"
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  Save view
+                </button>
+                {savedViews.length > 0 ? (
+                  <SearchableSelect
+                    value=""
+                    onChange={applySavedView}
+                    options={[{ value: '', label: 'Saved views' }, ...savedViews.map((view) => ({ value: view.name, label: view.name }))]}
+                    className="w-36"
+                    inputClassName="h-8 rounded-md py-1 pl-2 pr-7 text-xs font-semibold"
+                    panelClassName="max-h-48"
+                    placeholder="Saved views"
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </div>
+
           {showExports ? (
-            <>
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5 xl:justify-end">
               <button
                 type="button"
                 onClick={onExportExcel}
                 aria-label={`Export ${ariaLabel ?? tableId} to Excel`}
                 title="Export to Excel"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
+                className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 Excel
@@ -581,30 +584,30 @@ export function AdvancedTable<T>({
                 onClick={onExportPdf}
                 aria-label={`Export ${ariaLabel ?? tableId} to PDF`}
                 title="Export to PDF"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1.5 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
+                className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface-raised px-2.5 py-1 text-xs font-semibold text-akiva-text-muted shadow-sm hover:bg-akiva-surface-muted hover:text-akiva-text"
               >
                 <FileText className="h-3.5 w-3.5" />
                 PDF
               </button>
-            </>
+            </div>
           ) : null}
         </div>
 
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-2.5 py-2 sm:flex-row sm:items-center sm:justify-between">
           {showSearch ? (
-            <div className="relative w-full sm:w-72">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+            <div className="relative w-full sm:max-w-md sm:flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-akiva-text-muted" />
               <input
                 value={activeSearch}
                 onChange={(event) => updateSearch(event.target.value)}
                 placeholder={searchPlaceholder}
                 aria-label={`Search ${ariaLabel ?? tableId}`}
-                className="h-9 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised pl-9 pr-3 text-sm text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                className="h-8 w-full rounded-md border border-akiva-border bg-akiva-surface-raised pl-8 pr-3 text-xs font-medium text-akiva-text shadow-sm placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
               />
             </div>
           ) : null}
 
-          <div className="flex items-center gap-2 whitespace-nowrap text-xs text-akiva-text-muted">
+          <div className="flex items-center gap-2 whitespace-nowrap text-xs font-medium text-akiva-text-muted sm:justify-end">
             <span aria-live="polite">
               Showing {rangeStart} to {rangeEnd} of {sortedRows.length} items
             </span>

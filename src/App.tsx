@@ -9,6 +9,7 @@ import { LoginPage } from './pages/Login';
 import { ChartOfAccounts } from './pages/ChartOfAccounts';
 import { GeneralLedger } from './pages/GeneralLedger';
 import { AccountsReceivable } from './pages/AccountsReceivable';
+import { CustomerWorkspace, CustomerWorkspaceModal } from './pages/CustomerWorkspace';
 import { AccountsPayable } from './pages/AccountsPayable';
 import { AssetManager } from './pages/AssetManager';
 import { PettyCash } from './pages/PettyCash';
@@ -101,6 +102,7 @@ import {
 import { hrefToSlug } from './data/menuApi';
 import { menuDisplayCaption } from './data/menuPresentation';
 import { DIRECTORY_LINKS, type DirectoryLink } from './lib/directoryLinks';
+import { openCustomerWorkspaceModal } from './lib/customerWorkspaceModal';
 import { NAVIGATION_EVENT, navigateToPath } from './lib/navigation';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { User } from './types';
@@ -1177,6 +1179,10 @@ function AppContent() {
       return <ProfilePage user={currentUser} />;
     }
 
+    if (normalizedPath === '/receivables/customers' || normalizedPath.startsWith('/receivables/customers/')) {
+      return <CustomerWorkspace />;
+    }
+
     if (normalizedPath === '/inventory') {
       return <Inventory />;
     }
@@ -2190,6 +2196,7 @@ function AppContent() {
       
       {/* Mobile Sidebar Overlay */}
       {mobileSidebarOpen && <MobileSidebarOverlay />}
+      <CustomerWorkspaceModal />
     </div>
   );
 }
@@ -2207,6 +2214,11 @@ function MobileHeader() {
   };
 
   const openDirectoryLink = (link: DirectoryLink) => {
+    if (link.id === 'customers') {
+      openCustomerWorkspaceModal();
+      return;
+    }
+
     setCurrentPage(link.pageId);
     navigateToPath(link.path);
   };

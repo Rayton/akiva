@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { DateRangePicker, getDefaultDateRange } from '../common/DateRangePicker';
+import { openCustomerWorkspaceModal } from '../../lib/customerWorkspaceModal';
 import { navigateToPath } from '../../lib/navigation';
 import { DIRECTORY_LINKS, type DirectoryLink } from '../../lib/directoryLinks';
 
@@ -70,6 +71,11 @@ export function Header() {
   };
 
   const openDirectoryLink = (link: DirectoryLink) => {
+    if (link.id === 'customers') {
+      openCustomerWorkspaceModal();
+      return;
+    }
+
     setCurrentPage(link.pageId);
     navigateToPath(link.path);
   };

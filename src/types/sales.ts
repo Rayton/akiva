@@ -171,6 +171,7 @@ export interface SalesCustomer {
   branchName: string;
   phone: string;
   email: string;
+  address?: string;
   salesType: string;
   paymentTerms: string;
   defaultLocation: string;

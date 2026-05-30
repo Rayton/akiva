@@ -9,9 +9,10 @@ interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  bodyClassName?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, footer, size = 'md', bodyClassName }: ModalProps) {
   const MOBILE_BREAKPOINT = 900;
   const HEADER_HEIGHT = 56;
   const MIN_WIDTH = 320;
@@ -232,7 +233,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-[220]" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -305,7 +306,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
                   </div>
                   {!isMinimized ? (
                     <>
-                      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">{children}</div>
+                      <div className={bodyClassName ?? 'flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6'}>{children}</div>
                       {footer ? (
                         <div className="border-t border-akiva-border bg-akiva-surface-muted px-4 py-3 sm:px-6 sm:py-4">
                           <div className="flex flex-col-reverse gap-2 md:flex-row md:justify-end [&_button]:w-full md:[&_button]:w-auto">{footer}</div>

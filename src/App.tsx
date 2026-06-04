@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Menu as HeadlessMenu, Transition } from '@headlessui/react';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { Header } from './components/layout/Header';
@@ -103,6 +103,7 @@ import { hrefToSlug } from './data/menuApi';
 import { menuDisplayCaption } from './data/menuPresentation';
 import { DIRECTORY_LINKS, type DirectoryLink } from './lib/directoryLinks';
 import { openCustomerWorkspaceModal } from './lib/customerWorkspaceModal';
+import { canOpenCustomerWorkspace } from './lib/customerWorkspaceAccess';
 import { NAVIGATION_EVENT, navigateToPath } from './lib/navigation';
 import type { SalesModuleMode } from './pages/SalesOrders';
 import type { User } from './types';
@@ -2202,7 +2203,11 @@ function AppContent() {
 }
 
 function MobileHeader() {
-  const { currentUser, isDarkMode, toggleDarkMode, setMobileSidebarOpen, signOut, setCurrentPage } = useApp();
+  const { currentUser, isDarkMode, toggleDarkMode, setMobileSidebarOpen, signOut, setCurrentPage, appMenu } = useApp();
+  const visibleDirectoryLinks = useMemo(
+    () => DIRECTORY_LINKS.filter((link) => link.id !== 'customers' || canOpenCustomerWorkspace(appMenu)),
+    [appMenu]
+  );
 
   const handleSignOut = () => {
     void signOut().finally(() => navigateToPath('/login'));
@@ -2342,7 +2347,7 @@ function MobileHeader() {
             >
               <HeadlessMenu.Items className="absolute right-0 z-[120] mt-2 w-72 origin-top-right rounded-lg border border-akiva-border bg-akiva-surface-raised p-2 shadow-lg focus:outline-none">
                 <div className="grid grid-cols-3 gap-2">
-                  {DIRECTORY_LINKS.map((link) => {
+                  {visibleDirectoryLinks.map((link) => {
                     const Icon = directoryLinkIcons[link.id];
                     return (
                       <HeadlessMenu.Item key={link.id}>

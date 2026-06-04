@@ -43,8 +43,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
-import { DateRangePicker, getDefaultDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
+import { DateRangePicker, getDefaultDateRange, getPresetDateRange, type DateRangeValue } from '../components/common/DateRangePicker';
 import { Modal } from '../components/ui/Modal';
+import { useApp } from '../contexts/AppContext';
 import {
   fetchOutstandingSalesOrders,
   fetchSalesCustomers,
@@ -53,6 +54,7 @@ import {
   fetchSalesTransactions,
 } from '../data/salesApi';
 import { formatDateWithSystemFormat, useSystemDateFormat } from '../lib/dateFormat';
+import { getCustomerWorkspaceAccess } from '../lib/customerWorkspaceAccess';
 import { CUSTOMER_WORKSPACE_MODAL_EVENT } from '../lib/customerWorkspaceModal';
 import { NAVIGATION_EVENT, navigateToPath } from '../lib/navigation';
 import type {
@@ -106,129 +108,130 @@ interface CustomerWorkspaceData {
 }
 
 const CUSTOMER_BASE_PATH = '/receivables/customers';
+const CUSTOMER_WORKSPACE_SELECTED_CUSTOMER_KEY = 'akiva.customerWorkspace.selectedCustomer';
 
 const CUSTOMER_ACTION_GROUPS: CustomerActionGroup[] = [
   {
-    title: 'Customer Inquiries',
+    title: 'Review',
     icon: FileSearch,
     actions: [
       {
         id: 'transaction-inquiries',
-        label: 'Customer Transaction Inquiries',
-        detail: 'Invoices, receipts, credit notes, and settlement status.',
+        label: 'Transactions',
+        detail: 'Invoices, receipts, credits, and settlement status.',
         icon: ReceiptText,
       },
       {
         id: 'account-statement',
-        label: 'Account Statement On Screen',
-        detail: 'Running statement view for the selected customer.',
+        label: 'Statement',
+        detail: 'Outstanding balance, aging, and printable account statement.',
         icon: FileText,
       },
       {
         id: 'customer-details',
-        label: 'View Customer Details',
-        detail: 'Master record, branch, contact, and default sales setup.',
+        label: 'Customer Profile',
+        detail: 'Master record, contacts, terms, and branch defaults.',
         icon: Building2,
       },
       {
         id: 'print-statement',
-        label: 'Print Customer Statement',
-        detail: 'Prepare a statement print run for the selected account.',
+        label: 'Print Statement',
+        detail: 'Generate a printable customer statement.',
         icon: Printer,
       },
       {
         id: 'email-statement',
-        label: 'Email Customer Statement',
-        detail: 'Send a customer statement to the current contact address.',
+        label: 'Send Statement',
+        detail: 'Prepare an email with the customer statement details.',
         icon: Send,
       },
       {
         id: 'order-inquiries',
-        label: 'Order Inquiries',
-        detail: 'Sales order progress and fulfillment status.',
+        label: 'Orders',
+        detail: 'Sales order progress, value, and fulfillment status.',
         icon: ClipboardList,
       },
       {
         id: 'customer-purchases',
-        label: 'Show Purchases From This Customer',
-        detail: 'Recent invoice and order value for the selected customer.',
+        label: 'Sales History',
+        detail: 'Invoice totals, order value, and recent customer activity.',
         icon: ShoppingCart,
       },
     ],
   },
   {
-    title: 'Customer Transactions',
+    title: 'Work',
     icon: CircleDollarSign,
     actions: [
       {
         id: 'outstanding-sales-orders',
-        label: 'Modify Outstanding Sales Orders',
+        label: 'Open Orders',
         detail: 'Review open quantities, delivery dates, and order value.',
         icon: PackageOpen,
       },
       {
         id: 'allocate-receipts',
-        label: 'Allocate Receipts Or Credit Notes',
+        label: 'Allocate Payments',
         detail: 'Find unsettled receipts and credits for allocation.',
         icon: CreditCard,
       },
       {
         id: 'counter-sale',
-        label: 'Create A Counter Sale',
+        label: 'Counter Sale',
         detail: 'Start a counter sale with the selected customer loaded.',
         icon: Banknote,
       },
     ],
   },
   {
-    title: 'Customer Maintenance',
+    title: 'Manage',
     icon: Wrench,
     actions: [
       {
         id: 'add-customer',
-        label: 'Add A New Customer',
+        label: 'New Customer',
         detail: 'Capture a new debtor account and first branch.',
         icon: Plus,
       },
       {
         id: 'modify-customer',
-        label: 'Modify Customer Details',
+        label: 'Edit Customer',
         detail: 'Update customer defaults, contact fields, and terms.',
         icon: PenLine,
       },
       {
         id: 'customer-branches',
-        label: 'Add/Edit/Delete Customer Branches',
+        label: 'Branches',
         detail: 'Maintain branch details and delivery defaults.',
         icon: GitBranch,
       },
       {
         id: 'special-prices',
-        label: 'Special Customer Prices',
+        label: 'Special Prices',
         detail: 'Manage account-specific pricing rules.',
         icon: Tag,
       },
       {
         id: 'edi-configuration',
-        label: 'Customer EDI Configuration',
+        label: 'EDI Settings',
         detail: 'Maintain document exchange settings.',
         icon: FileText,
       },
       {
         id: 'login-configuration',
-        label: 'Customer Login Configuration',
+        label: 'Portal Access',
         detail: 'Configure portal login state and access level.',
         icon: KeyRound,
       },
       {
         id: 'add-contact',
-        label: 'Add A Customer Contact',
+        label: 'New Contact',
         detail: 'Record a new contact for the selected customer.',
         icon: UserPlus,
       },
       {
         id: 'add-note',
-        label: 'Add A Note On This Customer',
+        label: 'New Note',
         detail: 'Capture follow-up notes against this account.',
         icon: MessageSquare,
       },
@@ -243,7 +246,7 @@ const CUSTOMER_ACTION_LOOKUP = new Map<CustomerActionId, CustomerAction>([
     {
       id: 'workspace',
       label: 'Customer Workspace',
-      detail: 'Customer identity, account position, and sales trend.',
+      detail: 'Customer identity, account position, sales trend, and quick actions.',
       icon: Users,
     },
   ],
@@ -252,6 +255,10 @@ const CUSTOMER_ACTION_LOOKUP = new Map<CustomerActionId, CustomerAction>([
 
 function actionPath(actionId: CustomerActionId): string {
   return actionId === 'workspace' ? CUSTOMER_BASE_PATH : `${CUSTOMER_BASE_PATH}/${actionId}`;
+}
+
+function actionPageId(actionId: CustomerActionId): string {
+  return actionId === 'workspace' ? 'menu-route-customers' : `menu-route-${actionId}`;
 }
 
 function actionFromPath(pathname: string): CustomerActionId {
@@ -264,6 +271,40 @@ function actionFromPath(pathname: string): CustomerActionId {
 
 function customerKey(customer: SalesCustomer): string {
   return `${customer.debtorNo}::${customer.branchCode}`;
+}
+
+function isStoredCustomer(value: unknown): value is SalesCustomer {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<SalesCustomer>;
+  return typeof candidate.debtorNo === 'string' && candidate.debtorNo.trim() !== '' && typeof candidate.customerName === 'string';
+}
+
+function readStoredSelectedCustomer(): SalesCustomer | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(CUSTOMER_WORKSPACE_SELECTED_CUSTOMER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return isStoredCustomer(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSelectedCustomer(customer: SalesCustomer | null): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (!customer) {
+      window.localStorage.removeItem(CUSTOMER_WORKSPACE_SELECTED_CUSTOMER_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(CUSTOMER_WORKSPACE_SELECTED_CUSTOMER_KEY, JSON.stringify(customer));
+  } catch {
+    // Ignore storage failures so customer lookup remains usable in private or locked-down browsers.
+  }
 }
 
 function formatNumber(value: number, maximumFractionDigits = 0): string {
@@ -320,6 +361,24 @@ function extractIsoDate(value: string | null | undefined): string {
   if (match) return match[0];
   const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? raw : localIsoDate(parsed);
+}
+
+function dateFromIsoDate(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year || new Date().getFullYear(), (month || 1) - 1, day || 1);
+}
+
+function latestTransactionDate(transactions: SalesTransaction[]): string {
+  return transactions
+    .map((row) => extractIsoDate(row.transactionDate))
+    .filter(Boolean)
+    .sort()
+    .at(-1) ?? '';
+}
+
+function defaultTransactionDateRange(transactions: SalesTransaction[]): DateRangeValue {
+  const latestDate = latestTransactionDate(transactions);
+  return latestDate ? getPresetDateRange('last-3-months', dateFromIsoDate(latestDate)) : getDefaultDateRange();
 }
 
 function formatDisplayDate(value: string | null | undefined, dateFormat: string): string {
@@ -656,15 +715,25 @@ function ActionNavigation({
   onOpenAction,
   menuSide,
   onMenuSideChange,
+  canOpenOverview,
+  allowedActionIds,
 }: {
   activeAction: CustomerActionId;
   onOpenAction: (actionId: CustomerActionId) => void;
   menuSide: CustomerMenuSide;
   onMenuSideChange: (side: CustomerMenuSide) => void;
+  canOpenOverview: boolean;
+  allowedActionIds: Set<CustomerActionId>;
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(CUSTOMER_ACTION_GROUPS.map((group) => [group.title, true]))
   );
+  const visibleGroups = CUSTOMER_ACTION_GROUPS
+    .map((group) => ({
+      ...group,
+      actions: group.actions.filter((action) => allowedActionIds.has(action.id)),
+    }))
+    .filter((group) => group.actions.length > 0);
 
   const toggleGroup = (groupTitle: string) => {
     setExpandedGroups((current) => ({
@@ -720,35 +789,37 @@ function ActionNavigation({
       </div>
 
       <nav className="scrollbar-hover min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
-        <a
-          href={CUSTOMER_BASE_PATH}
-          onClick={(event) => {
-            event.preventDefault();
-            onOpenAction('workspace');
-          }}
-          className={`group relative flex min-h-9 items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-semibold transition ${
-            activeAction === 'workspace'
-              ? 'bg-akiva-accent-soft text-akiva-accent-text'
-              : 'text-akiva-text hover:bg-white/70 dark:hover:bg-slate-800'
-          }`}
-        >
-          <span
-            className={`absolute inset-y-2 left-0 w-0.5 rounded-full transition ${
-              activeAction === 'workspace' ? 'bg-akiva-accent' : 'bg-transparent group-hover:bg-akiva-accent/35'
+        {canOpenOverview ? (
+          <a
+            href={CUSTOMER_BASE_PATH}
+            onClick={(event) => {
+              event.preventDefault();
+              onOpenAction('workspace');
+            }}
+            className={`group relative flex min-h-9 items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-semibold transition ${
+              activeAction === 'workspace'
+                ? 'bg-akiva-accent-soft text-akiva-accent-text'
+                : 'text-akiva-text hover:bg-white/70 dark:hover:bg-slate-800'
             }`}
-          />
-          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
-            activeAction === 'workspace'
-              ? 'bg-akiva-surface text-akiva-accent-text'
-              : 'bg-akiva-surface-raised text-akiva-accent-text'
-          }`}
           >
-            <Users className="h-3.5 w-3.5" />
-          </span>
-          <span className="min-w-0 truncate">Overview</span>
-        </a>
+            <span
+              className={`absolute inset-y-2 left-0 w-0.5 rounded-full transition ${
+                activeAction === 'workspace' ? 'bg-akiva-accent' : 'bg-transparent group-hover:bg-akiva-accent/35'
+              }`}
+            />
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+              activeAction === 'workspace'
+                ? 'bg-akiva-surface text-akiva-accent-text'
+                : 'bg-akiva-surface-raised text-akiva-accent-text'
+            }`}
+            >
+              <Users className="h-3.5 w-3.5" />
+            </span>
+            <span className="min-w-0 truncate">Overview</span>
+          </a>
+        ) : null}
 
-        {CUSTOMER_ACTION_GROUPS.map((group) => {
+        {visibleGroups.map((group) => {
           const GroupIcon = group.icon;
           const expanded = expandedGroups[group.title] ?? true;
           const groupActive = group.actions.some((action) => action.id === activeAction);
@@ -924,11 +995,13 @@ function SalesTrendChart({
             dataKey="sales"
             name="Sales"
             stroke="var(--akiva-chart-ink)"
-            strokeWidth={2.5}
+            strokeWidth={2.25}
             fill="var(--akiva-chart-ink-fill)"
+            fillOpacity={0.22}
+            dot={false}
             activeDot={{ r: 4 }}
+            isAnimationActive={false}
           />
-          <Line type="monotone" dataKey="invoices" name="Invoices" stroke="var(--akiva-chart-success)" strokeWidth={2} dot={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -976,15 +1049,7 @@ function BalanceTrendChart({
             strokeWidth={2.5}
             dot={false}
             activeDot={{ r: 4 }}
-          />
-          <Line
-            type="monotone"
-            dataKey="netMovement"
-            name="Net movement"
-            stroke="var(--akiva-chart-warning)"
-            strokeWidth={2}
-            strokeDasharray="6 5"
-            dot={false}
+            isAnimationActive={false}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -1167,10 +1232,10 @@ function WorkspaceOverview({
           </div>
 
           <div className="grid gap-3 xl:grid-cols-2">
-            <ChartShell title="Sales trend" detail="Invoice value and invoice count by month.">
+            <ChartShell title="Sales trend" detail="Invoice value by month.">
               <SalesTrendChart rows={salesTrendRows} loading={dataLoading} />
             </ChartShell>
-            <ChartShell title="Balance movement" detail="Running account balance and monthly net movement.">
+            <ChartShell title="Balance movement" detail="Running account balance by month.">
               <BalanceTrendChart rows={balanceTrendRows} loading={dataLoading} />
             </ChartShell>
           </div>
@@ -1361,9 +1426,28 @@ function TransactionInquiryPage({
   onRefresh: () => void;
 }) {
   const [dateRange, setDateRange] = useState<DateRangeValue>(() => getDefaultDateRange());
+  const [autoDateRangeKey, setAutoDateRangeKey] = useState('');
   const [transactionFilter, setTransactionFilter] = useState('all');
   const currency = customerCurrency(customer);
   const aging = useMemo(() => buildAgingBuckets(transactions, customer), [customer, transactions]);
+  const transactionRangeKey = useMemo(
+    () => `${customer?.debtorNo ?? ''}:${latestTransactionDate(transactions)}`,
+    [customer?.debtorNo, transactions]
+  );
+
+  useEffect(() => {
+    if (!customer) {
+      if (autoDateRangeKey !== '') setAutoDateRangeKey('');
+      setDateRange(getDefaultDateRange());
+      return;
+    }
+
+    if (transactionRangeKey === autoDateRangeKey) return;
+
+    setDateRange(defaultTransactionDateRange(transactions));
+    setAutoDateRangeKey(transactionRangeKey);
+  }, [autoDateRangeKey, customer, transactionRangeKey, transactions]);
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter((row) => {
       const transactionDate = extractIsoDate(row.transactionDate);
@@ -1441,11 +1525,6 @@ function TransactionInquiryPage({
         <EmptyPanel title="No customer selected" detail="Choose a customer to view transaction inquiry details." />
       ) : (
         <div className="space-y-3">
-          {pdfError ? (
-            <div className="rounded-lg border border-akiva-danger/40 bg-akiva-danger-soft px-3 py-2 text-xs font-semibold text-akiva-danger">
-              {pdfError}
-            </div>
-          ) : null}
           <section className="rounded-xl border border-akiva-border bg-akiva-surface p-3">
             <div className="flex flex-col gap-3 text-center lg:flex-row lg:items-start lg:justify-between lg:text-left">
               <div className="min-w-0">
@@ -2052,6 +2131,11 @@ function AccountStatementPage({
         <EmptyPanel title="No customer selected" detail="Choose a customer to view an account statement." />
       ) : (
         <div className="space-y-3">
+          {pdfError ? (
+            <div className="rounded-lg border border-akiva-danger/40 bg-akiva-danger-soft px-3 py-2 text-xs font-semibold text-akiva-danger">
+              {pdfError}
+            </div>
+          ) : null}
           <section className="rounded-xl border border-akiva-border bg-akiva-surface p-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
@@ -2619,11 +2703,12 @@ interface CustomerWorkspaceProps {
 }
 
 export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}) {
+  const { appMenu, menuLoading, setCurrentPage } = useApp();
   const [activeAction, setActiveAction] = useState<CustomerActionId>(() => (modal ? 'workspace' : actionFromPath(window.location.pathname)));
   const [menuSide, setMenuSide] = useState<CustomerMenuSide>('right');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customers, setCustomers] = useState<SalesCustomer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<SalesCustomer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<SalesCustomer | null>(() => readStoredSelectedCustomer());
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
@@ -2633,29 +2718,72 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
     orderStatus: [],
   });
   const dateFormat = useSystemDateFormat();
+  const customerMenuAccess = useMemo(() => getCustomerWorkspaceAccess(appMenu), [appMenu]);
+  const allowedCustomerActionIds = useMemo(
+    () => new Set<CustomerActionId>(CUSTOMER_ACTIONS.filter((action) => customerMenuAccess.allowedActionIds.has(action.id)).map((action) => action.id)),
+    [customerMenuAccess.allowedActionIds]
+  );
+  const firstAvailableAction = useMemo<CustomerActionId | null>(() => {
+    if (customerMenuAccess.canOpenOverview) return 'workspace';
+    return CUSTOMER_ACTIONS.find((action) => allowedCustomerActionIds.has(action.id))?.id ?? null;
+  }, [allowedCustomerActionIds, customerMenuAccess.canOpenOverview]);
+  const activeActionAllowed =
+    activeAction === 'workspace' ? customerMenuAccess.canOpenOverview : allowedCustomerActionIds.has(activeAction);
+  const visibleActiveAction = activeActionAllowed ? activeAction : firstAvailableAction ?? activeAction;
+  const pageIdForAction = useCallback(
+    (actionId: CustomerActionId) =>
+      actionId === 'workspace'
+        ? customerMenuAccess.overviewPageId || actionPageId(actionId)
+        : customerMenuAccess.actionPageIds.get(actionId) || actionPageId(actionId),
+    [customerMenuAccess.actionPageIds, customerMenuAccess.overviewPageId]
+  );
 
   useEffect(() => {
     if (modal) return undefined;
 
-    const syncActionFromPath = () => setActiveAction(actionFromPath(window.location.pathname));
+    const syncActionFromPath = () => {
+      const nextAction = actionFromPath(window.location.pathname);
+      setActiveAction(nextAction);
+      setCurrentPage(pageIdForAction(nextAction));
+    };
+    syncActionFromPath();
     window.addEventListener('popstate', syncActionFromPath);
     window.addEventListener(NAVIGATION_EVENT, syncActionFromPath);
     return () => {
       window.removeEventListener('popstate', syncActionFromPath);
       window.removeEventListener(NAVIGATION_EVENT, syncActionFromPath);
     };
-  }, [modal]);
+  }, [modal, pageIdForAction, setCurrentPage]);
+
+  useEffect(() => {
+    if (menuLoading || !customerMenuAccess.hasCustomerMenu || activeActionAllowed || !firstAvailableAction) return;
+
+    setActiveAction(firstAvailableAction);
+    if (!modal) {
+      setCurrentPage(pageIdForAction(firstAvailableAction));
+      navigateToPath(actionPath(firstAvailableAction), { replace: true });
+    }
+  }, [activeActionAllowed, customerMenuAccess.hasCustomerMenu, firstAvailableAction, menuLoading, modal, pageIdForAction, setCurrentPage]);
 
   const loadCustomers = useCallback(async (query: string) => {
     setLoadingCustomers(true);
     try {
       const rows = await fetchSalesCustomers(query);
       setCustomers(rows);
-      setSelectedCustomer((current) => current ?? rows[0] ?? null);
+      setSelectedCustomer((current) => {
+        if (!current) return rows[0] ?? null;
+
+        const freshCustomer = rows.find((customer) => customerKey(customer) === customerKey(current));
+        return freshCustomer ?? current;
+      });
     } finally {
       setLoadingCustomers(false);
     }
   }, []);
+
+  useEffect(() => {
+    writeStoredSelectedCustomer(selectedCustomer);
+  }, [selectedCustomer]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -2698,21 +2826,31 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
   }, [dataRefreshKey, selectedCustomer]);
 
   const openAction = (actionId: CustomerActionId) => {
+    const actionAllowed = actionId === 'workspace' ? customerMenuAccess.canOpenOverview : allowedCustomerActionIds.has(actionId);
+    if (!actionAllowed) return;
+
     setActiveAction(actionId);
     if (!modal) {
+      setCurrentPage(pageIdForAction(actionId));
       navigateToPath(actionPath(actionId));
     }
   };
 
-  const activeActionDefinition = CUSTOMER_ACTION_LOOKUP.get(activeAction) ?? CUSTOMER_ACTION_LOOKUP.get('workspace')!;
+  const activeActionDefinition = CUSTOMER_ACTION_LOOKUP.get(visibleActiveAction) ?? CUSTOMER_ACTION_LOOKUP.get('workspace')!;
+  const accessContent = !menuLoading && !customerMenuAccess.hasCustomerMenu ? (
+    <EmptyPanel
+      title="Customer menu not assigned"
+      detail="Ask an administrator to assign Customers under Menu Access before opening customer actions."
+    />
+  ) : null;
   const workspaceHeader = (
     <header className="border-b border-akiva-border px-4 py-4 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <CustomerWorkspaceBadge icon={Users}>Customers</CustomerWorkspaceBadge>
-            <CustomerWorkspaceBadge icon={activeActionDefinition.icon}>{activeActionDefinition.label}</CustomerWorkspaceBadge>
-            {selectedCustomer ? (
+            {!accessContent ? <CustomerWorkspaceBadge icon={activeActionDefinition.icon}>{activeActionDefinition.label}</CustomerWorkspaceBadge> : null}
+            {selectedCustomer && !accessContent ? (
               <CustomerWorkspaceBadge icon={Building2}>{selectedCustomer.debtorNo}</CustomerWorkspaceBadge>
             ) : null}
           </div>
@@ -2748,15 +2886,17 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
   );
   const navigation = (
     <ActionNavigation
-      activeAction={activeAction}
+      activeAction={visibleActiveAction}
       onOpenAction={openAction}
       menuSide={menuSide}
       onMenuSideChange={setMenuSide}
+      canOpenOverview={customerMenuAccess.canOpenOverview}
+      allowedActionIds={allowedCustomerActionIds}
     />
   );
-  const content = (
+  const content = accessContent ?? (
     <CustomerActionContent
-      activeAction={activeAction}
+      activeAction={visibleActiveAction}
       selectedCustomer={selectedCustomer}
       data={data}
       dataLoading={dataLoading}
@@ -2769,15 +2909,15 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
   if (modal) {
     return (
       <section className="flex h-full min-h-0 overflow-hidden bg-akiva-surface-raised text-akiva-text">
-        {menuSide === 'left' ? navigation : null}
+        {menuSide === 'left' && !accessContent ? navigation : null}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {workspaceHeader}
-          {workspaceSearch}
+          {!accessContent ? workspaceSearch : null}
           <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
             {content}
           </div>
         </div>
-        {menuSide === 'right' ? navigation : null}
+        {menuSide === 'right' && !accessContent ? navigation : null}
       </section>
     );
   }
@@ -2787,9 +2927,9 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
       <div className="mx-auto max-w-[1560px]">
         <section className="akiva-frame overflow-visible rounded-[28px] backdrop-blur">
           {workspaceHeader}
-          {workspaceSearch}
-          <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[330px_minmax(0,1fr)] lg:px-8 lg:py-7">
-            {navigation}
+          {!accessContent ? workspaceSearch : null}
+          <div className={`${accessContent ? '' : 'grid lg:grid-cols-[330px_minmax(0,1fr)]'} gap-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-7`}>
+            {!accessContent ? navigation : null}
             {content}
           </div>
         </section>

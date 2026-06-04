@@ -47,7 +47,7 @@ interface AppProviderProps {
   children: ReactNode;
 }
 
-const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v7';
+const APP_MENU_CACHE_KEY = 'akiva.menu.tree.v8';
 
 const GUEST_USER: User = {
   id: '',

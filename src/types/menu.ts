@@ -5,6 +5,7 @@ export interface MenuItem {
   caption: string;
   parent: number;
   href: string;
+  allowed?: boolean;
   children?: MenuItem[];
 }
 
@@ -13,6 +14,7 @@ export interface MenuCategory {
   caption: string;
   parent: number;
   href: string;
+  allowed?: boolean;
   children?: MenuItem[];
 }
 

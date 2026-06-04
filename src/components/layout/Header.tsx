@@ -1,4 +1,4 @@
-import React, { Fragment, useState } from 'react';
+import React, { Fragment, useMemo, useState } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import {
   Bell,
@@ -20,6 +20,7 @@ import {
 import { useApp } from '../../contexts/AppContext';
 import { DateRangePicker, getDefaultDateRange } from '../common/DateRangePicker';
 import { openCustomerWorkspaceModal } from '../../lib/customerWorkspaceModal';
+import { canOpenCustomerWorkspace } from '../../lib/customerWorkspaceAccess';
 import { navigateToPath } from '../../lib/navigation';
 import { DIRECTORY_LINKS, type DirectoryLink } from '../../lib/directoryLinks';
 
@@ -58,8 +59,12 @@ const directoryIcons: Record<DirectoryLink['id'], React.ComponentType<{ classNam
 };
 
 export function Header() {
-  const { currentUser, isDarkMode, toggleDarkMode, signOut, setCurrentPage } = useApp();
+  const { currentUser, isDarkMode, toggleDarkMode, signOut, setCurrentPage, appMenu } = useApp();
   const [timeframe, setTimeframe] = useState(getDefaultDateRange);
+  const visibleDirectoryLinks = useMemo(
+    () => DIRECTORY_LINKS.filter((link) => link.id !== 'customers' || canOpenCustomerWorkspace(appMenu)),
+    [appMenu]
+  );
 
   const handleSignOut = () => {
     void signOut().finally(() => navigateToPath('/login'));
@@ -210,7 +215,7 @@ export function Header() {
             >
               <Menu.Items className="absolute right-0 z-[120] mt-2 w-[21rem] origin-top-right rounded-lg border border-akiva-border bg-akiva-surface-raised p-2 shadow-lg focus:outline-none">
                 <div className="grid grid-cols-3 gap-2">
-                  {DIRECTORY_LINKS.map((link) => {
+                  {visibleDirectoryLinks.map((link) => {
                     const Icon = directoryIcons[link.id];
                     return (
                       <Menu.Item key={link.id}>

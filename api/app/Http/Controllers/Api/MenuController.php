@@ -144,6 +144,7 @@ class MenuController extends Controller
         }
 
         $visibleIds = [];
+        $allowedIds = array_fill_keys($allowedMenuIds, true);
         foreach ($allowedMenuIds as $menuId) {
             if (!array_key_exists($menuId, $parentsById)) {
                 continue;
@@ -156,9 +157,12 @@ class MenuController extends Controller
             }
         }
 
-        return array_values(array_filter($items, function ($item) use ($visibleIds) {
+        return array_values(array_map(function ($item) use ($allowedIds) {
+            $item->allowed = isset($allowedIds[(int) $item->id]);
+            return $item;
+        }, array_filter($items, function ($item) use ($visibleIds) {
             return isset($visibleIds[(int) $item->id]);
-        }));
+        })));
     }
 
     private function userIdFromRequest(Request $request): string

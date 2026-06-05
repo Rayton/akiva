@@ -51,6 +51,7 @@ interface AdvancedTableProps<T> {
   serverSearch?: boolean;
   showExports?: boolean;
   showColumnControls?: boolean;
+  showColumnFilters?: boolean;
 }
 
 type WidthMap = Record<string, number>;
@@ -176,6 +177,7 @@ export function AdvancedTable<T>({
   serverSearch = false,
   showExports = true,
   showColumnControls = true,
+  showColumnFilters = true,
 }: AdvancedTableProps<T>) {
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [pageIndex, setPageIndex] = useState(0);
@@ -341,15 +343,17 @@ export function AdvancedTable<T>({
         if (!haystack.includes(globalNeedle)) return false;
       }
 
-      for (const column of columns) {
-        const needle = (filters[column.id] ?? '').trim().toLowerCase();
-        if (!needle) continue;
-        const hay = asText(column.accessor(row)).toLowerCase();
-        if (!hay.includes(needle)) return false;
+      if (showColumnFilters) {
+        for (const column of columns) {
+          const needle = (filters[column.id] ?? '').trim().toLowerCase();
+          if (!needle) continue;
+          const hay = asText(column.accessor(row)).toLowerCase();
+          if (!hay.includes(needle)) return false;
+        }
       }
       return true;
     });
-  }, [activeSearch, columns, filters, rows, serverSearch]);
+  }, [activeSearch, columns, filters, rows, serverSearch, showColumnFilters]);
 
   const sortedRows = useMemo(() => {
     if (!sort) return filteredRows;
@@ -744,36 +748,38 @@ export function AdvancedTable<T>({
                 );
               })}
             </tr>
-            <tr className="bg-akiva-surface-raised">
-              {selectableRows ? (
-                <th
-                  className={`sticky left-0 z-30 w-[52px] border-b border-r border-akiva-border bg-akiva-surface-raised ${densityClasses.selection}`}
-                  style={filterTopStyle}
-                />
-              ) : null}
-              {visibleColumns.map((column) => (
-                <th
-                  key={`${column.id}-filter`}
-                  className={`sticky z-20 border-b border-akiva-border bg-akiva-surface-raised ${filterCellClass} ${alignClass(column.align)} ${stickyFilterClass(column)}`}
-                  style={filterTopStyle}
-                >
-                  {column.filterable === false ? null : (
-                    <input
-                      value={filters[column.id] ?? ''}
-                      onChange={(event) =>
-                        setFilters((previous) => ({
-                          ...previous,
-                          [column.id]: event.target.value,
-                        }))
-                      }
-                      placeholder={`Filter ${column.header}`}
-                      aria-label={`Filter ${column.header}`}
-                      className={`${densityClasses.filterInput} w-full rounded-md border border-akiva-border bg-akiva-surface px-2 text-xs font-medium text-akiva-text placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent`}
-                    />
-                  )}
-                </th>
-              ))}
-            </tr>
+            {showColumnFilters ? (
+              <tr className="bg-akiva-surface-raised">
+                {selectableRows ? (
+                  <th
+                    className={`sticky left-0 z-30 w-[52px] border-b border-r border-akiva-border bg-akiva-surface-raised ${densityClasses.selection}`}
+                    style={filterTopStyle}
+                  />
+                ) : null}
+                {visibleColumns.map((column) => (
+                  <th
+                    key={`${column.id}-filter`}
+                    className={`sticky z-20 border-b border-akiva-border bg-akiva-surface-raised ${filterCellClass} ${alignClass(column.align)} ${stickyFilterClass(column)}`}
+                    style={filterTopStyle}
+                  >
+                    {column.filterable === false ? null : (
+                      <input
+                        value={filters[column.id] ?? ''}
+                        onChange={(event) =>
+                          setFilters((previous) => ({
+                            ...previous,
+                            [column.id]: event.target.value,
+                          }))
+                        }
+                        placeholder={`Filter ${column.header}`}
+                        aria-label={`Filter ${column.header}`}
+                        className={`${densityClasses.filterInput} w-full rounded-md border border-akiva-border bg-akiva-surface px-2 text-xs font-medium text-akiva-text placeholder:text-akiva-text-muted focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent`}
+                      />
+                    )}
+                  </th>
+                ))}
+              </tr>
+            ) : null}
           </thead>
           <tbody>
             {loading ? (

@@ -354,6 +354,189 @@ export interface SalesOrderStatusRow {
   grossTotal: number;
 }
 
+export interface SalesCustomerSalesHistoryTopItem {
+  stockId: string;
+  description: string;
+  quantity: number;
+  value: number;
+  lineCount: number;
+}
+
+export interface SalesCustomerSalesHistorySummary {
+  lineCount: number;
+  invoiceCount: number;
+  creditCount: number;
+  uniqueItems: number;
+  quantity: number;
+  invoiceValue: number;
+  creditValue: number;
+  netSales: number;
+  averageLineValue: number;
+  topItems: SalesCustomerSalesHistoryTopItem[];
+}
+
+export interface SalesCustomerSalesHistoryRow {
+  movementId: number;
+  transactionDate: string;
+  stockId: string;
+  description: string;
+  typeId: number;
+  typeName: string;
+  transactionNo: string;
+  locationCode: string;
+  locationName: string;
+  branchCode: string;
+  branchName: string;
+  quantity: number;
+  units: string;
+  unitPrice: number;
+  discountPercent: number;
+  netUnitPrice: number;
+  lineTotal: number;
+  reference: string;
+  documentReference: string;
+  orderNo: string;
+  narrative: string;
+}
+
+export interface SalesCustomerSalesHistoryPayload {
+  currency: string;
+  filters: {
+    debtorNo: string;
+    fromDate: string;
+    toDate: string;
+    type: 'all' | 'invoice' | 'credit' | string;
+    searchTerm: string;
+  };
+  rows: SalesCustomerSalesHistoryRow[];
+  summary: SalesCustomerSalesHistorySummary;
+}
+
+export interface SalesOrderDetailLine {
+  lineNo: number;
+  stockId: string;
+  description: string;
+  quantity: number;
+  qtyInvoiced: number;
+  outstandingQty: number;
+  unitPrice: number;
+  discountPercent: number;
+  lineTotal: number;
+  units: string;
+  decimalPlaces: number;
+  poLine: string;
+  narrative: string;
+  actualDispatchDate: string;
+  dueDate: string;
+  completed: boolean;
+  status: string;
+  lineWeight: number;
+  lineVolume: number;
+}
+
+export interface SalesOrderDetail {
+  orderNo: string;
+  debtorNo: string;
+  customerName: string;
+  branchCode: string;
+  branchName: string;
+  customerRef: string;
+  buyerName: string;
+  comments: string;
+  orderDate: string;
+  deliveryDate: string;
+  orderType: string;
+  salesTypeName: string;
+  shipVia: number;
+  shipperName: string;
+  fromStockLocation: string;
+  fromStockLocationName: string;
+  deliveryTo: string;
+  deliveryAddress: string[];
+  contactPhone: string;
+  contactEmail: string;
+  currency: string;
+  decimalPlaces: number;
+  taxReference: string;
+  invoiceNumbers: string[];
+  lineCount: number;
+  completedLines: number;
+  progressPercent: number;
+  status: 'Open' | 'Partially complete' | 'Completed' | string;
+  subTotal: number;
+  freight: number;
+  tax: number;
+  total: number;
+  totalWeight: number;
+  totalVolume: number;
+  lines: SalesOrderDetailLine[];
+}
+
+export interface SalesOrderSearchCategory {
+  value: string;
+  label: string;
+  code: string;
+}
+
+export interface SalesOrderSearchPartRow {
+  stockId: string;
+  description: string;
+  onHand: number;
+  purchaseOrders: number;
+  salesOrders: number;
+  units: string;
+  decimalPlaces: number;
+}
+
+export interface SalesOrderSearchOrderRow {
+  orderNo: string;
+  debtorNo: string;
+  customerName: string;
+  branchCode: string;
+  branchName: string;
+  customerRef: string;
+  orderDate: string;
+  deliveryDate: string;
+  deliveryTo: string;
+  lineCount: number;
+  completedLines: number;
+  progressPercent: number;
+  grossTotal: number;
+  status: 'Open' | 'Partially complete' | 'Completed' | string;
+}
+
+export interface SalesOrderSearchSummary {
+  orders: number;
+  openOrders: number;
+  completedOrders: number;
+  totalValue: number;
+  selectedStockId: string;
+  selectedStockDescription: string;
+}
+
+export interface SalesCustomerOrderSearchPayload {
+  currency: string;
+  filters: {
+    debtorNo: string;
+    orderNo: string;
+    customerRef: string;
+    searchTerm: string;
+    fromDate: string;
+    toDate: string;
+    completedOnly: boolean;
+    status: 'all' | 'open' | 'completed' | string;
+    selectedStockId: string;
+    stockCategory: string;
+    itemSearch: string;
+    description: string;
+    stockCode: string;
+  };
+  categories: SalesOrderSearchCategory[];
+  parts: SalesOrderSearchPartRow[];
+  orders: SalesOrderSearchOrderRow[];
+  summary: SalesOrderSearchSummary;
+}
+
 export interface SalesDailySalesRow {
   day: string;
   invoiceCount: number;

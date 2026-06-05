@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Area,
   AreaChart,
@@ -40,6 +40,7 @@ import {
   UserPlus,
   Users,
   Wrench,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { AdvancedTable, type AdvancedTableColumn } from '../components/common/AdvancedTable';
@@ -49,7 +50,10 @@ import { Modal } from '../components/ui/Modal';
 import { useApp } from '../contexts/AppContext';
 import {
   fetchOutstandingSalesOrders,
+  fetchCustomerOrderSearch,
+  fetchCustomerSalesHistory,
   fetchSalesCustomers,
+  fetchSalesOrderDetail,
   fetchSalesOrderStatus,
   fetchSalesTransactionDocument,
   fetchSalesTransactions,
@@ -61,6 +65,14 @@ import { CUSTOMER_WORKSPACE_MODAL_EVENT } from '../lib/customerWorkspaceModal';
 import { NAVIGATION_EVENT, navigateToPath } from '../lib/navigation';
 import type {
   SalesCustomer,
+  SalesCustomerSalesHistoryPayload,
+  SalesCustomerSalesHistoryRow,
+  SalesCustomerOrderSearchPayload,
+  SalesOrderDetail,
+  SalesOrderDetailLine,
+  SalesOrderSearchCategory,
+  SalesOrderSearchOrderRow,
+  SalesOrderSearchPartRow,
   SalesOrderStatusRow,
   SalesOutstandingOrder,
   SalesTransaction,
@@ -111,6 +123,12 @@ interface CustomerWorkspaceData {
 
 const CUSTOMER_BASE_PATH = '/receivables/customers';
 const CUSTOMER_WORKSPACE_SELECTED_CUSTOMER_KEY = 'akiva.customerWorkspace.selectedCustomer';
+const CUSTOMER_WORKSPACE_DEFAULT_CUSTOMER_KEYS = [
+  CUSTOMER_WORKSPACE_SELECTED_CUSTOMER_KEY,
+  'akiva.customerWorkspace.defaultCustomer',
+  'akiva.defaultCustomer',
+  'defaultCustomer',
+];
 
 const CUSTOMER_ACTION_GROUPS: CustomerActionGroup[] = [
   {
@@ -275,17 +293,93 @@ function isStoredCustomer(value: unknown): value is SalesCustomer {
   return typeof candidate.debtorNo === 'string' && candidate.debtorNo.trim() !== '' && typeof candidate.customerName === 'string';
 }
 
+function extractStoredCustomer(value: unknown): SalesCustomer | null {
+  if (isStoredCustomer(value)) return value;
+  if (!value || typeof value !== 'object') return null;
+
+  const candidate = value as {
+    customer?: unknown;
+    selectedCustomer?: unknown;
+    defaultCustomer?: unknown;
+  };
+
+  return (
+    extractStoredCustomer(candidate.customer) ??
+    extractStoredCustomer(candidate.selectedCustomer) ??
+    extractStoredCustomer(candidate.defaultCustomer)
+  );
+}
+
+function extractStoredCustomerCode(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (!value || typeof value !== 'object') return '';
+  const candidate = value as {
+    debtorNo?: unknown;
+    debtorno?: unknown;
+    customerCode?: unknown;
+    defaultCustomerCode?: unknown;
+    customer?: unknown;
+    selectedCustomer?: unknown;
+    defaultCustomer?: unknown;
+  };
+  const directCode = [candidate.debtorNo, candidate.debtorno, candidate.customerCode, candidate.defaultCustomerCode]
+    .map((part) => String(part ?? '').trim())
+    .find(Boolean);
+  if (directCode) return directCode;
+
+  return (
+    extractStoredCustomerCode(candidate.customer) ||
+    extractStoredCustomerCode(candidate.selectedCustomer) ||
+    extractStoredCustomerCode(candidate.defaultCustomer)
+  );
+}
+
 function readStoredSelectedCustomer(): SalesCustomer | null {
   if (typeof window === 'undefined') return null;
 
-  try {
-    const raw = window.localStorage.getItem(CUSTOMER_WORKSPACE_SELECTED_CUSTOMER_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    return isStoredCustomer(parsed) ? parsed : null;
-  } catch {
-    return null;
+  for (const key of CUSTOMER_WORKSPACE_DEFAULT_CUSTOMER_KEYS) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as unknown;
+      const customer = extractStoredCustomer(parsed);
+      if (customer) return customer;
+    } catch {
+      // Try the next storage key.
+    }
   }
+
+  return null;
+}
+
+function readStoredCustomerCode(): string {
+  if (typeof window === 'undefined') return '';
+
+  for (const key of CUSTOMER_WORKSPACE_DEFAULT_CUSTOMER_KEYS) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as unknown;
+      const code = extractStoredCustomerCode(parsed);
+      if (code) return code;
+    } catch {
+      const raw = window.localStorage.getItem(key);
+      if (raw?.trim()) return raw.trim();
+    }
+  }
+
+  return '';
+}
+
+function isStoredCustomerMatch(customer: SalesCustomer, storedCode: string): boolean {
+  const normalized = storedCode.trim().toLowerCase();
+  if (!normalized) return false;
+
+  return (
+    customer.debtorNo.toLowerCase() === normalized ||
+    customerKey(customer).toLowerCase() === normalized ||
+    `${customer.debtorNo}::${customer.branchCode || ''}`.toLowerCase() === normalized
+  );
 }
 
 function writeStoredSelectedCustomer(customer: SalesCustomer | null): void {
@@ -380,6 +474,10 @@ function defaultTransactionDateRange(transactions: SalesTransaction[]): DateRang
 function formatDisplayDate(value: string | null | undefined, dateFormat: string): string {
   const isoDate = extractIsoDate(value);
   return isoDate ? formatDateWithSystemFormat(isoDate, dateFormat) || isoDate : '-';
+}
+
+function defaultOrderSearchDateRange(): DateRangeValue {
+  return getDefaultDateRange();
 }
 
 function monthKeyFromIso(value: string | null | undefined): string {
@@ -2496,21 +2594,321 @@ function AccountStatementPage({
   );
 }
 
-function OrderStatusTable({
-  tableId,
-  orders,
-  loading,
+type CustomerOrderSearchFilters = {
+  searchTerm: string;
+  status: 'all' | 'open' | 'completed';
+  fromDate: string;
+  toDate: string;
+  datePreset: DateRangeValue['preset'];
+  selectedStockId: string;
+  stockCategory: string;
+  itemSearch: string;
+  description: string;
+  stockCode: string;
+};
+
+const ORDER_STATUS_FILTERS: Array<{ value: CustomerOrderSearchFilters['status']; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'open', label: 'Open' },
+  { value: 'completed', label: 'Completed' },
+];
+
+function defaultOrderSearchFilters(): CustomerOrderSearchFilters {
+  const dateRange = defaultOrderSearchDateRange();
+
+  return {
+    searchTerm: '',
+    status: 'all',
+    fromDate: dateRange.from,
+    toDate: dateRange.to,
+    datePreset: dateRange.preset,
+    selectedStockId: '',
+    stockCategory: '',
+    itemSearch: '',
+    description: '',
+    stockCode: '',
+  };
+}
+
+function orderStatusBadgeClassName(status: string): string {
+  if (status === 'Completed') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+  if (status === 'Partially complete' || status === 'Partially invoiced') {
+    return 'border-amber-200 bg-amber-50 text-amber-700';
+  }
+  return 'border-sky-200 bg-sky-50 text-sky-700';
+}
+
+function formatStockQuantity(value: number, decimalPlaces: number): string {
+  const safeDecimals = Math.max(0, Math.min(decimalPlaces, 4));
+  return formatNumber(value, safeDecimals);
+}
+
+function formatQuantityWithUnits(value: number, units: string, decimalPlaces: number): string {
+  const quantity = formatStockQuantity(value, decimalPlaces);
+  return units ? `${quantity} ${units}` : quantity;
+}
+
+function formatPercent(value: number): string {
+  return `${formatNumber(value, Number.isInteger(value) ? 0 : 2)}%`;
+}
+
+function displayText(value: string | null | undefined): string {
+  const text = String(value ?? '').trim();
+  return text || '-';
+}
+
+function OrderInquiriesPage({
+  customer,
   dateFormat,
-  emptyMessage,
 }: {
-  tableId: string;
-  orders: SalesOrderStatusRow[];
-  loading: boolean;
+  customer: SalesCustomer | null;
   dateFormat: string;
-  emptyMessage: string;
 }) {
-  const columns = useMemo<AdvancedTableColumn<SalesOrderStatusRow>[]>(() => [
-    { id: 'orderNo', header: 'Order', accessor: (row) => row.orderNo, width: 110 },
+  const [filters, setFilters] = useState<CustomerOrderSearchFilters>(() => defaultOrderSearchFilters());
+  const [payload, setPayload] = useState<SalesCustomerOrderSearchPayload | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [partsLoading, setPartsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showPartFinder, setShowPartFinder] = useState(false);
+  const [partSearchTouched, setPartSearchTouched] = useState(false);
+  const [selectedOrderNo, setSelectedOrderNo] = useState('');
+  const [orderDetail, setOrderDetail] = useState<SalesOrderDetail | null>(null);
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false);
+  const [orderDetailError, setOrderDetailError] = useState('');
+  const orderDetailRequestRef = useRef(0);
+  const debtorNo = customer?.debtorNo ?? '';
+  const currency = customerCurrency(customer) || payload?.currency || 'TZS';
+  const summary = payload?.summary;
+  const selectedPartDescription = summary?.selectedStockDescription || payload?.parts.find((part) => part.stockId === filters.selectedStockId)?.description || '';
+  const categoryOptions = useMemo(() => (payload?.categories ?? []).map((category: SalesOrderSearchCategory) => ({
+    value: category.value,
+    label: category.label,
+    searchText: `${category.code} ${category.label}`,
+  })), [payload?.categories]);
+
+  const updateFilter = useCallback(<Key extends keyof CustomerOrderSearchFilters>(
+    key: Key,
+    value: CustomerOrderSearchFilters[Key]
+  ) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }, []);
+
+  const executeSearch = useCallback(async (nextFilters: CustomerOrderSearchFilters, partSearch = false) => {
+    if (!debtorNo) {
+      setPayload(null);
+      return;
+    }
+
+    setLoading(!partSearch);
+    setPartsLoading(partSearch);
+    setError('');
+
+    const result = await fetchCustomerOrderSearch({
+      debtorNo,
+      searchTerm: nextFilters.searchTerm.trim(),
+      fromDate: nextFilters.fromDate,
+      toDate: nextFilters.toDate,
+      status: nextFilters.status,
+      completedOnly: nextFilters.status === 'completed',
+      selectedStockId: nextFilters.selectedStockId,
+      stockCategory: nextFilters.stockCategory,
+      itemSearch: nextFilters.itemSearch.trim(),
+      description: nextFilters.description.trim(),
+      stockCode: nextFilters.stockCode.trim(),
+      partSearch,
+      limit: 220,
+      partLimit: 260,
+    });
+
+    if (!result) {
+      setError('Order search is temporarily unavailable.');
+      setLoading(false);
+      setPartsLoading(false);
+      return;
+    }
+
+    setPayload((current) => {
+      if (partSearch || result.parts.length > 0 || !current?.parts.length) {
+        return result;
+      }
+
+      const preservedPart = current.parts.find((part) => part.stockId === result.summary.selectedStockId);
+      return {
+        ...result,
+        parts: current.parts,
+        summary: {
+          ...result.summary,
+          selectedStockDescription: result.summary.selectedStockDescription || preservedPart?.description || current.summary.selectedStockDescription,
+        },
+      };
+    });
+    setLoading(false);
+    setPartsLoading(false);
+  }, [debtorNo]);
+
+  useEffect(() => {
+    const initialFilters = defaultOrderSearchFilters();
+
+    setFilters(initialFilters);
+    setShowPartFinder(false);
+    setPartSearchTouched(false);
+    setSelectedOrderNo('');
+    setOrderDetail(null);
+    setOrderDetailError('');
+    setOrderDetailLoading(false);
+    orderDetailRequestRef.current += 1;
+    if (!debtorNo) {
+      setPayload(null);
+    }
+  }, [debtorNo]);
+
+  useEffect(() => {
+    if (!debtorNo) return;
+    const nextFilters: CustomerOrderSearchFilters = {
+      ...defaultOrderSearchFilters(),
+      searchTerm: filters.searchTerm,
+      status: filters.status,
+      fromDate: filters.fromDate,
+      toDate: filters.toDate,
+      datePreset: filters.datePreset,
+      selectedStockId: filters.selectedStockId,
+      stockCategory: filters.stockCategory,
+    };
+    const timeout = window.setTimeout(() => {
+      void executeSearch(nextFilters);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    debtorNo,
+    executeSearch,
+    filters.datePreset,
+    filters.fromDate,
+    filters.searchTerm,
+    filters.selectedStockId,
+    filters.status,
+    filters.stockCategory,
+    filters.toDate,
+  ]);
+
+  useEffect(() => {
+    if (!debtorNo || !showPartFinder) return;
+    const nextFilters: CustomerOrderSearchFilters = {
+      ...defaultOrderSearchFilters(),
+      searchTerm: filters.searchTerm,
+      status: filters.status,
+      fromDate: filters.fromDate,
+      toDate: filters.toDate,
+      datePreset: filters.datePreset,
+      selectedStockId: filters.selectedStockId,
+      stockCategory: filters.stockCategory,
+      itemSearch: filters.itemSearch,
+    };
+    const timeout = window.setTimeout(() => {
+      setPartSearchTouched(true);
+      void executeSearch(nextFilters, true);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    debtorNo,
+    executeSearch,
+    filters.datePreset,
+    filters.fromDate,
+    filters.itemSearch,
+    filters.searchTerm,
+    filters.selectedStockId,
+    filters.status,
+    filters.stockCategory,
+    filters.toDate,
+    showPartFinder,
+  ]);
+
+  const selectPart = useCallback((part: SalesOrderSearchPartRow) => {
+    const nextFilters = {
+      ...filters,
+      selectedStockId: part.stockId,
+      itemSearch: `${part.stockId} ${part.description}`,
+    };
+    setFilters(nextFilters);
+    setShowPartFinder(false);
+  }, [filters]);
+
+  const clearSelectedPart = useCallback(() => {
+    setFilters((current) => ({ ...current, selectedStockId: '', itemSearch: '' }));
+  }, []);
+
+  const closeOrderDetail = useCallback(() => {
+    setSelectedOrderNo('');
+    setOrderDetail(null);
+    setOrderDetailError('');
+    setOrderDetailLoading(false);
+    orderDetailRequestRef.current += 1;
+  }, []);
+
+  const openOrderDetail = useCallback(async (orderNo: string) => {
+    if (!orderNo) return;
+
+    const requestId = orderDetailRequestRef.current + 1;
+    orderDetailRequestRef.current = requestId;
+    setSelectedOrderNo(orderNo);
+    setOrderDetail(null);
+    setOrderDetailError('');
+    setOrderDetailLoading(true);
+
+    const detail = await fetchSalesOrderDetail(orderNo, debtorNo);
+    if (orderDetailRequestRef.current !== requestId) return;
+
+    if (detail) {
+      setOrderDetail(detail);
+    } else {
+      setOrderDetailError('Order details could not be loaded in Akiva.');
+    }
+    setOrderDetailLoading(false);
+  }, [debtorNo]);
+
+  const orderColumns = useMemo<AdvancedTableColumn<SalesOrderSearchOrderRow>[]>(() => [
+    {
+      id: 'orderNo',
+      header: 'Order #',
+      accessor: (row) => row.orderNo,
+      cell: (row) => (
+        <button
+          type="button"
+          onClick={() => void openOrderDetail(row.orderNo)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-akiva-border bg-akiva-surface px-2 text-xs font-semibold text-akiva-accent-text transition hover:border-akiva-accent hover:bg-akiva-accent-soft focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+          title={`Show order ${row.orderNo}`}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          {row.orderNo}
+        </button>
+      ),
+      width: 120,
+      alwaysVisible: true,
+    },
+    {
+      id: 'customerName',
+      header: 'Customer',
+      accessor: (row) => row.customerName,
+      minWidth: 180,
+      alwaysVisible: true,
+    },
+    {
+      id: 'branch',
+      header: 'Branch',
+      accessor: (row) => `${row.branchCode} ${row.branchName}`,
+      cell: (row) => row.branchName || row.branchCode || '-',
+      minWidth: 150,
+    },
+    {
+      id: 'customerRef',
+      header: 'Cust Order #',
+      accessor: (row) => row.customerRef,
+      cell: (row) => row.customerRef || '-',
+      minWidth: 135,
+    },
     {
       id: 'orderDate',
       header: 'Order Date',
@@ -2520,66 +2918,576 @@ function OrderStatusTable({
     },
     {
       id: 'deliveryDate',
-      header: 'Delivery',
+      header: 'Req Del Date',
       accessor: (row) => row.deliveryDate,
       cell: (row) => formatDisplayDate(row.deliveryDate, dateFormat),
       width: 125,
     },
     {
-      id: 'progress',
-      header: 'Progress',
-      accessor: (row) => `${row.completedLines}/${row.lineCount}`,
-      cell: (row) => `${formatNumber(row.completedLines)} of ${formatNumber(row.lineCount)} lines`,
+      id: 'deliveryTo',
+      header: 'Delivery To',
+      accessor: (row) => row.deliveryTo,
+      cell: (row) => row.deliveryTo || '-',
+      minWidth: 190,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessor: (row) => row.status,
+      cell: (row) => (
+        <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${orderStatusBadgeClassName(row.status)}`}>
+          {row.status}
+        </span>
+      ),
       width: 150,
     },
     {
-      id: 'value',
-      header: 'Value',
+      id: 'progress',
+      header: 'Progress',
+      accessor: (row) => row.progressPercent,
+      cell: (row) => `${formatNumber(row.completedLines)} of ${formatNumber(row.lineCount)} lines`,
+      width: 145,
+    },
+    {
+      id: 'grossTotal',
+      header: 'Order Total',
       accessor: (row) => row.grossTotal,
-      cell: (row) => <span className="akiva-financial-value font-semibold">{formatMoney(row.grossTotal)}</span>,
+      cell: (row) => <span className="akiva-financial-value font-semibold">{formatMoney(row.grossTotal, currency)}</span>,
       align: 'right',
       width: 150,
+      alwaysVisible: true,
     },
-  ], [dateFormat]);
+  ], [currency, dateFormat, openOrderDetail]);
+
+  if (!customer) {
+    return (
+      <ActionPanel actionId="order-inquiries">
+        <EmptyPanel title="Select a customer" detail="Order inquiries load after a customer account is selected." />
+      </ActionPanel>
+    );
+  }
+
+  const hasOrderRows = (payload?.orders.length ?? 0) > 0;
+  const hasPartRows = (payload?.parts.length ?? 0) > 0;
+  const suggestedParts = (payload?.parts ?? []).slice(0, 8);
+  const hasActiveFilters =
+    filters.searchTerm.trim() !== '' ||
+    filters.status !== 'all' ||
+    filters.selectedStockId !== '' ||
+    filters.itemSearch.trim() !== '' ||
+    filters.datePreset !== 'last-3-months';
+  const clearFilters = () => {
+    const nextFilters = defaultOrderSearchFilters();
+    setFilters({
+      ...nextFilters,
+      stockCategory: filters.stockCategory,
+    });
+    setShowPartFinder(false);
+    setPartSearchTouched(false);
+  };
 
   return (
-    <AdvancedTable
-      tableId={tableId}
-      ariaLabel="Customer order inquiries"
-      columns={columns}
-      rows={orders}
-      rowKey={(row) => row.orderNo}
-      emptyMessage={emptyMessage}
-      loading={loading}
-      loadingMessage="Loading order inquiries..."
-      density="compact"
-      initialPageSize={12}
-      maxTableHeight="520px"
-      showSearch
-      searchPlaceholder="Search orders"
-    />
+    <>
+      <ActionPanel
+        actionId="order-inquiries"
+        headerActions={
+          <button
+            type="button"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-akiva-border bg-akiva-surface px-3 text-xs font-semibold text-akiva-text transition hover:border-akiva-accent hover:bg-akiva-surface-muted focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+            onClick={() => void executeSearch(filters)}
+            disabled={loading}
+            title="Refresh order inquiry"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        }
+      >
+        <div className="space-y-4">
+        <div className="border-b border-akiva-border pb-4">
+          <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_minmax(220px,0.65fr)] xl:items-end">
+            <label className="block min-w-0">
+              <span className="mb-1 block text-xs font-semibold text-akiva-text-muted">Search orders</span>
+              <span className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                <input
+                  value={filters.searchTerm}
+                  onChange={(event) => updateFilter('searchTerm', event.target.value)}
+                  className="h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 pl-9 text-sm text-akiva-text shadow-sm focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                  placeholder="Order #, customer ref, delivery, branch..."
+                  autoComplete="off"
+                />
+              </span>
+            </label>
+            <DateRangePicker
+              value={{ from: filters.fromDate, to: filters.toDate, preset: filters.datePreset }}
+              onChange={(value) =>
+                setFilters((current) => ({
+                  ...current,
+                  fromDate: value.from,
+                  toDate: value.to,
+                  datePreset: value.preset,
+                }))
+              }
+              label="Date range"
+              triggerClassName="h-11 rounded-lg bg-akiva-surface-raised px-3 shadow-sm"
+              compact
+            />
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex h-9 rounded-md border border-akiva-border bg-akiva-surface-raised p-0.5">
+                {ORDER_STATUS_FILTERS.map((option) => {
+                  const active = filters.status === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateFilter('status', option.value)}
+                      className={`rounded px-3 text-xs font-semibold transition ${
+                        active ? 'bg-akiva-accent text-white shadow-sm' : 'text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                className={`inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-akiva-accent ${
+                  showPartFinder || filters.selectedStockId
+                    ? 'border-akiva-accent bg-akiva-accent-soft text-akiva-accent-text'
+                    : 'border-akiva-border bg-akiva-surface-raised text-akiva-text hover:border-akiva-accent hover:bg-akiva-surface-muted'
+                }`}
+                onClick={() => setShowPartFinder((visible) => !visible)}
+                aria-expanded={showPartFinder}
+              >
+                <FileSearch className="h-3.5 w-3.5" />
+                Item
+                <ChevronDown className={`h-3.5 w-3.5 transition ${showPartFinder ? 'rotate-180' : ''}`} />
+              </button>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 text-xs font-semibold text-akiva-text-muted transition hover:bg-akiva-surface-muted hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                  onClick={clearFilters}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Clear filters
+                </button>
+              ) : null}
+            </div>
+
+            {filters.selectedStockId ? (
+              <div className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-akiva-surface-muted px-3 py-2 text-sm text-akiva-text lg:max-w-[45%]">
+                <p className="min-w-0 truncate font-semibold">{filters.selectedStockId}{selectedPartDescription ? ` · ${selectedPartDescription}` : ''}</p>
+                <button
+                  type="button"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-akiva-border bg-akiva-surface text-akiva-text transition hover:border-akiva-accent hover:bg-akiva-surface-muted focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                  onClick={clearSelectedPart}
+                  title="Clear selected item"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {payload ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-akiva-text-muted">
+            <span className="text-akiva-text">{loading ? 'Searching...' : `${formatNumber(summary?.orders ?? 0)} orders`}</span>
+            <span>{formatNumber(summary?.openOrders ?? 0)} open</span>
+            <span>{formatNumber(summary?.completedOrders ?? 0)} completed</span>
+            <span className="akiva-financial-value text-akiva-text">{formatMoney(summary?.totalValue ?? 0, currency)}</span>
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        {showPartFinder ? (
+          <div className="border-b border-akiva-border pb-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(190px,0.8fr)_minmax(260px,1fr)] lg:items-end">
+              <label className="block min-w-0">
+                <span className="mb-1 block text-xs font-semibold text-akiva-text-muted">Item category</span>
+                <SearchableSelect
+                  value={filters.stockCategory}
+                  options={categoryOptions}
+                  onChange={(value) => updateFilter('stockCategory', String(value))}
+                  placeholder="Any category"
+                  inputClassName="h-10 rounded-lg bg-akiva-surface-raised shadow-sm"
+                  disabled={categoryOptions.length === 0}
+                />
+              </label>
+              <label className="block min-w-0">
+                <span className="mb-1 block text-xs font-semibold text-akiva-text-muted">Product or stock code</span>
+                <span className="relative block">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-akiva-text-muted" />
+                  <input
+                    value={filters.itemSearch}
+                    onChange={(event) => updateFilter('itemSearch', event.target.value)}
+                    className="h-10 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 pl-9 text-sm text-akiva-text shadow-sm focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                    placeholder="Start typing to filter by item"
+                    autoComplete="off"
+                  />
+                </span>
+              </label>
+            </div>
+
+            <div className="mt-3">
+              {partsLoading && !hasPartRows ? (
+                <div className="py-5 text-center text-sm text-akiva-text-muted">Finding items...</div>
+              ) : suggestedParts.length > 0 ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {suggestedParts.map((part) => (
+                    <button
+                      key={part.stockId}
+                      type="button"
+                      className="min-w-0 rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 py-2 text-left transition hover:border-akiva-accent hover:bg-akiva-accent-soft focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                      onClick={() => selectPart(part)}
+                    >
+                      <span className="flex min-w-0 items-start justify-between gap-3">
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-akiva-text">{part.description}</span>
+                          <span className="mt-0.5 block truncate text-xs font-semibold text-akiva-text-muted">{part.stockId} · {part.units}</span>
+                        </span>
+                        <span className="shrink-0 text-right text-xs font-semibold text-akiva-text-muted">
+                          <span className="block text-akiva-text">{formatStockQuantity(part.onHand, part.decimalPlaces)}</span>
+                          <span>on hand</span>
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : partSearchTouched ? (
+                <div className="py-5 text-center text-sm text-akiva-text-muted">No matching items found.</div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {loading && !payload ? (
+          <div className="py-10 text-center text-sm font-medium text-akiva-text-muted">Searching orders...</div>
+        ) : hasOrderRows ? (
+          <AdvancedTable
+            tableId={`customer-workspace-orders-${customer.debtorNo}`}
+            ariaLabel="Customer sales order results"
+            columns={orderColumns}
+            rows={payload?.orders ?? []}
+            rowKey={(row) => row.orderNo}
+            emptyMessage="No matching sales orders found."
+            loading={loading}
+            loadingMessage="Searching orders..."
+            density="compact"
+            initialPageSize={15}
+            pageSizeOptions={[10, 15, 25, 50, 100]}
+            maxTableHeight="560px"
+            showSearch
+            searchPlaceholder="Filter order results"
+            showColumnControls={false}
+            enableDensityToggle={false}
+            enableSavedViews={false}
+            showExports={false}
+            showColumnFilters={false}
+          />
+        ) : (
+          <div className="py-10 text-center text-sm text-akiva-text-muted">No matching sales orders found.</div>
+        )}
+        </div>
+      </ActionPanel>
+
+      <Modal
+        isOpen={selectedOrderNo !== ''}
+        onClose={closeOrderDetail}
+        title={selectedOrderNo ? `Sales Order ${selectedOrderNo}` : 'Sales Order'}
+        size="xl"
+        bodyClassName="flex-1 overflow-y-auto p-0"
+      >
+        <OrderDetailPanel
+          order={orderDetail}
+          loading={orderDetailLoading}
+          error={orderDetailError}
+          dateFormat={dateFormat}
+          currency={orderDetail?.currency || currency}
+        />
+      </Modal>
+    </>
   );
 }
 
-function OrderInquiriesPage({
-  orders,
+function OrderDetailPanel({
+  order,
   loading,
+  error,
   dateFormat,
+  currency,
 }: {
-  orders: SalesOrderStatusRow[];
+  order: SalesOrderDetail | null;
   loading: boolean;
+  error: string;
   dateFormat: string;
+  currency: string;
 }) {
+  const effectiveCurrency = order?.currency || currency;
+  const lineColumns = useMemo<AdvancedTableColumn<SalesOrderDetailLine>[]>(() => [
+    {
+      id: 'item',
+      header: 'Item',
+      accessor: (row) => `${row.stockId} ${row.description} ${row.narrative}`,
+      cell: (row) => (
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="font-semibold text-akiva-text">{row.stockId || '-'}</span>
+            {row.poLine ? (
+              <span className="rounded-full bg-akiva-surface-muted px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">
+                PO {row.poLine}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-0.5 truncate text-xs text-akiva-text-muted">{row.description || '-'}</p>
+          {row.narrative ? <p className="mt-1 line-clamp-2 text-xs text-akiva-text-muted">{row.narrative}</p> : null}
+        </div>
+      ),
+      minWidth: 260,
+      alwaysVisible: true,
+    },
+    {
+      id: 'quantity',
+      header: 'Ordered',
+      accessor: (row) => row.quantity,
+      cell: (row) => formatQuantityWithUnits(row.quantity, row.units, row.decimalPlaces),
+      align: 'right',
+      width: 130,
+    },
+    {
+      id: 'qtyInvoiced',
+      header: 'Delivered',
+      accessor: (row) => row.qtyInvoiced,
+      cell: (row) => formatStockQuantity(row.qtyInvoiced, row.decimalPlaces),
+      align: 'right',
+      width: 115,
+    },
+    {
+      id: 'outstandingQty',
+      header: 'Outstanding',
+      accessor: (row) => row.outstandingQty,
+      cell: (row) => formatStockQuantity(row.outstandingQty, row.decimalPlaces),
+      align: 'right',
+      width: 120,
+    },
+    {
+      id: 'dueDate',
+      header: 'Due / Last',
+      accessor: (row) => row.actualDispatchDate || row.dueDate,
+      cell: (row) => {
+        const label = row.actualDispatchDate ? 'Last' : 'Due';
+        const value = row.actualDispatchDate || row.dueDate;
+        return value ? `${label} ${formatDisplayDate(value, dateFormat)}` : '-';
+      },
+      width: 135,
+    },
+    {
+      id: 'unitPrice',
+      header: 'Unit Price',
+      accessor: (row) => row.unitPrice,
+      cell: (row) => <span className="akiva-financial-value">{formatMoney(row.unitPrice, effectiveCurrency)}</span>,
+      align: 'right',
+      width: 125,
+    },
+    {
+      id: 'discount',
+      header: 'Disc.',
+      accessor: (row) => row.discountPercent,
+      cell: (row) => (row.discountPercent > 0 ? formatPercent(row.discountPercent) : '-'),
+      align: 'right',
+      width: 90,
+    },
+    {
+      id: 'lineTotal',
+      header: 'Line Total',
+      accessor: (row) => row.lineTotal,
+      cell: (row) => <span className="akiva-financial-value font-semibold">{formatMoney(row.lineTotal, effectiveCurrency)}</span>,
+      align: 'right',
+      width: 130,
+      alwaysVisible: true,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessor: (row) => row.status,
+      cell: (row) => (
+        <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${orderStatusBadgeClassName(row.status)}`}>
+          {row.status}
+        </span>
+      ),
+      width: 135,
+    },
+  ], [dateFormat, effectiveCurrency]);
+
+  if (loading) {
+    return (
+      <div className="flex h-full min-h-[360px] items-center justify-center p-6 text-sm font-medium text-akiva-text-muted">
+        Loading order details...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 sm:p-5">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="p-4 sm:p-5">
+        <EmptyPanel title="Order not loaded" detail="Select an order from the list to view the details." />
+      </div>
+    );
+  }
+
+  const deliveryAddress = order.deliveryAddress.length > 0 ? order.deliveryAddress : ['-'];
+  const stockLocation = order.fromStockLocationName || order.fromStockLocation;
+  const salesType = [order.orderType, order.salesTypeName].filter(Boolean).join(' · ');
+
   return (
-    <ActionPanel actionId="order-inquiries">
-      <OrderStatusTable
-        tableId="customer-workspace-order-status"
-        orders={orders}
-        loading={loading}
-        dateFormat={dateFormat}
-        emptyMessage="No orders found for this customer."
-      />
-    </ActionPanel>
+    <div className="space-y-4 p-4 sm:p-5">
+      <section className="rounded-xl border border-akiva-border bg-akiva-surface-raised p-4 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${orderStatusBadgeClassName(order.status)}`}>
+                {order.status}
+              </span>
+              <span className="text-xs font-semibold text-akiva-text-muted">
+                {formatNumber(order.completedLines)} of {formatNumber(order.lineCount)} lines complete
+              </span>
+            </div>
+            <h2 className="mt-3 truncate text-xl font-semibold text-akiva-text">Order {order.orderNo}</h2>
+            <p className="mt-1 truncate text-sm text-akiva-text-muted">{order.customerName || order.debtorNo}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+            <OrderDetailMetric label="Ordered" value={formatDisplayDate(order.orderDate, dateFormat)} />
+            <OrderDetailMetric label="Delivery" value={formatDisplayDate(order.deliveryDate, dateFormat)} />
+            <OrderDetailMetric label="Lines" value={formatNumber(order.lineCount)} />
+            <OrderDetailMetric label="Total" value={formatMoney(order.total, effectiveCurrency)} emphasize />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        <section className="rounded-xl border border-akiva-border bg-akiva-surface p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-akiva-text">
+            <Users className="h-4 w-4 text-akiva-accent-text" />
+            Customer
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <OrderDetailField label="Customer code" value={order.debtorNo} />
+            <OrderDetailField label="Branch" value={order.branchName || order.branchCode} />
+            <OrderDetailField label="Customer ref" value={order.customerRef} />
+            <OrderDetailField label="Buyer" value={order.buyerName} />
+            <OrderDetailField label="Tax ref" value={order.taxReference} />
+            <OrderDetailField label="Invoices" value={order.invoiceNumbers.join(', ')} />
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-akiva-border bg-akiva-surface p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-akiva-text">
+            <PackageOpen className="h-4 w-4 text-akiva-accent-text" />
+            Delivery
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <OrderDetailField label="Deliver to" value={order.deliveryTo} />
+            <OrderDetailField label="Contact" value={[order.contactPhone, order.contactEmail].filter(Boolean).join(' · ')} />
+            <OrderDetailField label="Ship via" value={order.shipperName || (order.shipVia ? String(order.shipVia) : '')} />
+            <OrderDetailField label="From location" value={stockLocation} />
+            <OrderDetailField label="Sales type" value={salesType} />
+            <OrderDetailField label="Address" value={deliveryAddress.join(', ')} />
+          </div>
+        </section>
+      </div>
+
+      {order.comments ? (
+        <section className="rounded-xl border border-akiva-border bg-akiva-surface p-4">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-akiva-text">
+            <MessageSquare className="h-4 w-4 text-akiva-accent-text" />
+            Comments
+          </div>
+          <p className="text-sm leading-6 text-akiva-text-muted">{order.comments}</p>
+        </section>
+      ) : null}
+
+      <section className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-akiva-text">Line items</h3>
+            <p className="text-xs text-akiva-text-muted">
+              {formatNumber(order.totalWeight, 2)} weight · {formatNumber(order.totalVolume, 2)} volume
+            </p>
+          </div>
+          <div className="grid min-w-[260px] grid-cols-2 gap-x-3 gap-y-1 text-sm">
+            <span className="text-akiva-text-muted">Subtotal</span>
+            <span className="akiva-financial-value text-right font-semibold text-akiva-text">{formatMoney(order.subTotal, effectiveCurrency)}</span>
+            <span className="text-akiva-text-muted">Freight</span>
+            <span className="akiva-financial-value text-right text-akiva-text">{formatMoney(order.freight, effectiveCurrency)}</span>
+            <span className="border-t border-akiva-border pt-1 font-semibold text-akiva-text">Total</span>
+            <span className="akiva-financial-value border-t border-akiva-border pt-1 text-right font-semibold text-akiva-text">{formatMoney(order.total, effectiveCurrency)}</span>
+          </div>
+        </div>
+
+        <AdvancedTable
+          tableId={`customer-workspace-order-detail-${order.orderNo}`}
+          ariaLabel={`Sales order ${order.orderNo} line items`}
+          columns={lineColumns}
+          rows={order.lines}
+          rowKey={(row) => `${row.lineNo}-${row.stockId}`}
+          emptyMessage="No line items found for this order."
+          density="compact"
+          initialPageSize={10}
+          pageSizeOptions={[10, 20, 50]}
+          maxTableHeight="420px"
+          showSearch={false}
+          showColumnControls={false}
+          enableDensityToggle={false}
+          enableSavedViews={false}
+          showExports={false}
+          showColumnFilters={false}
+        />
+      </section>
+    </div>
+  );
+}
+
+function OrderDetailMetric({ label, value, emphasize = false }: { label: string; value: ReactNode; emphasize?: boolean }) {
+  return (
+    <div className="rounded-lg border border-akiva-border bg-akiva-surface px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-akiva-text-muted">{label}</p>
+      <p className={`mt-1 truncate text-sm ${emphasize ? 'akiva-financial-value font-semibold text-akiva-text' : 'font-medium text-akiva-text'}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function OrderDetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-akiva-text-muted">{label}</p>
+      <p className="mt-0.5 truncate text-sm font-medium text-akiva-text" title={displayText(value)}>
+        {displayText(value)}
+      </p>
+    </div>
   );
 }
 
@@ -2646,35 +3554,380 @@ function OutstandingOrdersPage({
   );
 }
 
+type CustomerSalesHistoryType = 'all' | 'invoice' | 'credit';
+
+type CustomerSalesHistoryFilters = {
+  searchTerm: string;
+  type: CustomerSalesHistoryType;
+  fromDate: string;
+  toDate: string;
+  datePreset: DateRangeValue['preset'];
+};
+
+const SALES_HISTORY_TYPE_FILTERS: Array<{ value: CustomerSalesHistoryType; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'invoice', label: 'Invoices' },
+  { value: 'credit', label: 'Credits' },
+];
+
+function defaultSalesHistoryFilters(transactions: SalesTransaction[]): CustomerSalesHistoryFilters {
+  const dateRange = defaultTransactionDateRange(transactions);
+
+  return {
+    searchTerm: '',
+    type: 'all',
+    fromDate: dateRange.from,
+    toDate: dateRange.to,
+    datePreset: dateRange.preset,
+  };
+}
+
+function salesHistoryTypeBadgeClassName(typeId: number): string {
+  if (typeId === 11) {
+    return 'border-rose-200 bg-rose-50 text-rose-700';
+  }
+
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+}
+
 function CustomerPurchasesPage({
+  customer,
   transactions,
-  orders,
   loading,
   dateFormat,
 }: {
+  customer: SalesCustomer | null;
   transactions: SalesTransaction[];
-  orders: SalesOrderStatusRow[];
   loading: boolean;
   dateFormat: string;
 }) {
-  const invoiceRows = transactions.filter((row) => row.transType === 10);
-  const invoiceTotal = invoiceRows.reduce((sum, row) => sum + row.grossTotal, 0);
-  const orderTotal = orders.reduce((sum, row) => sum + row.grossTotal, 0);
+  const [filters, setFilters] = useState<CustomerSalesHistoryFilters>(() => defaultSalesHistoryFilters(transactions));
+  const [payload, setPayload] = useState<SalesCustomerSalesHistoryPayload | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [error, setError] = useState('');
+  const requestRef = useRef(0);
+  const debtorNo = customer?.debtorNo ?? '';
+  const latestDate = latestTransactionDate(transactions);
+  const currency = payload?.currency || customerCurrency(customer);
+  const summary = payload?.summary;
+  const rows = payload?.rows ?? [];
+
+  const updateFilter = useCallback(<Key extends keyof CustomerSalesHistoryFilters>(
+    key: Key,
+    value: CustomerSalesHistoryFilters[Key]
+  ) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }, []);
+
+  const executeSearch = useCallback(async (nextFilters: CustomerSalesHistoryFilters) => {
+    if (!debtorNo) {
+      setPayload(null);
+      setError('');
+      return;
+    }
+
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    setHistoryLoading(true);
+    setError('');
+
+    const result = await fetchCustomerSalesHistory({
+      debtorNo,
+      fromDate: nextFilters.fromDate,
+      toDate: nextFilters.toDate,
+      type: nextFilters.type,
+      searchTerm: nextFilters.searchTerm.trim(),
+      limit: 1000,
+    });
+
+    if (requestRef.current !== requestId) return;
+
+    if (!result) {
+      setPayload(null);
+      setError('Sales history is temporarily unavailable.');
+      setHistoryLoading(false);
+      return;
+    }
+
+    setPayload(result);
+    setHistoryLoading(false);
+  }, [debtorNo]);
+
+  useEffect(() => {
+    requestRef.current += 1;
+    const nextFilters = defaultSalesHistoryFilters(transactions);
+    setFilters(nextFilters);
+    setPayload(null);
+    setError('');
+    setHistoryLoading(false);
+  }, [debtorNo, latestDate, transactions]);
+
+  useEffect(() => {
+    if (!debtorNo) return;
+
+    const timeout = window.setTimeout(() => {
+      void executeSearch(filters);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    debtorNo,
+    executeSearch,
+    filters,
+  ]);
+
+  const clearFilters = () => {
+    setFilters(defaultSalesHistoryFilters(transactions));
+  };
+
+  const hasActiveFilters =
+    filters.searchTerm.trim() !== '' ||
+    filters.type !== 'all' ||
+    filters.datePreset !== 'last-3-months';
+
+  const columns = useMemo<AdvancedTableColumn<SalesCustomerSalesHistoryRow>[]>(() => [
+    {
+      id: 'transactionDate',
+      header: 'Date',
+      accessor: (row) => row.transactionDate,
+      cell: (row) => formatDisplayDate(row.transactionDate, dateFormat),
+      width: 120,
+      alwaysVisible: true,
+    },
+    {
+      id: 'item',
+      header: 'Item',
+      accessor: (row) => `${row.stockId} ${row.description} ${row.narrative}`,
+      cell: (row) => (
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="font-semibold text-akiva-text">{row.stockId}</span>
+            <span className="rounded-full bg-akiva-surface-muted px-2 py-0.5 text-[11px] font-semibold text-akiva-text-muted">
+              {row.units || 'each'}
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-xs text-akiva-text-muted">{row.description || '-'}</p>
+          {row.narrative ? <p className="mt-1 line-clamp-2 text-xs text-akiva-text-muted">{row.narrative}</p> : null}
+        </div>
+      ),
+      minWidth: 260,
+      alwaysVisible: true,
+    },
+    {
+      id: 'document',
+      header: 'Document',
+      accessor: (row) => `${row.typeName} ${row.transactionNo} ${row.orderNo}`,
+      cell: (row) => (
+        <div className="min-w-0">
+          <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold ${salesHistoryTypeBadgeClassName(row.typeId)}`}>
+            {row.typeName}
+          </span>
+          <p className="mt-1 text-xs font-semibold text-akiva-text">No. {row.transactionNo || '-'}</p>
+          {row.orderNo ? <p className="text-[11px] text-akiva-text-muted">Order {row.orderNo}</p> : null}
+        </div>
+      ),
+      minWidth: 170,
+    },
+    {
+      id: 'location',
+      header: 'From Location',
+      accessor: (row) => `${row.locationCode} ${row.locationName}`,
+      cell: (row) => row.locationName || row.locationCode || '-',
+      minWidth: 180,
+    },
+    {
+      id: 'branch',
+      header: 'Branch',
+      accessor: (row) => `${row.branchCode} ${row.branchName}`,
+      cell: (row) => (
+        <div className="min-w-0">
+          <p className="truncate font-medium text-akiva-text">{row.branchCode || '-'}</p>
+          {row.branchName ? <p className="truncate text-xs text-akiva-text-muted">{row.branchName}</p> : null}
+        </div>
+      ),
+      minWidth: 150,
+    },
+    {
+      id: 'quantity',
+      header: 'Qty',
+      accessor: (row) => row.quantity,
+      cell: (row) => formatNumber(row.quantity, 4).replace(/\.?0+$/, ''),
+      align: 'right',
+      width: 95,
+    },
+    {
+      id: 'unitPrice',
+      header: 'Net Price',
+      accessor: (row) => row.netUnitPrice,
+      cell: (row) => <span className="akiva-financial-value">{formatMoney(row.netUnitPrice, currency)}</span>,
+      align: 'right',
+      width: 125,
+    },
+    {
+      id: 'discount',
+      header: 'Discount',
+      accessor: (row) => row.discountPercent,
+      cell: (row) => (row.discountPercent > 0 ? formatPercent(row.discountPercent) : '-'),
+      align: 'right',
+      width: 105,
+    },
+    {
+      id: 'lineTotal',
+      header: 'Total',
+      accessor: (row) => row.lineTotal,
+      cell: (row) => (
+        <span className={`akiva-financial-value font-semibold ${row.lineTotal < 0 ? 'text-rose-700' : 'text-akiva-text'}`}>
+          {formatMoney(row.lineTotal, currency)}
+        </span>
+      ),
+      align: 'right',
+      width: 130,
+      alwaysVisible: true,
+    },
+    {
+      id: 'reference',
+      header: 'Reference',
+      accessor: (row) => `${row.reference} ${row.documentReference}`,
+      cell: (row) => row.reference || row.documentReference || '-',
+      minWidth: 130,
+    },
+  ], [currency, dateFormat]);
+
+  if (!customer) {
+    return (
+      <ActionPanel actionId="customer-purchases">
+        <EmptyPanel title="Select a customer" detail="Sales history loads after a customer account is selected." />
+      </ActionPanel>
+    );
+  }
 
   return (
-    <ActionPanel actionId="customer-purchases">
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <InfoTile label="Invoice total" value={loading ? 'Loading...' : formatMoney(invoiceTotal)} />
-        <InfoTile label="Invoices" value={loading ? 'Loading...' : formatNumber(invoiceRows.length)} />
-        <InfoTile label="Order value" value={loading ? 'Loading...' : formatMoney(orderTotal)} />
+    <ActionPanel
+      actionId="customer-purchases"
+      headerActions={
+        <button
+          type="button"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-akiva-border bg-akiva-surface px-3 text-xs font-semibold text-akiva-text transition hover:border-akiva-accent hover:bg-akiva-surface-muted focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+          onClick={() => void executeSearch(filters)}
+          disabled={historyLoading}
+          title="Refresh sales history"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${historyLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      }
+    >
+      <div className="space-y-4">
+        <div className="border-b border-akiva-border pb-4">
+          <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_minmax(220px,0.7fr)] xl:items-end">
+            <label className="block min-w-0">
+              <span className="mb-1 block text-xs font-semibold text-akiva-text-muted">Search sales history</span>
+              <span className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-akiva-text-muted" />
+                <input
+                  value={filters.searchTerm}
+                  onChange={(event) => updateFilter('searchTerm', event.target.value)}
+                  className="h-11 w-full rounded-lg border border-akiva-border bg-akiva-surface-raised px-3 pl-9 text-sm text-akiva-text shadow-sm focus:border-akiva-accent focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                  placeholder="Item, invoice no., branch, reference..."
+                  autoComplete="off"
+                />
+              </span>
+            </label>
+            <DateRangePicker
+              value={{ from: filters.fromDate, to: filters.toDate, preset: filters.datePreset }}
+              onChange={(value) =>
+                setFilters((current) => ({
+                  ...current,
+                  fromDate: value.from,
+                  toDate: value.to,
+                  datePreset: value.preset,
+                }))
+              }
+              label="Date range"
+              triggerClassName="h-11 rounded-lg bg-akiva-surface-raised px-3 shadow-sm"
+              compact
+            />
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="inline-flex h-9 rounded-md border border-akiva-border bg-akiva-surface-raised p-0.5">
+              {SALES_HISTORY_TYPE_FILTERS.map((option) => {
+                const active = filters.type === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => updateFilter('type', option.value)}
+                    className={`rounded px-3 text-xs font-semibold transition ${
+                      active ? 'bg-akiva-accent text-white shadow-sm' : 'text-akiva-text-muted hover:bg-akiva-surface-muted hover:text-akiva-text'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 text-xs font-semibold text-akiva-text-muted transition hover:bg-akiva-surface-muted hover:text-akiva-text focus:outline-none focus:ring-2 focus:ring-akiva-accent"
+                onClick={clearFilters}
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear filters
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <InfoTile label="Net sales" value={historyLoading && !payload ? 'Loading...' : <span className="akiva-financial-value">{formatMoney(summary?.netSales ?? 0, currency)}</span>} />
+          <InfoTile label="Invoice value" value={historyLoading && !payload ? 'Loading...' : <span className="akiva-financial-value">{formatMoney(summary?.invoiceValue ?? 0, currency)}</span>} />
+          <InfoTile label="Credits" value={historyLoading && !payload ? 'Loading...' : <span className="akiva-financial-value">{formatMoney(summary?.creditValue ?? 0, currency)}</span>} />
+          <InfoTile label="Items" value={historyLoading && !payload ? 'Loading...' : `${formatNumber(summary?.uniqueItems ?? 0)} products / ${formatNumber(summary?.lineCount ?? 0)} lines`} />
+        </div>
+
+        {(summary?.topItems.length ?? 0) > 0 ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-akiva-border bg-akiva-surface px-3 py-3 sm:flex-row sm:items-center">
+            <div className="flex shrink-0 items-center gap-2 text-xs font-semibold text-akiva-text-muted">
+              <Tag className="h-3.5 w-3.5 text-akiva-accent-text" />
+              Top items
+            </div>
+            <div className="flex min-w-0 flex-wrap gap-2">
+              {summary?.topItems.slice(0, 3).map((item) => (
+                <span key={item.stockId} className="inline-flex max-w-full items-center gap-2 rounded-full bg-akiva-surface-muted px-3 py-1 text-xs font-semibold text-akiva-text">
+                  <span className="truncate">{item.stockId} · {item.description}</span>
+                  <span className="akiva-financial-value shrink-0 text-akiva-text-muted">{formatMoney(item.value, currency)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <AdvancedTable
+          tableId={`customer-workspace-sales-history-${customer.debtorNo}`}
+          ariaLabel="Customer sales history"
+          columns={columns}
+          rows={rows}
+          rowKey={(row) => String(row.movementId)}
+          emptyMessage={loading || historyLoading ? 'Loading sales history...' : 'No purchased items found for this customer and date range.'}
+          loading={historyLoading && !payload}
+          loadingMessage="Loading sales history..."
+          density="compact"
+          initialPageSize={15}
+          pageSizeOptions={[10, 15, 25, 50, 100]}
+          maxTableHeight="560px"
+          showSearch
+          searchPlaceholder="Filter visible history"
+          showColumnFilters={false}
+        />
       </div>
-      <OrderStatusTable
-        tableId="customer-workspace-purchases-orders"
-        orders={orders}
-        loading={loading}
-        dateFormat={dateFormat}
-        emptyMessage="No order value found for this customer."
-      />
     </ActionPanel>
   );
 }
@@ -3615,10 +4868,10 @@ function CustomerActionContent({
     );
   }
   if (activeAction === 'order-inquiries') {
-    return <OrderInquiriesPage orders={data.orderStatus} loading={dataLoading} dateFormat={dateFormat} />;
+    return <OrderInquiriesPage customer={selectedCustomer} dateFormat={dateFormat} />;
   }
   if (activeAction === 'customer-purchases') {
-    return <CustomerPurchasesPage transactions={data.transactions} orders={data.orderStatus} loading={dataLoading} dateFormat={dateFormat} />;
+    return <CustomerPurchasesPage customer={selectedCustomer} transactions={data.transactions} loading={dataLoading} dateFormat={dateFormat} />;
   }
   if (activeAction === 'outstanding-sales-orders') {
     return <OutstandingOrdersPage orders={data.outstandingOrders} loading={dataLoading} dateFormat={dateFormat} />;
@@ -3721,7 +4974,10 @@ export function CustomerWorkspace({ modal = false }: CustomerWorkspaceProps = {}
       const rows = await fetchSalesCustomers(query);
       setCustomers(rows);
       setSelectedCustomer((current) => {
-        if (!current) return rows[0] ?? null;
+        if (!current) {
+          const storedCode = readStoredCustomerCode();
+          return rows.find((customer) => isStoredCustomerMatch(customer, storedCode)) ?? rows[0] ?? null;
+        }
 
         const freshCustomer = rows.find((customer) => customerKey(customer) === customerKey(current));
         return freshCustomer ?? current;

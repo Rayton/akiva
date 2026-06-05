@@ -142,6 +142,201 @@ class SalesController extends Controller
         }
     }
 
+    public function orderDetail(Request $request, $orderNo)
+    {
+        $orderNumber = (int) $orderNo;
+        $debtorNo = trim((string) $request->query('debtorNo', ''));
+
+        if ($orderNumber <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A valid sales order number is required.',
+            ], 422);
+        }
+
+        try {
+            if (!Schema::hasTable('salesorders')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sales orders are not available.',
+                ], 404);
+            }
+
+            $hasDebtors = Schema::hasTable('debtorsmaster');
+            $hasBranches = Schema::hasTable('custbranch');
+            $hasCurrencies = $hasDebtors && Schema::hasTable('currencies');
+            $hasSalesTypes = Schema::hasTable('salestypes')
+                && Schema::hasColumn('salestypes', 'typeabbrev')
+                && Schema::hasColumn('salestypes', 'sales_type');
+
+            $query = DB::table('salesorders as so')
+                ->where('so.orderno', $orderNumber)
+                ->select(
+                    'so.orderno',
+                    'so.debtorno',
+                    'so.branchcode',
+                    'so.customerref',
+                    'so.buyername',
+                    'so.comments',
+                    'so.orddate',
+                    'so.ordertype',
+                    'so.shipvia',
+                    'so.deliverto',
+                    'so.deladd1',
+                    'so.deladd2',
+                    'so.deladd3',
+                    'so.deladd4',
+                    'so.deladd5',
+                    'so.deladd6',
+                    'so.contactphone',
+                    'so.contactemail',
+                    'so.freightcost',
+                    'so.fromstkloc',
+                    'so.deliverydate'
+                );
+
+            if ($debtorNo !== '') {
+                $query->where('so.debtorno', $debtorNo);
+            }
+
+            if ($hasDebtors) {
+                $query
+                    ->leftJoin('debtorsmaster as dm', 'dm.debtorno', '=', 'so.debtorno')
+                    ->addSelect(
+                        DB::raw('COALESCE(NULLIF(dm.name, ""), NULLIF(so.deliverto, ""), so.debtorno) as customer_name'),
+                        DB::raw('COALESCE(NULLIF(dm.currcode, ""), "' . $this->companyCurrency() . '") as currency_code'),
+                        'dm.taxref'
+                    );
+            } else {
+                $query->addSelect(
+                    DB::raw('COALESCE(NULLIF(so.deliverto, ""), so.debtorno) as customer_name'),
+                    DB::raw('"' . $this->companyCurrency() . '" as currency_code'),
+                    DB::raw('NULL as taxref')
+                );
+            }
+
+            if ($hasBranches) {
+                $query
+                    ->leftJoin('custbranch as cb', function ($join) {
+                        $join
+                            ->on('cb.debtorno', '=', 'so.debtorno')
+                            ->on('cb.branchcode', '=', 'so.branchcode');
+                    })
+                    ->addSelect('cb.brname as branch_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as branch_name'));
+            }
+
+            if ($hasCurrencies) {
+                $query
+                    ->leftJoin('currencies as cur', 'cur.currabrev', '=', 'dm.currcode')
+                    ->addSelect(DB::raw('COALESCE(cur.decimalplaces, 2) as currency_decimal_places'));
+            } else {
+                $query->addSelect(DB::raw('2 as currency_decimal_places'));
+            }
+
+            if (Schema::hasTable('shippers') && Schema::hasColumn('shippers', 'shipper_id')) {
+                $query
+                    ->leftJoin('shippers as sh', 'sh.shipper_id', '=', 'so.shipvia')
+                    ->addSelect('sh.shippername as shipper_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as shipper_name'));
+            }
+
+            if (Schema::hasTable('locations') && Schema::hasColumn('locations', 'loccode')) {
+                $query
+                    ->leftJoin('locations as loc', 'loc.loccode', '=', 'so.fromstkloc')
+                    ->addSelect('loc.locationname as location_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as location_name'));
+            }
+
+            if ($hasSalesTypes) {
+                $query
+                    ->leftJoin('salestypes as st', 'st.typeabbrev', '=', 'so.ordertype')
+                    ->addSelect('st.sales_type as sales_type_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as sales_type_name'));
+            }
+
+            $header = $query->first();
+
+            if (!$header) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $debtorNo !== ''
+                        ? 'Sales order was not found for this customer.'
+                        : 'Sales order was not found.',
+                ], 404);
+            }
+
+            $lines = $this->salesOrderDetailLines($orderNumber);
+            $lineCount = $lines->count();
+            $completedLines = $lines->where('completed', true)->count();
+            $subTotal = round((float) $lines->sum('lineTotal'), 2);
+            $freight = round((float) ($header->freightcost ?? 0), 2);
+            $comments = (string) ($header->comments ?? '');
+
+            preg_match_all('/\bInv\s+([0-9]+)/i', $comments, $invoiceMatches);
+            $invoiceNumbers = collect($invoiceMatches[1] ?? [])->unique()->values()->all();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'orderNo' => (string) $header->orderno,
+                    'debtorNo' => (string) $header->debtorno,
+                    'customerName' => (string) ($header->customer_name ?? ''),
+                    'branchCode' => (string) ($header->branchcode ?? ''),
+                    'branchName' => (string) ($header->branch_name ?? ''),
+                    'customerRef' => (string) ($header->customerref ?? ''),
+                    'buyerName' => (string) ($header->buyername ?? ''),
+                    'comments' => $comments,
+                    'orderDate' => $this->cleanDateValue($header->orddate ?? ''),
+                    'deliveryDate' => $this->cleanDateValue($header->deliverydate ?? ''),
+                    'orderType' => (string) ($header->ordertype ?? ''),
+                    'salesTypeName' => (string) ($header->sales_type_name ?? ''),
+                    'shipVia' => (int) ($header->shipvia ?? 0),
+                    'shipperName' => (string) ($header->shipper_name ?? ''),
+                    'fromStockLocation' => (string) ($header->fromstkloc ?? ''),
+                    'fromStockLocationName' => (string) ($header->location_name ?? ''),
+                    'deliveryTo' => (string) ($header->deliverto ?? ''),
+                    'deliveryAddress' => collect([
+                        $header->deladd1 ?? '',
+                        $header->deladd2 ?? '',
+                        $header->deladd3 ?? '',
+                        $header->deladd4 ?? '',
+                        $header->deladd5 ?? '',
+                        $header->deladd6 ?? '',
+                    ])->map(fn ($part) => trim((string) $part))->filter()->values()->all(),
+                    'contactPhone' => (string) ($header->contactphone ?? ''),
+                    'contactEmail' => (string) ($header->contactemail ?? ''),
+                    'currency' => (string) ($header->currency_code ?? $this->companyCurrency()),
+                    'decimalPlaces' => (int) ($header->currency_decimal_places ?? 2),
+                    'taxReference' => (string) ($header->taxref ?? ''),
+                    'invoiceNumbers' => $invoiceNumbers,
+                    'lineCount' => $lineCount,
+                    'completedLines' => $completedLines,
+                    'progressPercent' => $lineCount > 0 ? round(($completedLines / $lineCount) * 100, 1) : 0,
+                    'status' => $this->salesOrderStatusLabel($lineCount, $completedLines),
+                    'subTotal' => $subTotal,
+                    'freight' => $freight,
+                    'tax' => 0.0,
+                    'total' => round($subTotal + $freight, 2),
+                    'totalWeight' => round((float) $lines->sum('lineWeight'), 4),
+                    'totalVolume' => round((float) $lines->sum('lineVolume'), 4),
+                    'lines' => $lines->values()->all(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to load sales order details.',
+            ], 500);
+        }
+    }
+
     public function storeOrder(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -674,6 +869,244 @@ class SalesController extends Controller
                 'success' => true,
                 'data' => [],
             ]);
+        }
+    }
+
+    public function customerSalesHistory(Request $request)
+    {
+        $limit = $this->safeLimit($request->query('limit', 300), 20, 1500);
+        $defaultFromDate = Carbon::today()->subMonthsNoOverflow(2)->startOfMonth()->toDateString();
+        $defaultToDate = Carbon::today()->toDateString();
+        $debtorNo = trim((string) $request->query('debtorNo', ''));
+        $searchTerm = trim((string) ($request->query('searchTerm', $request->query('q', ''))));
+        $fromDate = $this->requestDateOrDefault($request->query('fromDate'), $defaultFromDate);
+        $toDate = $this->requestDateOrDefault($request->query('toDate'), $defaultToDate);
+        if ($fromDate > $toDate) {
+            [$fromDate, $toDate] = [$toDate, $fromDate];
+        }
+
+        $type = strtolower(trim((string) $request->query('type', 'all')));
+        if (!in_array($type, ['all', 'invoice', 'credit'], true)) {
+            $type = 'all';
+        }
+
+        if ($debtorNo === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'A customer code is required.',
+            ], 422);
+        }
+
+        try {
+            if (!Schema::hasTable('stockmoves')) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $this->emptyCustomerSalesHistoryPayload($debtorNo, $fromDate, $toDate, $type, $searchTerm),
+                ]);
+            }
+
+            $discountFraction = $this->salesOrderDiscountFractionExpression('sm');
+            $quantityExpression = '(-COALESCE(sm.qty, 0))';
+            $netUnitPriceExpression = '(COALESCE(sm.price, 0) * (1 - ' . $discountFraction . '))';
+            $lineTotalExpression = '(' . $quantityExpression . ' * ' . $netUnitPriceExpression . ')';
+
+            $query = DB::table('stockmoves as sm')
+                ->where('sm.debtorno', $debtorNo)
+                ->whereDate('sm.trandate', '>=', $fromDate)
+                ->whereDate('sm.trandate', '<=', $toDate)
+                ->select(
+                    'sm.stkmoveno',
+                    'sm.stockid',
+                    'sm.type',
+                    'sm.transno',
+                    'sm.loccode',
+                    'sm.trandate',
+                    'sm.debtorno',
+                    'sm.branchcode',
+                    'sm.price',
+                    'sm.reference',
+                    'sm.qty',
+                    'sm.discountpercent',
+                    'sm.narrative',
+                    DB::raw($quantityExpression . ' as display_quantity'),
+                    DB::raw($netUnitPriceExpression . ' as net_unit_price'),
+                    DB::raw($lineTotalExpression . ' as line_total'),
+                    DB::raw('(' . $discountFraction . ' * 100) as discount_percent')
+                );
+
+            if (Schema::hasColumn('stockmoves', 'units')) {
+                $query->addSelect('sm.units as movement_units');
+            } else {
+                $query->addSelect(DB::raw('NULL as movement_units'));
+            }
+
+            if (Schema::hasTable('stockmaster')) {
+                $query
+                    ->leftJoin('stockmaster as stk', 'stk.stockid', '=', 'sm.stockid')
+                    ->addSelect(
+                        DB::raw('COALESCE(NULLIF(stk.description, ""), sm.stockid) as item_description'),
+                        DB::raw("COALESCE(NULLIF(stk.units, ''), 'each') as stock_units")
+                    );
+            } else {
+                $query->addSelect(
+                    DB::raw('sm.stockid as item_description'),
+                    DB::raw("'each' as stock_units")
+                );
+            }
+
+            if (Schema::hasTable('systypes')) {
+                $query
+                    ->leftJoin('systypes as st', 'st.typeid', '=', 'sm.type')
+                    ->addSelect('st.typename as type_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as type_name'));
+            }
+
+            if (Schema::hasTable('locations')) {
+                $query
+                    ->leftJoin('locations as loc', 'loc.loccode', '=', 'sm.loccode')
+                    ->addSelect('loc.locationname as location_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as location_name'));
+            }
+
+            if (Schema::hasTable('custbranch')) {
+                $query
+                    ->leftJoin('custbranch as cb', function ($join) {
+                        $join
+                            ->on('cb.debtorno', '=', 'sm.debtorno')
+                            ->on('cb.branchcode', '=', 'sm.branchcode');
+                    })
+                    ->addSelect('cb.brname as branch_name');
+            } else {
+                $query->addSelect(DB::raw('NULL as branch_name'));
+            }
+
+            if (Schema::hasTable('debtortrans')) {
+                $query
+                    ->leftJoin('debtortrans as dt', function ($join) {
+                        $join
+                            ->on('dt.type', '=', 'sm.type')
+                            ->on('dt.transno', '=', 'sm.transno')
+                            ->on('dt.debtorno', '=', 'sm.debtorno');
+
+                        if (Schema::hasColumn('debtortrans', 'branchcode')) {
+                            $join->on('dt.branchcode', '=', 'sm.branchcode');
+                        }
+                    })
+                    ->addSelect(
+                        'dt.reference as document_reference',
+                        'dt.order_ as order_number'
+                    );
+            } else {
+                $query->addSelect(
+                    DB::raw('NULL as document_reference'),
+                    DB::raw('NULL as order_number')
+                );
+            }
+
+            if ($type === 'invoice') {
+                $query->where('sm.type', 10);
+            } elseif ($type === 'credit') {
+                $query->where('sm.type', 11);
+            } else {
+                $query->whereIn('sm.type', [10, 11]);
+            }
+
+            if ($searchTerm !== '') {
+                $like = '%' . preg_replace('/\s+/', '%', $searchTerm) . '%';
+                $query->where(function ($builder) use ($like) {
+                    $builder
+                        ->where('sm.stockid', 'like', $like)
+                        ->orWhere('sm.transno', 'like', $like)
+                        ->orWhere('sm.loccode', 'like', $like)
+                        ->orWhere('sm.branchcode', 'like', $like)
+                        ->orWhere('sm.reference', 'like', $like)
+                        ->orWhere('sm.narrative', 'like', $like);
+
+                    if (Schema::hasTable('stockmaster')) {
+                        $builder->orWhere('stk.description', 'like', $like);
+                    }
+
+                    if (Schema::hasTable('systypes')) {
+                        $builder->orWhere('st.typename', 'like', $like);
+                    }
+
+                    if (Schema::hasTable('locations')) {
+                        $builder->orWhere('loc.locationname', 'like', $like);
+                    }
+
+                    if (Schema::hasTable('custbranch')) {
+                        $builder->orWhere('cb.brname', 'like', $like);
+                    }
+
+                    if (Schema::hasTable('debtortrans')) {
+                        $builder
+                            ->orWhere('dt.reference', 'like', $like)
+                            ->orWhere('dt.order_', 'like', $like);
+                    }
+                });
+            }
+
+            $rows = $query
+                ->orderByDesc('sm.trandate')
+                ->orderByDesc('sm.transno')
+                ->orderBy('sm.stkmoveno')
+                ->limit($limit)
+                ->get()
+                ->map(function ($row) {
+                    $typeId = (int) ($row->type ?? 0);
+                    $quantity = round((float) ($row->display_quantity ?? 0), 4);
+                    $lineTotal = round((float) ($row->line_total ?? 0), 2);
+
+                    return [
+                        'movementId' => (int) ($row->stkmoveno ?? 0),
+                        'transactionDate' => $this->cleanDateValue($row->trandate ?? ''),
+                        'stockId' => (string) ($row->stockid ?? ''),
+                        'description' => (string) ($row->item_description ?? $row->stockid ?? ''),
+                        'typeId' => $typeId,
+                        'typeName' => (string) ($row->type_name ?? $this->salesTransactionTypeName($typeId)),
+                        'transactionNo' => (string) ($row->transno ?? ''),
+                        'locationCode' => (string) ($row->loccode ?? ''),
+                        'locationName' => (string) ($row->location_name ?? $row->loccode ?? ''),
+                        'branchCode' => (string) ($row->branchcode ?? ''),
+                        'branchName' => (string) ($row->branch_name ?? ''),
+                        'quantity' => $quantity,
+                        'units' => (string) ($row->movement_units ?: $row->stock_units ?: 'each'),
+                        'unitPrice' => round((float) ($row->price ?? 0), 4),
+                        'discountPercent' => round((float) ($row->discount_percent ?? 0), 2),
+                        'netUnitPrice' => round((float) ($row->net_unit_price ?? 0), 4),
+                        'lineTotal' => $lineTotal,
+                        'reference' => (string) ($row->reference ?? ''),
+                        'documentReference' => (string) ($row->document_reference ?? ''),
+                        'orderNo' => (string) ($row->order_number ?? ''),
+                        'narrative' => (string) ($row->narrative ?? ''),
+                    ];
+                })
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'currency' => $this->companyCurrency(),
+                    'filters' => [
+                        'debtorNo' => $debtorNo,
+                        'fromDate' => $fromDate,
+                        'toDate' => $toDate,
+                        'type' => $type,
+                        'searchTerm' => $searchTerm,
+                    ],
+                    'rows' => $rows,
+                    'summary' => $this->customerSalesHistorySummary($rows),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to load customer sales history.',
+            ], 500);
         }
     }
 
@@ -1618,6 +2051,123 @@ class SalesController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [],
+            ]);
+        }
+    }
+
+    public function customerOrderSearch(Request $request)
+    {
+        $limit = $this->safeLimit($request->query('limit', 160), 20, 600);
+        $partLimit = $this->safeLimit($request->query('partLimit', 200), 20, 500);
+        $defaultFromDate = Carbon::today()->subMonthsNoOverflow(2)->startOfMonth()->toDateString();
+        $defaultToDate = Carbon::today()->toDateString();
+        $debtorNo = trim((string) $request->query('debtorNo', ''));
+        $orderNo = trim((string) $request->query('orderNo', ''));
+        $customerRef = trim((string) $request->query('customerRef', ''));
+        $searchTerm = trim((string) $request->query('searchTerm', ''));
+        $fromDate = $this->requestDateOrDefault($request->query('fromDate'), $defaultFromDate);
+        $toDate = $this->requestDateOrDefault($request->query('toDate'), $defaultToDate);
+        if ($fromDate > $toDate) {
+            [$fromDate, $toDate] = [$toDate, $fromDate];
+        }
+        $completedOnly = $this->requestBoolean($request->query('completedOnly', false));
+        $status = strtolower(trim((string) $request->query('status', $completedOnly ? 'completed' : 'all')));
+        if (!in_array($status, ['all', 'open', 'completed'], true)) {
+            $status = 'all';
+        }
+        $partSearch = $this->requestBoolean($request->query('partSearch', false));
+        $selectedStockId = trim((string) $request->query('selectedStockId', ''));
+        $stockCategory = trim((string) $request->query('stockCategory', ''));
+        $itemSearch = trim((string) $request->query('itemSearch', ''));
+        $description = trim((string) $request->query('description', ''));
+        $stockCode = trim((string) $request->query('stockCode', ''));
+
+        try {
+            $categories = $this->customerOrderStockCategories();
+            if ($stockCategory === '' && count($categories) > 0) {
+                $stockCategory = (string) $categories[0]['value'];
+            }
+
+            $shouldSearchParts = $partSearch || $itemSearch !== '' || $description !== '' || $stockCode !== '';
+            $parts = $shouldSearchParts
+                ? $this->customerOrderPartRows($stockCategory, $itemSearch, $description, $stockCode, $status === 'completed', $partLimit)
+                : [];
+
+            if ($selectedStockId === '' && $itemSearch === '' && count($parts) === 1) {
+                $selectedStockId = (string) $parts[0]['stockId'];
+            }
+
+            $orders = $this->customerOrderRows(
+                $debtorNo,
+                $orderNo,
+                $customerRef,
+                $searchTerm,
+                $fromDate,
+                $toDate,
+                $status,
+                $selectedStockId,
+                $limit
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'currency' => $this->companyCurrency(),
+                    'filters' => [
+                        'debtorNo' => $debtorNo,
+                        'orderNo' => $orderNo,
+                        'customerRef' => $customerRef,
+                        'searchTerm' => $searchTerm,
+                        'fromDate' => $fromDate,
+                        'toDate' => $toDate,
+                        'completedOnly' => $status === 'completed',
+                        'status' => $status,
+                        'selectedStockId' => $selectedStockId,
+                        'stockCategory' => $stockCategory,
+                        'itemSearch' => $itemSearch,
+                        'description' => $description,
+                        'stockCode' => $stockCode,
+                    ],
+                    'categories' => $categories,
+                    'parts' => $parts,
+                    'orders' => $orders,
+                    'summary' => $this->customerOrderSearchSummary($orders, $parts, $selectedStockId),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'currency' => $this->companyCurrency(),
+                    'filters' => [
+                        'debtorNo' => $debtorNo,
+                        'orderNo' => $orderNo,
+                        'customerRef' => $customerRef,
+                        'searchTerm' => $searchTerm,
+                        'fromDate' => $fromDate,
+                        'toDate' => $toDate,
+                        'completedOnly' => $status === 'completed',
+                        'status' => $status,
+                        'selectedStockId' => $selectedStockId,
+                        'stockCategory' => $stockCategory,
+                        'itemSearch' => $itemSearch,
+                        'description' => $description,
+                        'stockCode' => $stockCode,
+                    ],
+                    'categories' => [],
+                    'parts' => [],
+                    'orders' => [],
+                    'summary' => [
+                        'orders' => 0,
+                        'openOrders' => 0,
+                        'completedOrders' => 0,
+                        'totalValue' => 0,
+                        'selectedStockId' => $selectedStockId,
+                        'selectedStockDescription' => '',
+                    ],
+                ],
             ]);
         }
     }
@@ -3302,12 +3852,12 @@ class SalesController extends Controller
 
     private function salesLineValueExpression(): string
     {
-        return '(COALESCE(sod.quantity, 0) * COALESCE(sod.unitprice, 0) * (1 - (COALESCE(sod.discountpercent, 0) / 100)))';
+        return $this->salesOrderLineValueExpression('sod');
     }
 
     private function remainingSalesValueExpression(): string
     {
-        return '(' . $this->remainingSalesQuantityExpression() . ' * COALESCE(sod.unitprice, 0) * (1 - (COALESCE(sod.discountpercent, 0) / 100)))';
+        return '(' . $this->remainingSalesQuantityExpression() . ' * COALESCE(sod.unitprice, 0) * (1 - ' . $this->salesOrderDiscountFractionExpression('sod') . '))';
     }
 
     private function stockUnitCostExpression(string $alias): string
@@ -3543,6 +4093,546 @@ class SalesController extends Controller
         $currency = strtoupper(trim((string) DB::table('companies')->where('coycode', 1)->value('currencydefault')));
 
         return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'TZS';
+    }
+
+    private function customerOrderStockCategories(): array
+    {
+        if (!Schema::hasTable('stockcategory')) {
+            return [];
+        }
+
+        return DB::table('stockcategory')
+            ->select('categoryid', 'categorydescription')
+            ->orderBy('categorydescription')
+            ->get()
+            ->map(fn ($row) => [
+                'value' => (string) $row->categoryid,
+                'label' => (string) ($row->categorydescription ?: $row->categoryid),
+                'code' => (string) $row->categoryid,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function customerOrderPartRows(
+        string $stockCategory,
+        string $itemSearch,
+        string $description,
+        string $stockCode,
+        bool $completedOnly,
+        int $limit
+    ): array {
+        if (!Schema::hasTable('stockmaster')) {
+            return [];
+        }
+
+        $query = DB::table('stockmaster as sm')
+            ->select(
+                'sm.stockid',
+                'sm.description',
+                DB::raw("COALESCE(NULLIF(sm.units, ''), 'each') as units"),
+                DB::raw('COALESCE(sm.decimalplaces, 0) as decimalplaces')
+            );
+
+        if (Schema::hasTable('locstock')) {
+            $onHand = DB::table('locstock')
+                ->select('stockid')
+                ->selectRaw('COALESCE(SUM(quantity), 0) as on_hand')
+                ->groupBy('stockid');
+
+            $query
+                ->leftJoinSub($onHand, 'qoh', 'qoh.stockid', '=', 'sm.stockid')
+                ->addSelect(DB::raw('COALESCE(qoh.on_hand, 0) as on_hand'));
+        } else {
+            $query->addSelect(DB::raw('0 as on_hand'));
+        }
+
+        if (
+            Schema::hasTable('purchorderdetails')
+            && Schema::hasColumn('purchorderdetails', 'itemcode')
+        ) {
+            $purchaseOrders = DB::table('purchorderdetails')
+                ->select('itemcode')
+                ->selectRaw('COALESCE(SUM(GREATEST(COALESCE(quantityord, 0) - COALESCE(quantityrecd, 0), 0)), 0) as purchase_orders')
+                ->groupBy('itemcode');
+
+            $query
+                ->leftJoinSub($purchaseOrders, 'qoo', 'qoo.itemcode', '=', 'sm.stockid')
+                ->addSelect(DB::raw('COALESCE(qoo.purchase_orders, 0) as purchase_orders'));
+        } else {
+            $query->addSelect(DB::raw('0 as purchase_orders'));
+        }
+
+        if (Schema::hasTable('salesorderdetails')) {
+            $salesOrders = DB::table('salesorderdetails')
+                ->select('stkcode')
+                ->selectRaw('COALESCE(SUM(GREATEST(COALESCE(quantity, 0) - COALESCE(qtyinvoiced, 0), 0)), 0) as sales_orders')
+                ->groupBy('stkcode');
+
+            if ($completedOnly && Schema::hasColumn('salesorderdetails', 'completed')) {
+                $salesOrders->where('completed', 1);
+            }
+
+            $query
+                ->leftJoinSub($salesOrders, 'qdem', 'qdem.stkcode', '=', 'sm.stockid')
+                ->addSelect(DB::raw('COALESCE(qdem.sales_orders, 0) as sales_orders'));
+        } else {
+            $query->addSelect(DB::raw('0 as sales_orders'));
+        }
+
+        if ($stockCategory !== '' && Schema::hasColumn('stockmaster', 'categoryid')) {
+            $query->where('sm.categoryid', $stockCategory);
+        }
+
+        if ($itemSearch !== '') {
+            $like = '%' . preg_replace('/\s+/', '%', trim($itemSearch)) . '%';
+            $query->where(function ($builder) use ($like) {
+                $builder
+                    ->where('sm.stockid', 'like', $like)
+                    ->orWhere('sm.description', 'like', $like);
+            });
+        } elseif ($description !== '') {
+            $keywords = '%' . preg_replace('/\s+/', '%', trim($description)) . '%';
+            $query->where('sm.description', 'like', $keywords);
+        } elseif ($stockCode !== '') {
+            $query->where('sm.stockid', 'like', '%' . $stockCode . '%');
+        }
+
+        return $query
+            ->orderBy('sm.stockid')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => [
+                'stockId' => (string) $row->stockid,
+                'description' => (string) ($row->description ?? $row->stockid),
+                'onHand' => round((float) $row->on_hand, 4),
+                'purchaseOrders' => round((float) $row->purchase_orders, 4),
+                'salesOrders' => round((float) $row->sales_orders, 4),
+                'units' => (string) ($row->units ?? 'each'),
+                'decimalPlaces' => (int) ($row->decimalplaces ?? 0),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function customerOrderRows(
+        string $debtorNo,
+        string $orderNo,
+        string $customerRef,
+        string $searchTerm,
+        string $fromDate,
+        string $toDate,
+        string $status,
+        string $selectedStockId,
+        int $limit
+    ): array {
+        if (!Schema::hasTable('salesorders') || !Schema::hasTable('salesorderdetails')) {
+            return [];
+        }
+
+        $hasDebtors = Schema::hasTable('debtorsmaster');
+        $hasBranches = Schema::hasTable('custbranch');
+        $customerNameExpression = $hasDebtors
+            ? 'COALESCE(NULLIF(dm.name, ""), NULLIF(so.deliverto, ""), so.debtorno)'
+            : 'COALESCE(NULLIF(so.deliverto, ""), so.debtorno)';
+        $branchNameExpression = $hasBranches
+            ? 'COALESCE(NULLIF(cb.brname, ""), so.branchcode, "")'
+            : 'COALESCE(so.branchcode, "")';
+        $deliveryToExpression = $hasBranches
+            ? 'COALESCE(NULLIF(so.deliverto, ""), NULLIF(cb.brname, ""), "")'
+            : 'COALESCE(NULLIF(so.deliverto, ""), "")';
+
+        $query = DB::table('salesorders as so')
+            ->leftJoin('salesorderdetails as sod', 'sod.orderno', '=', 'so.orderno');
+
+        if ($hasDebtors) {
+            $query->leftJoin('debtorsmaster as dm', 'dm.debtorno', '=', 'so.debtorno');
+        }
+
+        if ($hasBranches) {
+            $query->leftJoin('custbranch as cb', function ($join) {
+                $join
+                    ->on('cb.debtorno', '=', 'so.debtorno')
+                    ->on('cb.branchcode', '=', 'so.branchcode');
+            });
+        }
+
+        $query
+            ->select(
+                'so.orderno',
+                'so.debtorno',
+                'so.branchcode',
+                'so.customerref',
+                'so.orddate',
+                'so.deliverydate',
+                DB::raw($customerNameExpression . ' as customer_name'),
+                DB::raw($branchNameExpression . ' as branch_name'),
+                DB::raw($deliveryToExpression . ' as delivery_to'),
+                DB::raw('COUNT(sod.stkcode) as line_count'),
+                DB::raw('COALESCE(SUM(CASE WHEN sod.completed = 1 OR sod.qtyinvoiced >= sod.quantity THEN 1 ELSE 0 END), 0) as completed_lines'),
+                DB::raw('COALESCE(SUM(' . $this->salesOrderLineValueExpression('sod') . '), 0) as gross_total')
+            );
+
+        if (Schema::hasColumn('salesorders', 'quotation')) {
+            $query->where('so.quotation', 0);
+        }
+
+        if ($debtorNo !== '') {
+            $query->where('so.debtorno', $debtorNo);
+        }
+
+        if ($orderNo !== '') {
+            $query->where('so.orderno', $orderNo);
+        } elseif ($customerRef !== '') {
+            $query->where('so.customerref', 'like', '%' . $customerRef . '%');
+        } else {
+            $query->whereDate('so.orddate', '>=', $fromDate);
+            $query->whereDate('so.orddate', '<=', $toDate);
+
+            if ($searchTerm !== '') {
+                $like = '%' . $searchTerm . '%';
+                $query->where(function ($builder) use ($like, $hasDebtors, $hasBranches) {
+                    $builder
+                        ->where('so.orderno', 'like', $like)
+                        ->orWhere('so.customerref', 'like', $like)
+                        ->orWhere('so.debtorno', 'like', $like)
+                        ->orWhere('so.deliverto', 'like', $like)
+                        ->orWhere('so.branchcode', 'like', $like);
+
+                    if ($hasDebtors) {
+                        $builder->orWhere('dm.name', 'like', $like);
+                    }
+
+                    if ($hasBranches) {
+                        $builder->orWhere('cb.brname', 'like', $like);
+                    }
+                });
+            }
+
+            if ($selectedStockId !== '') {
+                $query->whereExists(function ($subQuery) use ($selectedStockId) {
+                    $subQuery
+                        ->select(DB::raw(1))
+                        ->from('salesorderdetails as matched_sod')
+                        ->whereColumn('matched_sod.orderno', 'so.orderno')
+                        ->where('matched_sod.stkcode', $selectedStockId);
+                });
+            }
+        }
+
+        $groupBy = [
+            'so.orderno',
+            'so.debtorno',
+            'so.branchcode',
+            'so.customerref',
+            'so.orddate',
+            'so.deliverydate',
+            'so.deliverto',
+        ];
+
+        if ($hasDebtors) {
+            $groupBy[] = 'dm.name';
+        }
+
+        if ($hasBranches) {
+            $groupBy[] = 'cb.brname';
+        }
+
+        $query->groupBy(...$groupBy);
+
+        if ($status === 'completed') {
+            $query->havingRaw('line_count > 0 AND completed_lines >= line_count');
+        } elseif ($status === 'open') {
+            $query->havingRaw('line_count = 0 OR completed_lines < line_count');
+        }
+
+        return $query
+            ->orderByDesc('so.orderno')
+            ->limit($limit)
+            ->get()
+            ->map(function ($row) {
+                $lineCount = (int) $row->line_count;
+                $completedLines = (int) $row->completed_lines;
+                $status = 'Open';
+
+                if ($lineCount > 0 && $completedLines >= $lineCount) {
+                    $status = 'Completed';
+                } elseif ($completedLines > 0) {
+                    $status = 'Partially complete';
+                }
+
+                return [
+                    'orderNo' => (string) $row->orderno,
+                    'debtorNo' => (string) $row->debtorno,
+                    'customerName' => (string) $row->customer_name,
+                    'branchCode' => (string) ($row->branchcode ?? ''),
+                    'branchName' => (string) $row->branch_name,
+                    'customerRef' => (string) ($row->customerref ?? ''),
+                    'orderDate' => (string) $row->orddate,
+                    'deliveryDate' => (string) $row->deliverydate,
+                    'deliveryTo' => (string) $row->delivery_to,
+                    'lineCount' => $lineCount,
+                    'completedLines' => $completedLines,
+                    'progressPercent' => $lineCount > 0 ? round(($completedLines / $lineCount) * 100, 1) : 0,
+                    'grossTotal' => round((float) $row->gross_total, 2),
+                    'status' => $status,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function salesOrderDetailLines(int $orderNumber)
+    {
+        if (!Schema::hasTable('salesorderdetails')) {
+            return collect();
+        }
+
+        $discountFraction = $this->salesOrderDiscountFractionExpression('sod');
+        $lineTotalExpression = $this->salesOrderLineValueExpression('sod');
+        $hasStockMaster = Schema::hasTable('stockmaster');
+
+        $query = DB::table('salesorderdetails as sod')
+            ->where('sod.orderno', $orderNumber)
+            ->select(
+                'sod.orderlineno',
+                'sod.stkcode',
+                'sod.qtyinvoiced',
+                'sod.unitprice',
+                'sod.quantity',
+                'sod.discountpercent',
+                'sod.actualdispatchdate',
+                'sod.completed',
+                'sod.narrative',
+                'sod.itemdue',
+                'sod.poline',
+                DB::raw($lineTotalExpression . ' as line_total'),
+                DB::raw('(' . $discountFraction . ' * 100) as discount_percent')
+            );
+
+        if ($hasStockMaster) {
+            $query
+                ->leftJoin('stockmaster as sm', 'sm.stockid', '=', 'sod.stkcode')
+                ->addSelect(
+                    DB::raw('COALESCE(NULLIF(sm.description, ""), sod.stkcode) as item_description'),
+                    DB::raw("COALESCE(NULLIF(sod.units, ''), NULLIF(sm.units, ''), 'each') as line_units"),
+                    DB::raw('COALESCE(sod.decimalplaces, sm.decimalplaces, 0) as line_decimal_places'),
+                    DB::raw('COALESCE(sm.volume, 0) as item_volume'),
+                    DB::raw('COALESCE(sm.grossweight, 0) as item_weight')
+                );
+        } else {
+            $query->addSelect(
+                DB::raw('sod.stkcode as item_description'),
+                DB::raw("COALESCE(NULLIF(sod.units, ''), 'each') as line_units"),
+                DB::raw('COALESCE(sod.decimalplaces, 0) as line_decimal_places'),
+                DB::raw('0 as item_volume'),
+                DB::raw('0 as item_weight')
+            );
+        }
+
+        return $query
+            ->orderBy('sod.orderlineno')
+            ->get()
+            ->map(function ($line) {
+                $quantity = (float) ($line->quantity ?? 0);
+                $qtyInvoiced = (float) ($line->qtyinvoiced ?? 0);
+                $completed = (int) ($line->completed ?? 0) === 1 || $qtyInvoiced >= $quantity;
+                $status = $completed ? 'Completed' : ($qtyInvoiced > 0 ? 'Partially invoiced' : 'Open');
+
+                return [
+                    'lineNo' => (int) ($line->orderlineno ?? 0),
+                    'stockId' => (string) ($line->stkcode ?? ''),
+                    'description' => (string) ($line->item_description ?? $line->stkcode ?? ''),
+                    'quantity' => $quantity,
+                    'qtyInvoiced' => $qtyInvoiced,
+                    'outstandingQty' => max(round($quantity - $qtyInvoiced, 4), 0),
+                    'unitPrice' => round((float) ($line->unitprice ?? 0), 4),
+                    'discountPercent' => round((float) ($line->discount_percent ?? 0), 2),
+                    'lineTotal' => round((float) ($line->line_total ?? 0), 2),
+                    'units' => (string) ($line->line_units ?? 'each'),
+                    'decimalPlaces' => (int) ($line->line_decimal_places ?? 0),
+                    'poLine' => (string) ($line->poline ?? ''),
+                    'narrative' => (string) ($line->narrative ?? ''),
+                    'actualDispatchDate' => $this->cleanDateValue($line->actualdispatchdate ?? ''),
+                    'dueDate' => $this->cleanDateValue($line->itemdue ?? ''),
+                    'completed' => $completed,
+                    'status' => $status,
+                    'lineWeight' => round($quantity * (float) ($line->item_weight ?? 0), 4),
+                    'lineVolume' => round($quantity * (float) ($line->item_volume ?? 0), 4),
+                ];
+            });
+    }
+
+    private function salesOrderDiscountFractionExpression(string $alias): string
+    {
+        $raw = 'COALESCE(' . $alias . '.discountpercent, 0)';
+
+        return '(CASE WHEN ' . $raw . ' > 1 THEN LEAST(' . $raw . ' / 100, 1) ELSE GREATEST(' . $raw . ', 0) END)';
+    }
+
+    private function salesOrderLineValueExpression(string $alias): string
+    {
+        return '(COALESCE(' . $alias . '.quantity, 0) * COALESCE(' . $alias . '.unitprice, 0) * (1 - ' . $this->salesOrderDiscountFractionExpression($alias) . '))';
+    }
+
+    private function salesOrderStatusLabel(int $lineCount, int $completedLines): string
+    {
+        if ($lineCount > 0 && $completedLines >= $lineCount) {
+            return 'Completed';
+        }
+
+        if ($completedLines > 0) {
+            return 'Partially complete';
+        }
+
+        return 'Open';
+    }
+
+    private function emptyCustomerSalesHistoryPayload(string $debtorNo, string $fromDate, string $toDate, string $type, string $searchTerm): array
+    {
+        return [
+            'currency' => $this->companyCurrency(),
+            'filters' => [
+                'debtorNo' => $debtorNo,
+                'fromDate' => $fromDate,
+                'toDate' => $toDate,
+                'type' => $type,
+                'searchTerm' => $searchTerm,
+            ],
+            'rows' => [],
+            'summary' => [
+                'lineCount' => 0,
+                'invoiceCount' => 0,
+                'creditCount' => 0,
+                'uniqueItems' => 0,
+                'quantity' => 0,
+                'invoiceValue' => 0,
+                'creditValue' => 0,
+                'netSales' => 0,
+                'averageLineValue' => 0,
+                'topItems' => [],
+            ],
+        ];
+    }
+
+    private function customerSalesHistorySummary($rows): array
+    {
+        $rowCollection = collect($rows);
+        $invoiceValue = round((float) $rowCollection->where('typeId', 10)->sum('lineTotal'), 2);
+        $creditValue = round(abs((float) $rowCollection->where('typeId', 11)->sum('lineTotal')), 2);
+        $netSales = round((float) $rowCollection->sum('lineTotal'), 2);
+        $lineCount = $rowCollection->count();
+
+        $topItems = $rowCollection
+            ->groupBy('stockId')
+            ->map(function ($itemRows, $stockId) {
+                $first = $itemRows->first();
+                return [
+                    'stockId' => (string) $stockId,
+                    'description' => (string) ($first['description'] ?? $stockId),
+                    'quantity' => round((float) $itemRows->sum('quantity'), 4),
+                    'value' => round((float) $itemRows->sum('lineTotal'), 2),
+                    'lineCount' => $itemRows->count(),
+                ];
+            })
+            ->sortByDesc('value')
+            ->values()
+            ->take(5)
+            ->all();
+
+        return [
+            'lineCount' => $lineCount,
+            'invoiceCount' => $rowCollection
+                ->where('typeId', 10)
+                ->map(fn ($row) => (string) ($row['transactionNo'] ?? ''))
+                ->filter()
+                ->unique()
+                ->count(),
+            'creditCount' => $rowCollection
+                ->where('typeId', 11)
+                ->map(fn ($row) => (string) ($row['transactionNo'] ?? ''))
+                ->filter()
+                ->unique()
+                ->count(),
+            'uniqueItems' => $rowCollection->pluck('stockId')->filter()->unique()->count(),
+            'quantity' => round((float) $rowCollection->sum('quantity'), 4),
+            'invoiceValue' => $invoiceValue,
+            'creditValue' => $creditValue,
+            'netSales' => $netSales,
+            'averageLineValue' => $lineCount > 0 ? round($netSales / $lineCount, 2) : 0,
+            'topItems' => $topItems,
+        ];
+    }
+
+    private function salesTransactionTypeName(int $type): string
+    {
+        if ($type === 10) {
+            return 'Sales Invoice';
+        }
+
+        if ($type === 11) {
+            return 'Credit Note';
+        }
+
+        if ($type === 12) {
+            return 'Receipt';
+        }
+
+        return 'Type ' . $type;
+    }
+
+    private function customerOrderSearchSummary(array $orders, array $parts, string $selectedStockId): array
+    {
+        $orderRows = collect($orders);
+        $selectedPart = $selectedStockId !== ''
+            ? collect($parts)->firstWhere('stockId', $selectedStockId)
+            : null;
+
+        return [
+            'orders' => $orderRows->count(),
+            'openOrders' => $orderRows->where('status', '!=', 'Completed')->count(),
+            'completedOrders' => $orderRows->where('status', 'Completed')->count(),
+            'totalValue' => round((float) $orderRows->sum('grossTotal'), 2),
+            'selectedStockId' => $selectedStockId,
+            'selectedStockDescription' => is_array($selectedPart) ? (string) ($selectedPart['description'] ?? '') : '',
+        ];
+    }
+
+    private function requestDateOrDefault($value, string $default): string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return $default;
+        }
+
+        try {
+            return Carbon::parse($raw)->toDateString();
+        } catch (\Throwable) {
+            return $default;
+        }
+    }
+
+    private function requestBoolean($value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
+    }
+
+    private function cleanDateValue($value): string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '' || str_starts_with($raw, '0000-00-00')) {
+            return '';
+        }
+
+        try {
+            return Carbon::parse($raw)->toDateString();
+        } catch (\Throwable) {
+            return $raw;
+        }
     }
 
     private function salesCompanyProfile(): array

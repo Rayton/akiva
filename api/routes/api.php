@@ -144,12 +144,15 @@ Route::delete('/configuration/manufacturing/setup/{entity}/{id}', [Manufacturing
 Route::prefix('sales')->group(function () {
     Route::get('/dashboard', [SalesController::class, 'dashboard']);
     Route::get('/orders', [SalesController::class, 'orders']);
+    Route::get('/orders/{orderNo}', [SalesController::class, 'orderDetail']);
     Route::post('/orders', [SalesController::class, 'storeOrder']);
     Route::get('/customers', [SalesController::class, 'customers']);
     Route::get('/items', [SalesController::class, 'items']);
     Route::get('/transactions', [SalesController::class, 'transactions']);
     Route::get('/transaction-document', [SalesController::class, 'transactionDocument']);
     Route::post('/customer-statement/email', [SalesController::class, 'sendCustomerStatementEmail']);
+    Route::get('/customer-sales-history', [SalesController::class, 'customerSalesHistory']);
+    Route::get('/customer-order-search', [SalesController::class, 'customerOrderSearch']);
     Route::get('/outstanding-orders', [SalesController::class, 'outstandingOrders']);
     Route::get('/picking-lists', [SalesController::class, 'pickingLists']);
     Route::get('/contracts/lookups', [SalesController::class, 'contractLookups']);

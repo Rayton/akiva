@@ -7,11 +7,14 @@ import {
   SalesContractPayload,
   SalesContractQuoteResult,
   SalesContractSummary,
+  SalesCustomerSalesHistoryPayload,
+  SalesCustomerOrderSearchPayload,
   SalesCustomerTrendPayload,
   SalesDashboardPayload,
   SalesCustomer,
   SalesDailySalesRow,
   SalesLowGrossRow,
+  SalesOrderDetail,
   SalesOrderStatusRow,
   SalesOutstandingOrder,
   SalesPickingCandidate,
@@ -64,6 +67,34 @@ export interface SendCustomerStatementEmailResult {
   mailer: string;
 }
 
+export interface FetchCustomerOrderSearchParams {
+  debtorNo?: string;
+  orderNo?: string;
+  customerRef?: string;
+  searchTerm?: string;
+  fromDate?: string;
+  toDate?: string;
+  completedOnly?: boolean;
+  status?: 'all' | 'open' | 'completed';
+  selectedStockId?: string;
+  stockCategory?: string;
+  itemSearch?: string;
+  description?: string;
+  stockCode?: string;
+  partSearch?: boolean;
+  limit?: number;
+  partLimit?: number;
+}
+
+export interface FetchCustomerSalesHistoryParams {
+  debtorNo?: string;
+  fromDate?: string;
+  toDate?: string;
+  type?: 'all' | 'invoice' | 'credit';
+  searchTerm?: string;
+  limit?: number;
+}
+
 async function parseJson<T>(response: Response): Promise<T | null> {
   try {
     return (await response.json()) as T;
@@ -95,6 +126,21 @@ export async function fetchOnlineSalesOrders(limit = 250): Promise<OnlineSalesOr
   } catch (error) {
     console.error('Failed to fetch online sales orders:', error);
     return [];
+  }
+}
+
+export async function fetchSalesOrderDetail(orderNo: string, debtorNo = ''): Promise<SalesOrderDetail | null> {
+  try {
+    const query = new URLSearchParams();
+    if (debtorNo.trim() !== '') query.set('debtorNo', debtorNo.trim());
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const response = await apiFetch(buildApiUrl(`/api/sales/orders/${encodeURIComponent(orderNo)}${suffix}`));
+    if (!response.ok) return null;
+    const data: ApiObjectResponse<SalesOrderDetail> = await response.json();
+    return data.success && data.data ? data.data : null;
+  } catch (error) {
+    console.error('Failed to fetch sales order detail:', error);
+    return null;
   }
 }
 
@@ -324,6 +370,42 @@ export async function fetchSalesOrderStatus(search = ''): Promise<SalesOrderStat
   } catch (error) {
     console.error('Failed to fetch sales order status:', error);
     return [];
+  }
+}
+
+export async function fetchCustomerOrderSearch(params: FetchCustomerOrderSearchParams): Promise<SalesCustomerOrderSearchPayload | null> {
+  try {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.set(key, typeof value === 'boolean' ? String(value) : String(value));
+    });
+
+    const response = await apiFetch(buildApiUrl(`/api/sales/customer-order-search?${query.toString()}`));
+    if (!response.ok) return null;
+    const data: ApiObjectResponse<SalesCustomerOrderSearchPayload> = await response.json();
+    return data.success ? data.data : null;
+  } catch (error) {
+    console.error('Failed to fetch customer order search:', error);
+    return null;
+  }
+}
+
+export async function fetchCustomerSalesHistory(params: FetchCustomerSalesHistoryParams): Promise<SalesCustomerSalesHistoryPayload | null> {
+  try {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      query.set(key, String(value));
+    });
+
+    const response = await apiFetch(buildApiUrl(`/api/sales/customer-sales-history?${query.toString()}`));
+    if (!response.ok) return null;
+    const data: ApiObjectResponse<SalesCustomerSalesHistoryPayload> = await response.json();
+    return data.success ? data.data : null;
+  } catch (error) {
+    console.error('Failed to fetch customer sales history:', error);
+    return null;
   }
 }
 

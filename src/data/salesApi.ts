@@ -37,6 +37,51 @@ interface ApiListResponse<T> {
 interface ApiObjectResponse<T> {
   success: boolean;
   data: T;
+  message?: string;
+  errors?: Record<string, string[] | string>;
+}
+
+interface ApiErrorPayload {
+  message?: string;
+  errors?: Record<string, string[] | string>;
+}
+
+export interface SendCustomerStatementEmailPayload {
+  debtorNo: string;
+  branchCode?: string;
+  customerName: string;
+  to: string;
+  subject: string;
+  body: string;
+  attachmentName: string;
+  attachmentBase64: string;
+}
+
+export interface SendCustomerStatementEmailResult {
+  to: string;
+  attachmentName: string;
+  sentAt: string;
+  mailer: string;
+}
+
+async function parseJson<T>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function apiErrorMessage(payload: ApiErrorPayload | null, fallback: string): string {
+  const messages: string[] = [];
+  if (payload?.message) messages.push(payload.message);
+  if (payload?.errors) {
+    Object.values(payload.errors).forEach((value) => {
+      if (Array.isArray(value)) messages.push(...value);
+      else if (typeof value === 'string') messages.push(value);
+    });
+  }
+  return messages.length > 0 ? messages.join(' | ') : fallback;
 }
 
 export async function fetchOnlineSalesOrders(limit = 250): Promise<OnlineSalesOrder[]> {
@@ -83,6 +128,26 @@ export async function fetchSalesTransactionDocument(transType: number, transNo: 
     console.error('Failed to fetch sales transaction document:', error);
     return null;
   }
+}
+
+export async function sendCustomerStatementEmail(
+  payload: SendCustomerStatementEmailPayload
+): Promise<SendCustomerStatementEmailResult> {
+  const response = await apiFetch(buildApiUrl('/api/sales/customer-statement/email'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJson<ApiObjectResponse<SendCustomerStatementEmailResult>>(response);
+
+  if (!response.ok || !data?.success || !data.data) {
+    throw new Error(apiErrorMessage(data, 'Customer statement could not be sent.'));
+  }
+
+  return data.data;
 }
 
 export async function fetchSalesReportSummary(months = 12): Promise<SalesReportSummary | null> {

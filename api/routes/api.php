@@ -149,6 +149,7 @@ Route::prefix('sales')->group(function () {
     Route::get('/items', [SalesController::class, 'items']);
     Route::get('/transactions', [SalesController::class, 'transactions']);
     Route::get('/transaction-document', [SalesController::class, 'transactionDocument']);
+    Route::post('/customer-statement/email', [SalesController::class, 'sendCustomerStatementEmail']);
     Route::get('/outstanding-orders', [SalesController::class, 'outstandingOrders']);
     Route::get('/picking-lists', [SalesController::class, 'pickingLists']);
     Route::get('/contracts/lookups', [SalesController::class, 'contractLookups']);

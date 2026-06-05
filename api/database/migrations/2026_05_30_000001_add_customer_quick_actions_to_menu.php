@@ -64,7 +64,6 @@ return new class extends Migration
             ['Transactions', 'transaction-inquiries'],
             ['Statement', 'account-statement'],
             ['Customer Profile', 'customer-details'],
-            ['Print Statement', 'print-statement'],
             ['Send Statement', 'email-statement'],
             ['Orders', 'order-inquiries'],
             ['Sales History', 'customer-purchases'],

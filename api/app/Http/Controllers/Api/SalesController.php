@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\EmailSetting;
 use Carbon\Carbon;
+use Illuminate\Mail\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 
@@ -964,6 +967,78 @@ class SalesController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Unable to load transaction document.',
+            ], 500);
+        }
+    }
+
+    public function sendCustomerStatementEmail(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'debtorNo' => ['required', 'string', 'max:10'],
+            'branchCode' => ['nullable', 'string', 'max:10'],
+            'customerName' => ['required', 'string', 'max:255'],
+            'to' => ['required', 'email', 'max:255'],
+            'subject' => ['required', 'string', 'max:180'],
+            'body' => ['nullable', 'string', 'max:10000'],
+            'attachmentName' => ['required', 'string', 'max:180'],
+            'attachmentBase64' => ['required', 'string'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $payload = $validator->validated();
+
+        try {
+            $this->assertStatementCustomerExists(
+                (string) $payload['debtorNo'],
+                isset($payload['branchCode']) ? (string) $payload['branchCode'] : ''
+            );
+
+            $pdf = $this->decodeStatementAttachment((string) $payload['attachmentBase64']);
+            $attachmentName = $this->statementAttachmentName((string) $payload['attachmentName']);
+            $mailConfig = $this->configureStatementMailer();
+            $to = trim((string) $payload['to']);
+            $subject = trim((string) $payload['subject']);
+            $body = trim((string) ($payload['body'] ?? ''));
+            if ($body === '') {
+                $body = 'Please find attached your customer statement.';
+            }
+
+            Mail::raw($body, function (Message $message) use ($to, $subject, $pdf, $attachmentName, $mailConfig) {
+                $message
+                    ->to($to)
+                    ->from($mailConfig['fromAddress'], $mailConfig['fromName'])
+                    ->subject($subject)
+                    ->attachData($pdf, $attachmentName, ['mime' => 'application/pdf']);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Customer statement email sent.',
+                'data' => [
+                    'to' => $to,
+                    'attachmentName' => $attachmentName,
+                    'sentAt' => now()->toIso8601String(),
+                    'mailer' => $mailConfig['mailer'],
+                ],
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Customer statement could not be sent. Check SMTP settings and try again.',
             ], 500);
         }
     }
@@ -3298,6 +3373,165 @@ class SalesController extends Controller
         }
 
         return round((($current - $previous) / abs($previous)) * 100, 1);
+    }
+
+    private function assertStatementCustomerExists(string $debtorNo, string $branchCode): void
+    {
+        if (!Schema::hasTable('debtorsmaster')) {
+            throw new \InvalidArgumentException('Customer records are not available.');
+        }
+
+        $customerExists = DB::table('debtorsmaster')
+            ->where('debtorno', $debtorNo)
+            ->exists();
+
+        if (!$customerExists) {
+            throw new \InvalidArgumentException('Selected customer was not found.');
+        }
+
+        if ($branchCode === '' || !Schema::hasTable('custbranch')) {
+            return;
+        }
+
+        $branchExists = DB::table('custbranch')
+            ->where('debtorno', $debtorNo)
+            ->where('branchcode', $branchCode)
+            ->exists();
+
+        if (!$branchExists) {
+            throw new \InvalidArgumentException('Selected customer branch was not found.');
+        }
+    }
+
+    private function decodeStatementAttachment(string $attachmentBase64): string
+    {
+        $normalized = preg_replace('/\s+/', '', trim($attachmentBase64)) ?? '';
+        if (str_starts_with($normalized, 'data:') && str_contains($normalized, ',')) {
+            $normalized = substr($normalized, strpos($normalized, ',') + 1);
+        }
+
+        $pdf = base64_decode($normalized, true);
+        if ($pdf === false || substr($pdf, 0, 4) !== '%PDF') {
+            throw new \InvalidArgumentException('Statement attachment must be a valid PDF.');
+        }
+
+        if (strlen($pdf) > 10 * 1024 * 1024) {
+            throw new \InvalidArgumentException('Statement PDF is too large to email.');
+        }
+
+        return $pdf;
+    }
+
+    private function statementAttachmentName(string $attachmentName): string
+    {
+        $baseName = basename(str_replace('\\', '/', $attachmentName));
+        $safeName = preg_replace('/[^A-Za-z0-9._-]+/', '-', $baseName) ?? '';
+        $safeName = trim($safeName, '.-');
+        if ($safeName === '') {
+            $safeName = 'customer-statement.pdf';
+        }
+
+        if (!str_ends_with(strtolower($safeName), '.pdf')) {
+            $safeName .= '.pdf';
+        }
+
+        return $safeName;
+    }
+
+    /**
+     * @return array{mailer: string, fromAddress: string, fromName: string}
+     */
+    private function configureStatementMailer(): array
+    {
+        $company = $this->salesCompanyProfile();
+        $companyEmail = trim((string) ($company['email'] ?? ''));
+        $defaultFromAddress = trim((string) config('mail.from.address', ''));
+        $defaultFromName = trim((string) config('mail.from.name', ''));
+
+        if ($this->smtpMailEnabled()) {
+            $setting = $this->mailSetting();
+            if (!$setting || trim((string) $setting->host) === '') {
+                throw new \InvalidArgumentException('SMTP mail is enabled but server settings are incomplete.');
+            }
+
+            $fromAddress = trim((string) ($setting->from_address ?? '')) ?: $companyEmail ?: $defaultFromAddress;
+            if (!filter_var($fromAddress, FILTER_VALIDATE_EMAIL)) {
+                throw new \InvalidArgumentException('A valid SMTP from address is required before sending customer statements.');
+            }
+
+            $fromName = trim((string) ($setting->from_name ?? '')) ?: (string) ($company['name'] ?? '') ?: $defaultFromName ?: 'Akiva';
+            $encryption = strtolower(trim((string) ($setting->encryption ?? 'none')));
+            $scheme = $encryption === 'ssl' ? 'smtps' : 'smtp';
+            $usesAuth = (bool) ($setting->auth ?? false);
+            $heloAddress = trim((string) ($setting->heloaddress ?? ''));
+
+            config([
+                'mail.default' => 'smtp',
+                'mail.mailers.smtp.transport' => 'smtp',
+                'mail.mailers.smtp.scheme' => $scheme,
+                'mail.mailers.smtp.host' => trim((string) $setting->host),
+                'mail.mailers.smtp.port' => (int) ($setting->port ?: 25),
+                'mail.mailers.smtp.username' => $usesAuth ? trim((string) $setting->username) : null,
+                'mail.mailers.smtp.password' => $usesAuth ? (string) $setting->password : null,
+                'mail.mailers.smtp.timeout' => (int) ($setting->timeout ?: 10),
+                'mail.mailers.smtp.auto_tls' => $encryption !== 'none',
+                'mail.mailers.smtp.require_tls' => $encryption === 'tls',
+                'mail.mailers.smtp.local_domain' => $heloAddress !== '' ? $heloAddress : config('mail.mailers.smtp.local_domain'),
+                'mail.from.address' => $fromAddress,
+                'mail.from.name' => $fromName,
+            ]);
+
+            Mail::purge('smtp');
+            Mail::setDefaultDriver('smtp');
+
+            return [
+                'mailer' => 'smtp',
+                'fromAddress' => $fromAddress,
+                'fromName' => $fromName,
+            ];
+        }
+
+        $mailer = (string) config('mail.default', 'log');
+        if (in_array($mailer, ['array', 'log'], true)) {
+            throw new \InvalidArgumentException('SMTP mail is not enabled. Turn on SMTP mail before sending customer statements.');
+        }
+
+        $fromAddress = $companyEmail ?: $defaultFromAddress;
+        if (!filter_var($fromAddress, FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('A valid from address is required before sending customer statements.');
+        }
+
+        $fromName = (string) ($company['name'] ?? '') ?: $defaultFromName ?: 'Akiva';
+        config([
+            'mail.from.address' => $fromAddress,
+            'mail.from.name' => $fromName,
+        ]);
+        Mail::purge($mailer);
+        Mail::setDefaultDriver($mailer);
+
+        return [
+            'mailer' => $mailer,
+            'fromAddress' => $fromAddress,
+            'fromName' => $fromName,
+        ];
+    }
+
+    private function smtpMailEnabled(): bool
+    {
+        if (!Schema::hasTable('config')) {
+            return false;
+        }
+
+        return (string) DB::table('config')->where('confname', 'SmtpSetting')->value('confvalue') === '1';
+    }
+
+    private function mailSetting(): ?EmailSetting
+    {
+        if (!Schema::hasTable('emailsettings')) {
+            return null;
+        }
+
+        return EmailSetting::query()->orderBy('id')->first();
     }
 
     private function companyCurrency(): string
